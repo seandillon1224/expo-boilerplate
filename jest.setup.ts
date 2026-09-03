@@ -15,3 +15,10 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 jest.mock('expo-localization', () => ({
   getLocales: () => [{ languageCode: 'fr', languageTag: 'fr-FR', regionCode: 'FR' }],
 }));
+
+// Sentry needs native modules; the app only ever calls this small surface.
+jest.mock('@sentry/react-native', () => ({
+  init: jest.fn(),
+  captureException: jest.fn(),
+  wrap: <T>(component: T) => component,
+}));

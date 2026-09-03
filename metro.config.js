@@ -1,9 +1,19 @@
 // https://docs.expo.dev/guides/customizing-metro/
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativewind } = require('nativewind/metro');
 
-/** @type {import('expo/metro-config').MetroConfig} */
-const config = getDefaultConfig(__dirname);
+/**
+ * Sentry wraps Expo's default config (Debug ID serializer so uploaded source maps
+ * match bundles, collapsed Sentry frames in LogBox). NativeWind is layered on top so
+ * its transformer and CSS handling see the final config.
+ * @type {import('expo/metro-config').MetroConfig}
+ */
+const config = getSentryExpoConfig(__dirname, {
+  getDefaultConfig,
+  // Web session replay is not used; keep it out of the web bundle.
+  includeWebReplay: false,
+});
 
 module.exports = withNativewind(config, {
   // Keep CSS variables as runtime references so light/dark tokens in global.css

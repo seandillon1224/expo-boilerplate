@@ -16,6 +16,8 @@
     "title": "Home"
   },
   "settings": {
+    "sentryTest": "Send test error to Sentry",
+    "sentryTestSent": "Test error sent (no-op unless a DSN is configured).",
     "subtitle": "App preferences and diagnostics will live here.",
     "title": "Settings"
   },
