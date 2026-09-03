@@ -13,6 +13,9 @@ import { configureObserve, wrapObserveRoot } from '@/lib/observe';
 import { initSentry, wrapRoot } from '@/lib/sentry';
 import { QueryProvider } from '@/providers/query-provider';
 
+// Router renders this for any route that throws during render (routes may override).
+export { RouteErrorBoundary as ErrorBoundary } from '@/components/route-error-boundary';
+
 // Surface EXPO_PUBLIC_* misconfiguration before any screen mounts.
 assertEnv();
 // No-op unless EXPO_PUBLIC_SENTRY_DSN is set; must run before the first render.

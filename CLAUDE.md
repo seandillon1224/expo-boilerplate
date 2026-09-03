@@ -46,6 +46,9 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
   never call `expo-updates` actions from screens directly. `useUpdateInfo` is the read-only view.
 - All user-facing strings go through `t()` from `react-i18next` (keys typed against `src/i18n/locales/en/common.json`);
   run `bun run i18n:extract` after adding keys.
+- Loading / empty / error UI comes from `@/components/states` (`LoadingState`, `EmptyState`, `ErrorState`);
+  pass screen-specific `testID`s through. Render errors: `ErrorBoundary` (`@/components/error-boundary`)
+  for subtrees; routes get `RouteErrorBoundary` via the root layout's `ErrorBoundary` export.
 
 ## CI/CD shape (see PLAN.md decisions 1–3, 12–13)
 
