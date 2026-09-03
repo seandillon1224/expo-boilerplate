@@ -28,8 +28,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#13 T1.3** — TanStack Query provider + persistence-ready setup; **Fetch screen** hitting a public API with loading/empty/error states.
 - [x] **#14 T1.4** — Zod `env` schema + `env-check` script (CLI and startup).
 - [x] **#15 T1.5** — i18next with one locale, `i18next-parser` check script.
-- [~] **#16 T1.6** — Sentry wired, no-op without DSN; source-map upload hook ready for the update job.
-- [ ] **#17 T1.7** — `expo-updates` integration: **Updates screen** showing runtime version, channel, update ID, embedded vs OTA, "check for update" button, plus a `useUpdatePolicy` hook stub (filled in by D3).
+- [x] **#16 T1.6** — Sentry wired, no-op without DSN; source-map upload hook ready for the update job.
+- [~] **#17 T1.7** — `expo-updates` integration: **Updates screen** showing runtime version, channel, update ID, embedded vs OTA, "check for update" button, plus a `useUpdatePolicy` hook stub (filled in by D3).
 - [ ] **#18 T1.8** — EAS Observe (`expo-observe`) root wrapper + per-route metrics; `markInteractive` on the fetch screen.
 - [ ] **#19 T1.9** — Error boundary + standard Loading/Empty/Error components.
 
@@ -115,3 +115,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #13 | t13-tanstack-query-fetch | https://github.com/seandillon1224/expo-boilerplate/pull/86 | merged | 2026-09-03
 - 2026-09-03 — #14 | t14-zod-env | https://github.com/seandillon1224/expo-boilerplate/pull/87 | merged | 2026-09-03
 - 2026-09-03 — #15 | t15-i18next | https://github.com/seandillon1224/expo-boilerplate/pull/88 | merged | 2026-09-03
+- 2026-09-03 — #16 | t16-sentry | https://github.com/seandillon1224/expo-boilerplate/pull/89 | merged | 2026-09-03 (human owes: Sentry DSN + SENTRY_ORG/PROJECT/AUTH_TOKEN in EAS env, SENTRY_AUTH_TOKEN GitHub secret)
