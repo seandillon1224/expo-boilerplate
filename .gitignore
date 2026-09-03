@@ -52,3 +52,5 @@ example
 coverage/
 junit/
 .maestro/**/*.mp4
+.maestro/**/*.png
+maestro-web/

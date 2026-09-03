@@ -18,6 +18,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run test` — Jest; `test:coverage` for coverage
 - `bun run knip` — dead code / unused deps
 - `bun run export:web` (or `export:ios` / `export:android`) then `bun run budget` — JS-only export + gzip bundle-budget check (`bundle-budget.json`)
+- `bun run e2e:web` — Maestro web flows (`.maestro/flows`, tag `web`) against the static export; needs `bun run export:web` and `bun run serve:web` running first
 - `bun run env:check` — validate `EXPO_PUBLIC_*` against the Zod schema (also runs at app startup)
 - `bun run i18n:extract` / `i18n:check` — sync `src/i18n/locales/*/common.json` with `t()` keys in code / fail if out of sync
 - Full local gate before a PR: `bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check`

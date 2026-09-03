@@ -1,0 +1,7 @@
+# Smoke: the app boots to the Home screen.
+url: ${APP_URL}
+tags: [web, ios, android]
+---
+- runFlow: ../subflows/launch.yaml
+- assertVisible:
+    id: home-screen

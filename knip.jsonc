@@ -9,6 +9,8 @@
     "src/tw/index.tsx",
   ],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{js,ts}", "*.{js,ts}"],
+  // Maestro CLI is installed outside package.json (~/.maestro/bin locally, curl installer in CI).
+  "ignoreBinaries": ["maestro"],
   "ignoreDependencies": [
     // Only referenced in jest.config.js when CI is set; knip evaluates it without CI.
     "jest-junit",

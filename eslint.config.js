@@ -40,6 +40,7 @@ module.exports = defineConfig([
         module: 'writable',
         process: 'readonly',
         console: 'readonly',
+        Bun: 'readonly',
       },
     },
   },

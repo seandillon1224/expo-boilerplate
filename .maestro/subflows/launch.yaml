@@ -1,0 +1,6 @@
+# Shared launch step: `runFlow: ../subflows/launch.yaml` at the top of every flow.
+# On web, `launchApp` opens the flow's `url` (the served static export). E4 adds the native
+# branch (`appId: ${APP_ID}`, clearState, permissions) here so flows keep one entry point.
+url: ${APP_URL}
+---
+- launchApp

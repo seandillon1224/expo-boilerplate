@@ -1,0 +1,17 @@
+# Maestro workspace (PLAN.md decision 6: Maestro for E2E on iOS, Android, and web).
+#
+# Layout (E4 / #34 owns the full shape; only the `web` tag is wired into CI so far — see the
+# `maestro-web` job in .github/workflows/ci.yml):
+#   flows/      one flow per feature, tagged with the platforms it runs on (web, ios, android)
+#   subflows/   shared steps (`launch.yaml`) pulled in with `runFlow`; not discovered as flows
+#
+# Env (`maestro test -e KEY=value`):
+#   APP_URL  web: where the static export is served; `bun run e2e:web` defaults it to
+#            http://localhost:8081 (`bun run serve:web`). A flow whose header has `url:` is a
+#            web flow (Maestro picks Chromium from that key alone; `--platform` does not).
+#   APP_ID   native (E4): the variant's bundle id / package derived in app.config.ts, e.g.
+#            com.example.app.dev — YAML cannot read APP_VARIANT, so the native lane passes it.
+#
+# Run web locally:  bun run export:web && bun run serve:web &   then   bun run e2e:web
+flows:
+  - 'flows/*'
