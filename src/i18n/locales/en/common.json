@@ -19,10 +19,49 @@
     "sentryTest": "Send test error to Sentry",
     "sentryTestSent": "Test error sent (no-op unless a DSN is configured).",
     "subtitle": "App preferences and diagnostics will live here.",
-    "title": "Settings"
+    "title": "Settings",
+    "updatesLink": "OTA updates"
   },
   "tabs": {
     "home": "Home",
     "settings": "Settings"
+  },
+  "updates": {
+    "apply": "Download and restart",
+    "check": "Check for update",
+    "checking": "Checking…",
+    "downloading": "Downloading…",
+    "none": "—",
+    "pending": "An update has been downloaded and will apply on next launch.",
+    "policies": {
+      "forced": "Forced",
+      "manual": "Manual",
+      "opt-in": "Opt-in",
+      "silent": "Silent"
+    },
+    "rows": {
+      "channel": "Channel",
+      "createdAt": "Created at",
+      "enabled": "Updates enabled",
+      "policy": "Policy",
+      "runtimeVersion": "Runtime version",
+      "source": "Source",
+      "updateId": "Update ID"
+    },
+    "status": {
+      "available": "An update is available.",
+      "checking": "Checking for updates…",
+      "error": "Update check failed: {{message}}",
+      "skippedDev": "Skipped: update checks are off in development builds.",
+      "skippedDisabled": "Skipped: updates are disabled in this build (dev client, web, or no EAS project).",
+      "upToDate": "You are up to date."
+    },
+    "title": "Updates",
+    "values": {
+      "embedded": "Embedded (bundled with the binary)",
+      "no": "No",
+      "ota": "OTA update",
+      "yes": "Yes"
+    }
   }
 }
