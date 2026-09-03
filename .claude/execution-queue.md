@@ -40,8 +40,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#22 T2.3** — Secret scan (gitleaks) job.
 - [x] **#23 T2.4** — `expo export --platform web` + bundle budget check (`bundle-budget.json`, per-platform); iOS/Android JS-only export budgets.
 - [x] **#24 T2.5** — Maestro web: serve the static export, run `.maestro` web-tagged flows, JUnit report + screenshots on failure as artifacts.
-- [~] **#25 T2.6** — Reassure perf tests job with baseline compare on PR.
-- [ ] **#26 T2.7** — Renovate auto-merge wiring (required checks, branch protection as code via `gh` script).
+- [x] **#25 T2.6** — Reassure perf tests job with baseline compare on PR.
+- [~] **#26 T2.7** — Renovate auto-merge wiring (required checks, branch protection as code via `gh` script).
 - [ ] **#27 T2.8** — Required-checks doc: which checks gate merge, how EAS checks appear on the PR.
 
 ### E3 — EAS foundation (tracker #70)
@@ -124,3 +124,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #22 | t22-gitleaks | https://github.com/seandillon1224/expo-boilerplate/pull/95 | merged | 2026-09-03
 - 2026-09-03 — #23 | t23-bundle-budget | https://github.com/seandillon1224/expo-boilerplate/pull/96 | merged | 2026-09-03
 - 2026-09-03 — #24 | t24-maestro-web | https://github.com/seandillon1224/expo-boilerplate/pull/97 | merged | 2026-09-03 (paused after this; local Maestro CLI needs upgrade to >=2.9; #34 note: a `url:` header always makes a flow web-only)
+- 2026-09-03 — #25 | t25-reassure | https://github.com/seandillon1224/expo-boilerplate/pull/98 | merged | 2026-09-03
