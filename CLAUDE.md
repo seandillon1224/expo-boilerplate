@@ -18,13 +18,14 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run test` — Jest; `test:coverage` for coverage
 - `bun run knip` — dead code / unused deps
 - `bun run env:check` — validate `EXPO_PUBLIC_*` against the Zod schema (also runs at app startup)
-- Full local gate before a PR: `bun run lint && bun run typecheck && bun run test && bun run knip`
+- `bun run i18n:extract` / `i18n:check` — sync `src/i18n/locales/*/common.json` with `t()` keys in code / fail if out of sync
+- Full local gate before a PR: `bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check`
 
 ## Conventions
 
 - **Conventional Commits** are enforced by commitlint (commit-msg hook) and the PR-title check.
   Subject must be lowercase; PR titles become the squash commit message.
-- Lefthook runs eslint/prettier on staged files (pre-commit) and typecheck + knip (pre-push).
+- Lefthook runs eslint/prettier on staged files (pre-commit) and typecheck + knip + env/i18n checks (pre-push).
 - Source lives in `src/`; routes in `src/app/` (Expo Router, typed routes on). Path alias `@/` → `src/`.
 - `app.config.ts` derives name / bundle id / package / scheme from `APP_VARIANT`
   (`development` | `staging` | `uat` | `production`). Never hardcode identifiers elsewhere.
@@ -34,6 +35,8 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - TypeScript 6: `@types/*` are not auto-included; add to `types` in `tsconfig.json`.
 - `EXPO_PUBLIC_*` variables are read only through `@/lib/env` (schema in `src/lib/env.schema.ts`);
   never `process.env` directly. Document new keys in `.env.example`.
+- All user-facing strings go through `t()` from `react-i18next` (keys typed against `src/i18n/locales/en/common.json`);
+  run `bun run i18n:extract` after adding keys.
 
 ## CI/CD shape (see PLAN.md decisions 1–3, 12–13)
 

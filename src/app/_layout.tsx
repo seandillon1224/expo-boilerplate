@@ -1,4 +1,6 @@
 import '@/global.css';
+// Registers i18next with react-i18next before any screen calls useTranslation().
+import '@/i18n';
 
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router/stack';

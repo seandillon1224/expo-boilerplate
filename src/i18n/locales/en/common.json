@@ -1,0 +1,26 @@
+{
+  "fetch": {
+    "emptyBody": "The API returned an empty list.",
+    "emptyTitle": "No posts yet",
+    "errorTitle": "Something went wrong",
+    "loading": "Loading posts…",
+    "refetch": "Refetch",
+    "refreshing": "Refreshing…",
+    "retry": "Retry",
+    "source": "jsonplaceholder.typicode.com/posts",
+    "title": "Fetch"
+  },
+  "home": {
+    "fetchLink": "Open fetch demo",
+    "subtitle": "Opinionated infra, thin product. Start building in src/app/(tabs)/(home).",
+    "title": "Home"
+  },
+  "settings": {
+    "subtitle": "App preferences and diagnostics will live here.",
+    "title": "Settings"
+  },
+  "tabs": {
+    "home": "Home",
+    "settings": "Settings"
+  }
+}

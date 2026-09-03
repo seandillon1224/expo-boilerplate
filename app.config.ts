@@ -55,6 +55,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-router',
+    // Enables per-app language settings (iOS Settings / Android 13+ app languages).
+    'expo-localization',
     [
       'expo-splash-screen',
       {
