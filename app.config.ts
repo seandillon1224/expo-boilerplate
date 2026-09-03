@@ -25,6 +25,18 @@ const SUFFIX: Record<Variant, { name: string; id: string; scheme: string }> = {
 
 const v = SUFFIX[VARIANT];
 
+/**
+ * Sentry org/project are build-time values (never EXPO_PUBLIC_*). They are only
+ * needed for native source-map upload on EAS Build, so they are omitted when unset:
+ * `expo config` and CNG prebuild keep working, and sentry-cli falls back to the
+ * SENTRY_ORG / SENTRY_PROJECT / SENTRY_AUTH_TOKEN environment variables.
+ */
+const SENTRY_PLUGIN_PROPS = {
+  url: 'https://sentry.io/',
+  ...(process.env.SENTRY_ORG ? { organization: process.env.SENTRY_ORG } : {}),
+  ...(process.env.SENTRY_PROJECT ? { project: process.env.SENTRY_PROJECT } : {}),
+};
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: `${BASE.name}${v.name}`,
@@ -65,6 +77,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         imageWidth: 76,
       },
     ],
+    ['@sentry/react-native/expo', SENTRY_PLUGIN_PROPS],
   ],
   experiments: {
     typedRoutes: true,

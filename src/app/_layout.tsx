@@ -9,14 +9,17 @@ import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { assertEnv } from '@/lib/env';
+import { initSentry, wrapRoot } from '@/lib/sentry';
 import { QueryProvider } from '@/providers/query-provider';
 
 // Surface EXPO_PUBLIC_* misconfiguration before any screen mounts.
 assertEnv();
+// No-op unless EXPO_PUBLIC_SENTRY_DSN is set; must run before the first render.
+initSentry();
 
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+function RootLayout() {
   const colorScheme = useColorScheme();
   return (
     <QueryProvider>
@@ -29,3 +32,5 @@ export default function RootLayout() {
     </QueryProvider>
   );
 }
+
+export default wrapRoot(RootLayout);
