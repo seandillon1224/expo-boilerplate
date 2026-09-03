@@ -33,6 +33,9 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - Every pressable / input gets a `testID` (lint-enforced) — Maestro flows never select by text.
 - `@testing-library/react-native` v14: `render`, `rerender`, `unmount` are **async** — `await` them.
 - TypeScript 6: `@types/*` are not auto-included; add to `types` in `tsconfig.json`.
+- EAS Observe (`src/lib/observe.ts`) owns prod perf telemetry and is silent until `eas init` adds
+  `extra.eas.projectId`. Every screen that loads data marks interactivity via `markInteractive`
+  from `expo-observe` (`useObserve()`) once content is usable — never while loading.
 - Sentry (`src/lib/sentry.ts`) is a no-op without `EXPO_PUBLIC_SENTRY_DSN`; tracing stays off.
   Build-time `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` drive source-map uploads
   (`bun run sentry:sourcemaps` after `expo export` / `eas update`); never `EXPO_PUBLIC_`.

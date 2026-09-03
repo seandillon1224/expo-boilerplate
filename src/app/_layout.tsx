@@ -9,6 +9,7 @@ import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { assertEnv } from '@/lib/env';
+import { configureObserve, wrapObserveRoot } from '@/lib/observe';
 import { initSentry, wrapRoot } from '@/lib/sentry';
 import { QueryProvider } from '@/providers/query-provider';
 
@@ -16,6 +17,8 @@ import { QueryProvider } from '@/providers/query-provider';
 assertEnv();
 // No-op unless EXPO_PUBLIC_SENTRY_DSN is set; must run before the first render.
 initSentry();
+// Silent until `extra.eas.projectId` exists (#28); enables per-route Expo Router metrics.
+configureObserve();
 
 SplashScreen.preventAutoHideAsync();
 
@@ -33,4 +36,6 @@ function RootLayout() {
   );
 }
 
-export default wrapRoot(RootLayout);
+// Sentry outermost (error boundary / touch instrumentation around everything); Observe
+// inside it so first-render timing covers the app tree and screens see its provider.
+export default wrapRoot(wrapObserveRoot(RootLayout));

@@ -1,3 +1,5 @@
+import { useObserve } from 'expo-observe';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, FlatList } from 'react-native';
 
@@ -22,6 +24,14 @@ function Centered({ children }: { children: React.ReactNode }) {
 export default function FetchScreen() {
   const { t } = useTranslation();
   const { data, isPending, isError, error, refetch, isFetching } = usePosts();
+  const { markInteractive } = useObserve();
+
+  // TTI: the screen is usable once content (or the empty state) is on screen, not while
+  // loading or in error. Only the first call per screen visit is recorded.
+  const isInteractive = !isPending && !isError;
+  useEffect(() => {
+    if (isInteractive) markInteractive();
+  }, [isInteractive, markInteractive]);
 
   let content: React.ReactNode;
   if (isPending) {

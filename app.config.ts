@@ -102,5 +102,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     appVariant: VARIANT,
+    // TODO(#28): `eas init` adds `eas: { projectId }` here. EAS Observe (src/lib/observe.ts)
+    // reads it natively and stays silent until it exists. Never hardcode it.
   },
 });
