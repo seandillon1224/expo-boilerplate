@@ -22,6 +22,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run e2e:web` — Maestro web flows (`.maestro/flows`, tag `web`) against the static export; needs `bun run export:web` and `bun run serve:web` running first
 - `bun run env:check` — validate `EXPO_PUBLIC_*` against the Zod schema (also runs at app startup)
 - `bun run i18n:extract` / `i18n:check` — sync `src/i18n/locales/*/common.json` with `t()` keys in code / fail if out of sync
+- `bun run repo:settings:apply` / `repo:settings:check` — push / diff `main` branch protection + merge settings (`scripts/repo-settings.js`; plain `repo:settings` is a dry run)
 - Full local gate before a PR: `bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check`
 
 ## Conventions
@@ -58,6 +59,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 
 - GitHub Actions (`.github/workflows/ci.yml`) = JS gate only (lint, typecheck, unit, knip, format, commitlint on the commit range, secret scan, bundle budget, Maestro web).
 - `.github/workflows/pr-title.yml` lints the PR title with the same `commitlint.config.js` (the title becomes the squash commit).
+- Required checks on `main` (every CI job except `Perf (Reassure)`) and merge settings (squash-only, auto-merge on for Renovate) are managed by `scripts/repo-settings.js`; run `bun run repo:settings:apply` once after creating a repo from the template.
 - EAS Workflows = native lane (fingerprint → get-build/build → repack → maestro → update → approval → submit).
 - `main` → OTA to `staging`; UAT/production are manual, approval-gated promotions of the same update group.
 

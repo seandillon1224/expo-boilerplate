@@ -7,6 +7,10 @@
   schedule: ['before 6am on monday'],
   labels: ['dependencies'],
   rangeStrategy: 'bump',
+  // Auto-merge goes through GitHub's native auto-merge, gated by the required checks that
+  // `bun run repo:settings:apply` (scripts/repo-settings.js) configures on `main`.
+  automergeType: 'pr',
+  platformAutomerge: true,
   lockFileMaintenance: { enabled: true, schedule: ['before 6am on the first day of the month'] },
   packageRules: [
     // Expo SDK packages move together and must be bumped with `bunx expo install --fix`
@@ -54,6 +58,7 @@
       matchUpdateTypes: ['minor', 'patch', 'digest'],
       groupName: 'github actions',
       automerge: true,
+      automergeType: 'pr',
       platformAutomerge: true,
     },
   ],
