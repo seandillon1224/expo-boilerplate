@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { captureException } from '@/lib/sentry';
-import { Pressable, Text, View } from '@/tw';
+import { Link, Pressable, Text, View } from '@/tw';
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
@@ -21,6 +21,14 @@ export default function SettingsScreen() {
     >
       <Text className="text-foreground text-2xl font-semibold">{t('settings.title')}</Text>
       <Text className="text-muted-foreground text-center">{t('settings.subtitle')}</Text>
+      <Link
+        href="/updates"
+        testID="settings-updates-link"
+        accessibilityRole="link"
+        className="bg-muted text-foreground mt-4 rounded-md px-4 py-2 font-semibold"
+      >
+        {t('settings.updatesLink')}
+      </Link>
       <Pressable
         testID="settings-sentry-test"
         accessibilityRole="button"

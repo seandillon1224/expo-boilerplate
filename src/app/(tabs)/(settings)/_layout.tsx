@@ -6,6 +6,7 @@ export default function SettingsStackLayout() {
   return (
     <Stack>
       <Stack.Screen name="settings" options={{ title: t('settings.title') }} />
+      <Stack.Screen name="updates" options={{ title: t('updates.title') }} />
     </Stack>
   );
 }

@@ -17,6 +17,7 @@
     "expo-router": "~57.0.18",
     "expo-splash-screen": "~57.0.8",
     "expo-system-ui": "~57.0.3",
+    "expo-updates": "~57.0.21",
     "i18next": "^26.4.1",
     "nativewind": "5.0.0-preview.4",
     "react": "19.2.3",

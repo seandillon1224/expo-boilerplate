@@ -26,6 +26,16 @@ const SUFFIX: Record<Variant, { name: string; id: string; scheme: string }> = {
 const v = SUFFIX[VARIANT];
 
 /**
+ * EAS Update. `runtimeVersion` follows the native fingerprint (PLAN.md #2), so an OTA
+ * only reaches builds whose native code it was made for. `url` / `extra.eas.projectId`
+ * are added by `eas init` (#28) and channels by T3.3; until then updates are configured
+ * but inert, and the app runs the embedded bundle (`Updates.isEnabled` is false in dev
+ * clients regardless). `checkAutomatically` stays ON_LOAD for now — the
+ * `useUpdatePolicy` hook (src/features/updates, filled in by D3) owns runtime behaviour.
+ */
+const UPDATES_URL = process.env.EAS_UPDATE_URL;
+
+/**
  * Sentry org/project are build-time values (never EXPO_PUBLIC_*). They are only
  * needed for native source-map upload on EAS Build, so they are omitted when unset:
  * `expo config` and CNG prebuild keep working, and sentry-cli falls back to the
@@ -64,6 +74,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: {
     output: 'static',
     favicon: './assets/images/favicon.png',
+  },
+  runtimeVersion: { policy: 'fingerprint' },
+  updates: {
+    enabled: true,
+    checkAutomatically: 'ON_LOAD',
+    fallbackToCacheTimeout: 0,
+    ...(UPDATES_URL ? { url: UPDATES_URL } : {}),
   },
   plugins: [
     'expo-router',

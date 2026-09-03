@@ -38,6 +38,9 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
   (`bun run sentry:sourcemaps` after `expo export` / `eas update`); never `EXPO_PUBLIC_`.
 - `EXPO_PUBLIC_*` variables are read only through `@/lib/env` (schema in `src/lib/env.schema.ts`);
   never `process.env` directly. Document new keys in `.env.example`.
+- OTA updates: `useUpdatePolicy` (`src/features/updates/use-update-policy.ts`) is the single place to
+  change update behaviour (check / download / reload, and later forced / opt-in / silent + rollout);
+  never call `expo-updates` actions from screens directly. `useUpdateInfo` is the read-only view.
 - All user-facing strings go through `t()` from `react-i18next` (keys typed against `src/i18n/locales/en/common.json`);
   run `bun run i18n:extract` after adding keys.
 

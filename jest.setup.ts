@@ -20,5 +20,31 @@ jest.mock('expo-localization', () => ({
 jest.mock('@sentry/react-native', () => ({
   init: jest.fn(),
   captureException: jest.fn(),
+  setTag: jest.fn(),
+  setContext: jest.fn(),
+  flush: jest.fn(async () => true),
   wrap: <T>(component: T) => component,
+}));
+
+// expo-updates needs a native module. Default to the "updates disabled" shape a dev
+// client reports; tests that exercise the enabled path override `isEnabled` per test.
+jest.mock('expo-updates', () => ({
+  isEnabled: false,
+  runtimeVersion: 'test',
+  channel: null,
+  updateId: null,
+  isEmbeddedLaunch: true,
+  createdAt: null,
+  checkAutomatically: null,
+  checkForUpdateAsync: jest.fn(() => Promise.resolve({ isAvailable: false })),
+  fetchUpdateAsync: jest.fn(() => Promise.resolve({ isNew: false })),
+  reloadAsync: jest.fn(() => Promise.resolve()),
+  useUpdates: jest.fn(() => ({
+    currentlyRunning: { isEmbeddedLaunch: true, isEmergencyLaunch: false },
+    isStartupProcedureRunning: false,
+    isUpdateAvailable: false,
+    isUpdatePending: false,
+    isChecking: false,
+    isDownloading: false,
+  })),
 }));
