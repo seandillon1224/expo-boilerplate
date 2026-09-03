@@ -1,5 +1,7 @@
 # Expo Boilerplate
 
+[![CI](https://github.com/seandillon1224/expo-boilerplate/actions/workflows/ci.yml/badge.svg)](https://github.com/seandillon1224/expo-boilerplate/actions/workflows/ci.yml)
+
 Opinionated Expo template: Bun-only, EAS Workflows native lane, GitHub Actions JS gate, Maestro E2E on iOS, Android and web.
 
 > Work in progress. See `PLAN.md` for the design and the epic/ticket breakdown.
