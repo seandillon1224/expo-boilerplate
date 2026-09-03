@@ -26,8 +26,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#11 T1.1** — NativeWind v5 / Tailwind v4 setup per the `expo-tailwind-setup` guide; theme tokens; dark mode.
 - [x] **#12 T1.2** — Layout: native tabs (Home, Settings); Stack inside each.
 - [x] **#13 T1.3** — TanStack Query provider + persistence-ready setup; **Fetch screen** hitting a public API with loading/empty/error states.
-- [~] **#14 T1.4** — Zod `env` schema + `env-check` script (CLI and startup).
-- [ ] **#15 T1.5** — i18next with one locale, `i18next-parser` check script.
+- [x] **#14 T1.4** — Zod `env` schema + `env-check` script (CLI and startup).
+- [~] **#15 T1.5** — i18next with one locale, `i18next-parser` check script.
 - [ ] **#16 T1.6** — Sentry wired, no-op without DSN; source-map upload hook ready for the update job.
 - [ ] **#17 T1.7** — `expo-updates` integration: **Updates screen** showing runtime version, channel, update ID, embedded vs OTA, "check for update" button, plus a `useUpdatePolicy` hook stub (filled in by D3).
 - [ ] **#18 T1.8** — EAS Observe (`expo-observe`) root wrapper + per-route metrics; `markInteractive` on the fetch screen.
@@ -113,3 +113,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #11 | t11-nativewind-tailwind | https://github.com/seandillon1224/expo-boilerplate/pull/84 | merged | 2026-09-03
 - 2026-09-03 — #12 | t12-native-tabs | https://github.com/seandillon1224/expo-boilerplate/pull/85 | merged | 2026-09-03
 - 2026-09-03 — #13 | t13-tanstack-query-fetch | https://github.com/seandillon1224/expo-boilerplate/pull/86 | merged | 2026-09-03
+- 2026-09-03 — #14 | t14-zod-env | https://github.com/seandillon1224/expo-boilerplate/pull/87 | merged | 2026-09-03
