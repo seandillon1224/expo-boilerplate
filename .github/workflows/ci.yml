@@ -1,6 +1,5 @@
 # JS gate (PLAN.md decision 1). Everything that needs no simulator runs here;
-# the native lane lives in EAS Workflows. Later E2 tickets add sibling jobs
-# (reassure). PR titles are checked in pr-title.yml.
+# the native lane lives in EAS Workflows. PR titles are checked in pr-title.yml.
 name: CI
 
 on:
@@ -225,5 +224,63 @@ jobs:
         with:
           name: maestro-web
           path: maestro-web/
+          if-no-files-found: warn
+          retention-days: 14
+
+  perf:
+    # Reassure render-duration compare (PLAN.md decision 7): measure the PR base commit as the
+    # baseline, then the PR merge commit, on the same runner so both share its noise, and fail
+    # via scripts/reassure-gate.js on any statistically significant slowdown. PR-only: a push
+    # to main has no base to compare against. Report goes to the step summary and the
+    # `reassure` artifact; no Danger / PR comment, so permissions stay read-only.
+    name: Perf (Reassure)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Measure baseline (PR base)
+        # The base may predate `perf:baseline` (skip: compare then runs without a baseline and
+        # the gate passes) or have no perf tests yet (--passWithNoTests: compare reports "added").
+        run: |
+          git switch --detach "$BASE_SHA"
+          bun install --frozen-lockfile
+          if node -e "process.exit(require('./package.json').scripts['perf:baseline'] ? 0 : 1)"; then
+            bun run perf:baseline --branch "$BASE_REF" --commit-hash "$BASE_SHA" -- --passWithNoTests
+          else
+            echo "::notice::perf:baseline script not present on $BASE_REF; no baseline to compare against"
+          fi
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      - name: Measure current (PR head)
+        run: |
+          git switch --detach "$HEAD_SHA"
+          bun install --frozen-lockfile
+          bun run perf --branch "$HEAD_REF" --commit-hash "$HEAD_SHA"
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.sha }}
+      - name: Gate on significant regressions
+        run: bun run perf:gate
+      - name: Publish report to step summary
+        if: always()
+        run: |
+          if [ -f .reassure/output.md ]; then
+            cat .reassure/output.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No Reassure comparison report (missing baseline or measurement failed)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload Reassure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reassure
+          path: .reassure/
           if-no-files-found: warn
           retention-days: 14
