@@ -1,6 +1,6 @@
 # JS gate (PLAN.md decision 1). Everything that needs no simulator runs here;
 # the native lane lives in EAS Workflows. Later E2 tickets add sibling jobs
-# (bundle-budget, maestro-web, reassure). PR titles are checked in pr-title.yml.
+# (maestro-web, reassure). PR titles are checked in pr-title.yml.
 name: CI
 
 on:
@@ -151,3 +151,35 @@ jobs:
             coverage/lcov-report/
           if-no-files-found: warn
           retention-days: 14
+
+  bundle-budget:
+    # JS-only `expo export` per platform (no native toolchain; PLAN.md decisions 7, 10) plus a
+    # gzip budget check against bundle-budget.json. The web export is also uploaded as
+    # `web-export` for the Maestro web job to reuse.
+    name: Bundle budget (${{ matrix.platform }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [web, ios, android]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: bun run export:${{ matrix.platform }}
+      - run: bun run budget:${{ matrix.platform }}
+      - name: Upload bundle sizes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-sizes-${{ matrix.platform }}
+          path: dist-${{ matrix.platform }}/bundle-sizes.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload web export
+        if: matrix.platform == 'web'
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-export
+          path: dist-web/
+          retention-days: 7

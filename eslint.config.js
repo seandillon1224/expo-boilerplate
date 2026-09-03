@@ -48,6 +48,7 @@ module.exports = defineConfig([
   {
     ignores: [
       'dist/*',
+      'dist-*/*',
       'coverage/*',
       '.expo/*',
       'expo-env.d.ts',

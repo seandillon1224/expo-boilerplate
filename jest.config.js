@@ -11,6 +11,7 @@ module.exports = {
     '/node_modules/',
     '/.expo/',
     '/dist/',
+    '/dist-',
     '/ios/',
     '/android/',
     '/.maestro/',
