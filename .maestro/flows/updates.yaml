@@ -1,0 +1,16 @@
+# Updates: Settings tab -> Updates screen shows the runtime version row.
+# Web tab selector: see tabs.yaml.
+url: ${APP_URL}
+tags: [web]
+---
+- runFlow: ../subflows/launch.yaml
+- tapOn:
+    id: ".*-trigger-\\(settings\\)-.*"
+- assertVisible:
+    id: settings-screen
+- tapOn:
+    id: settings-updates-link
+- assertVisible:
+    id: updates-screen
+- assertVisible:
+    id: updates-row-runtimeVersion

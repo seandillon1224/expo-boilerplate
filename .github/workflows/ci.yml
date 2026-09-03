@@ -1,6 +1,6 @@
 # JS gate (PLAN.md decision 1). Everything that needs no simulator runs here;
 # the native lane lives in EAS Workflows. Later E2 tickets add sibling jobs
-# (maestro-web, reassure). PR titles are checked in pr-title.yml.
+# (reassure). PR titles are checked in pr-title.yml.
 name: CI
 
 on:
@@ -183,3 +183,47 @@ jobs:
           name: web-export
           path: dist-web/
           retention-days: 7
+
+  maestro-web:
+    # Maestro web flows (`.maestro/flows`, tag `web`) against the static export from the
+    # bundle-budget web entry (PLAN.md decisions 6, 10). `needs` on a matrix job waits for every
+    # platform entry; only the web artifact is used. Maestro drives its own Chromium; JDK 17+ is
+    # preinstalled on ubuntu-latest. Pinned MAESTRO_VERSION: 2.3.0 reads a 1px viewport on
+    # Chrome 150+, fixed in 2.9.0.
+    name: Maestro web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: bundle-budget
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: 1
+      MAESTRO_VERSION: 2.10.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-export
+          path: dist-web
+      - name: Install Maestro
+        run: |
+          java -version
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Serve web export
+        run: |
+          nohup bun run serve:web > maestro-web-serve.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:8081/ && exit 0
+            sleep 1
+          done
+          echo "serve-web did not come up on :8081" >&2
+          exit 1
+      - run: bun run e2e:web
+      - name: Upload Maestro report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-web
+          path: maestro-web/
+          if-no-files-found: warn
+          retention-days: 14

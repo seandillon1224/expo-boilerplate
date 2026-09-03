@@ -1,0 +1,25 @@
+# Tab bar: Home -> Settings -> Home.
+#
+# Web selectors: NativeTabs renders Radix tabs on web (expo-router/build/native-tabs/
+# NativeTabsView.web.js). Triggers are <button role="tab"> with no testID/aria-label, only a
+# generated id `radix-<uid>-trigger-<routeKey>` where routeKey = `(home)-<nanoid>`. Maestro web
+# exposes the DOM id as the element id, so match it by regex (`.*-trigger-\(settings\)-.*`).
+# A `css:` selector (`button[role="tab"][id*="-trigger-(settings)-"]`) works too. Verified on
+# Maestro 2.10.0; 2.3.0 reports a 1px-high viewport on Chrome 150+ and finds nothing.
+#
+# Native tab items get tabBarItemTestID via NativeTabs.Trigger `testID`; E4 (#34) adds the
+# ios/android tags and selectors here.
+url: ${APP_URL}
+tags: [web]
+---
+- runFlow: ../subflows/launch.yaml
+- assertVisible:
+    id: home-screen
+- tapOn:
+    id: ".*-trigger-\\(settings\\)-.*"
+- assertVisible:
+    id: settings-screen
+- tapOn:
+    id: ".*-trigger-\\(home\\)-.*"
+- assertVisible:
+    id: home-screen
