@@ -30,8 +30,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#15 T1.5** — i18next with one locale, `i18next-parser` check script.
 - [x] **#16 T1.6** — Sentry wired, no-op without DSN; source-map upload hook ready for the update job.
 - [x] **#17 T1.7** — `expo-updates` integration: **Updates screen** showing runtime version, channel, update ID, embedded vs OTA, "check for update" button, plus a `useUpdatePolicy` hook stub (filled in by D3).
-- [~] **#18 T1.8** — EAS Observe (`expo-observe`) root wrapper + per-route metrics; `markInteractive` on the fetch screen.
-- [ ] **#19 T1.9** — Error boundary + standard Loading/Empty/Error components.
+- [x] **#18 T1.8** — EAS Observe (`expo-observe`) root wrapper + per-route metrics; `markInteractive` on the fetch screen.
+- [~] **#19 T1.9** — Error boundary + standard Loading/Empty/Error components.
 
 ### E2 — JS gate (GitHub Actions) (tracker #69)
 
@@ -117,3 +117,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #15 | t15-i18next | https://github.com/seandillon1224/expo-boilerplate/pull/88 | merged | 2026-09-03
 - 2026-09-03 — #16 | t16-sentry | https://github.com/seandillon1224/expo-boilerplate/pull/89 | merged | 2026-09-03 (human owes: Sentry DSN + SENTRY_ORG/PROJECT/AUTH_TOKEN in EAS env, SENTRY_AUTH_TOKEN GitHub secret)
 - 2026-09-03 — #17 | t17-expo-updates | https://github.com/seandillon1224/expo-boilerplate/pull/90 | merged | 2026-09-03 (human owes: EAS_UPDATE_URL after eas init #28)
+- 2026-09-03 — #18 | t18-eas-observe | https://github.com/seandillon1224/expo-boilerplate/pull/91 | merged | 2026-09-03 (silent until eas init #28 sets projectId)
