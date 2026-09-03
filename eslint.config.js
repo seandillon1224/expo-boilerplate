@@ -5,6 +5,7 @@ const prettierConfig = require('eslint-config-prettier');
 const a11y = require('eslint-plugin-react-native-a11y');
 const simpleImportSort = require('eslint-plugin-simple-import-sort');
 const unusedImports = require('eslint-plugin-unused-imports');
+const local = require('./eslint');
 
 module.exports = defineConfig([
   expoConfig,
@@ -14,8 +15,10 @@ module.exports = defineConfig([
       'react-native-a11y': a11y,
       'simple-import-sort': simpleImportSort,
       'unused-imports': unusedImports,
+      local,
     },
     rules: {
+      'local/require-testid': 'error',
       ...a11y.configs.all.rules,
       'simple-import-sort/imports': 'error',
       'simple-import-sort/exports': 'error',
@@ -29,7 +32,7 @@ module.exports = defineConfig([
     },
   },
   {
-    files: ['scripts/**/*.js', '*.config.js'],
+    files: ['scripts/**/*.js', 'eslint/**/*.js', '*.config.js'],
     languageOptions: {
       globals: {
         __dirname: 'readonly',
