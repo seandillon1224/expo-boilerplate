@@ -1,4 +1,8 @@
 {
+  "errorBoundary": {
+    "reset": "Try again",
+    "title": "Something went wrong"
+  },
   "fetch": {
     "emptyBody": "The API returned an empty list.",
     "emptyTitle": "No posts yet",
@@ -6,7 +10,6 @@
     "loading": "Loading posts…",
     "refetch": "Refetch",
     "refreshing": "Refreshing…",
-    "retry": "Retry",
     "source": "jsonplaceholder.typicode.com/posts",
     "title": "Fetch"
   },
@@ -21,6 +24,13 @@
     "subtitle": "App preferences and diagnostics will live here.",
     "title": "Settings",
     "updatesLink": "OTA updates"
+  },
+  "states": {
+    "emptyTitle": "Nothing here yet",
+    "errorDescription": "Please try again.",
+    "errorTitle": "Something went wrong",
+    "loading": "Loading…",
+    "retry": "Retry"
   },
   "tabs": {
     "home": "Home",

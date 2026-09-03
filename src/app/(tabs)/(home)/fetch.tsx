@@ -1,8 +1,9 @@
 import { useObserve } from 'expo-observe';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, FlatList } from 'react-native';
+import { FlatList } from 'react-native';
 
+import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { type Post, usePosts } from '@/features/posts/api';
 import { Pressable, Text, View } from '@/tw';
 
@@ -15,10 +16,6 @@ function PostRow({ post }: { post: Post }) {
       </Text>
     </View>
   );
-}
-
-function Centered({ children }: { children: React.ReactNode }) {
-  return <View className="flex-1 items-center justify-center gap-3 px-6">{children}</View>;
 }
 
 export default function FetchScreen() {
@@ -35,33 +32,24 @@ export default function FetchScreen() {
 
   let content: React.ReactNode;
   if (isPending) {
-    content = (
-      <Centered>
-        <ActivityIndicator testID="fetch-loading" />
-        <Text className="text-muted-foreground">{t('fetch.loading')}</Text>
-      </Centered>
-    );
+    content = <LoadingState testID="fetch-loading" label={t('fetch.loading')} />;
   } else if (isError) {
     content = (
-      <Centered>
-        <Text className="text-foreground text-center font-semibold">{t('fetch.errorTitle')}</Text>
-        <Text className="text-muted-foreground text-center">{error.message}</Text>
-        <Pressable
-          testID="fetch-retry"
-          accessibilityRole="button"
-          onPress={() => refetch()}
-          className="bg-primary rounded-md px-4 py-2"
-        >
-          <Text className="text-primary-foreground font-semibold">{t('fetch.retry')}</Text>
-        </Pressable>
-      </Centered>
+      <ErrorState
+        testID="fetch-error"
+        retryTestID="fetch-retry"
+        error={error}
+        title={t('fetch.errorTitle')}
+        onRetry={() => refetch()}
+      />
     );
   } else if (data.length === 0) {
     content = (
-      <Centered>
-        <Text className="text-foreground font-semibold">{t('fetch.emptyTitle')}</Text>
-        <Text className="text-muted-foreground text-center">{t('fetch.emptyBody')}</Text>
-      </Centered>
+      <EmptyState
+        testID="fetch-empty"
+        title={t('fetch.emptyTitle')}
+        description={t('fetch.emptyBody')}
+      />
     );
   } else {
     content = (
