@@ -1,0 +1,7 @@
+{
+  "$comment": "Per-platform bundle budgets (PLAN.md decision 7). Limits are GZIP sizes in bytes of the `expo export` JS/CSS bundles (native = Hermes .hbc), set to roughly measured size + 15% headroom. Checked by scripts/bundle-budget.js; raise a limit only with a justification in the PR.",
+  "unit": "gzip-bytes",
+  "web": { "js": 800000, "css": 10000, "total": 810000 },
+  "ios": { "js": 2900000 },
+  "android": { "js": 3000000 }
+}
