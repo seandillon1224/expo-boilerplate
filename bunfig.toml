@@ -1,0 +1,7 @@
+[install]
+# Reproducible installs everywhere; CI adds --frozen-lockfile explicitly.
+exact = false
+saveTextLockfile = true
+
+[test]
+# Unit/component tests run under Jest (jest-expo). `bun test` is intentionally not used.
