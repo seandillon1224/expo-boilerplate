@@ -62,7 +62,11 @@ export function CustomTabList(props: TabListProps) {
         {props.children}
 
         <ExternalLink href="https://docs.expo.dev" asChild>
-          <Pressable accessibilityRole="button" style={styles.externalPressable}>
+          <Pressable
+            testID="tabs-docs-link"
+            accessibilityRole="button"
+            style={styles.externalPressable}
+          >
             <ThemedText type="link">Docs</ThemedText>
             <SymbolView
               tintColor={colors.text}

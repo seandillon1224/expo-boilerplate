@@ -47,6 +47,7 @@ export default function TabTwoScreen() {
 
           <ExternalLink href="https://docs.expo.dev" asChild>
             <Pressable
+              testID="explore-docs-link"
               accessibilityRole="button"
               style={({ pressed }) => pressed && styles.pressed}
             >
