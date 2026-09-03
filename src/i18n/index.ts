@@ -10,6 +10,8 @@ const resources = { en: { common: en } } as const;
 // Device language comes from the OS; anything without a bundled locale falls back to `en`.
 const deviceLanguage = getLocales()[0]?.languageCode ?? undefined;
 
+// The default export is the singleton instance; `use` is a method on it, not a named export we want.
+// eslint-disable-next-line import/no-named-as-default-member
 i18n.use(initReactI18next).init({
   compatibilityJSON: 'v4',
   resources,
