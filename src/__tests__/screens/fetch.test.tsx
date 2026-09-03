@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Observe } from 'expo-observe';
 import type { ReactElement } from 'react';
 
 import FetchScreen from '@/app/(tabs)/(home)/fetch';
@@ -19,6 +20,8 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 const clients: QueryClient[] = [];
+/** jest.setup.ts hands every `useObserve()` caller this same spy. */
+const markInteractive = jest.mocked(Observe.markInteractive);
 
 /** TanStack batches notifications on a macrotask; flush it inside act to avoid warnings. */
 async function press(testID: string) {
@@ -44,6 +47,7 @@ describe('FetchScreen', () => {
   beforeEach(() => {
     fetchMock = jest.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
+    markInteractive.mockClear();
   });
 
   afterEach(() => {
@@ -57,6 +61,28 @@ describe('FetchScreen', () => {
     expect(screen.getByTestId('fetch-screen')).toBeOnTheScreen();
     expect(screen.getByTestId('fetch-loading')).toBeOnTheScreen();
     expect(screen.getByText('Loading posts…')).toBeOnTheScreen();
+    expect(markInteractive).not.toHaveBeenCalled();
+  });
+
+  it('marks the screen interactive once content is usable', async () => {
+    fetchMock.mockImplementation(() => jsonResponse(posts));
+    await renderWithQuery(<FetchScreen />);
+    expect(markInteractive).not.toHaveBeenCalled();
+    expect(await screen.findByText('First post')).toBeOnTheScreen();
+    expect(markInteractive).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks the empty state interactive but not the error state', async () => {
+    fetchMock.mockImplementation(() => jsonResponse([]));
+    await renderWithQuery(<FetchScreen />);
+    expect(await screen.findByText('No posts yet')).toBeOnTheScreen();
+    expect(markInteractive).toHaveBeenCalledTimes(1);
+
+    markInteractive.mockClear();
+    fetchMock.mockImplementation(() => jsonResponse({ message: 'nope' }, 500));
+    await renderWithQuery(<FetchScreen />);
+    expect(await screen.findByText('Something went wrong')).toBeOnTheScreen();
+    expect(markInteractive).not.toHaveBeenCalled();
   });
 
   it('renders the list on success', async () => {

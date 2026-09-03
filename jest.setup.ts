@@ -26,6 +26,25 @@ jest.mock('@sentry/react-native', () => ({
   wrap: <T>(component: T) => component,
 }));
 
+// expo-observe needs a native module. Root HOC is identity, `configure` is inert, and
+// `useObserve` hands every screen the same `markInteractive` spy so tests can assert on it.
+jest.mock('expo-observe', () => {
+  const markInteractive = jest.fn();
+  return {
+    Observe: {
+      configure: jest.fn(),
+      markInteractive,
+      logEvent: jest.fn(),
+      reportError: jest.fn(),
+      dispatchEvents: jest.fn(async () => {}),
+    },
+    ObserveRoot: { wrap: <T>(component: T) => component },
+    ObserveInteractiveMarker: () => null,
+    ObserveErrorBoundary: ({ children }: { children: React.ReactNode }) => children,
+    useObserve: () => ({ markInteractive }),
+  };
+});
+
 // expo-updates needs a native module. Default to the "updates disabled" shape a dev
 // client reports; tests that exercise the enabled path override `isEnabled` per test.
 jest.mock('expo-updates', () => ({
