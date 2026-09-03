@@ -17,6 +17,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run typecheck` — `tsc --noEmit` (writes `expo-env.d.ts` first if missing)
 - `bun run test` — Jest; `test:coverage` for coverage
 - `bun run knip` — dead code / unused deps
+- `bun run env:check` — validate `EXPO_PUBLIC_*` against the Zod schema (also runs at app startup)
 - Full local gate before a PR: `bun run lint && bun run typecheck && bun run test && bun run knip`
 
 ## Conventions
@@ -31,6 +32,8 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - Every pressable / input gets a `testID` (lint-enforced) — Maestro flows never select by text.
 - `@testing-library/react-native` v14: `render`, `rerender`, `unmount` are **async** — `await` them.
 - TypeScript 6: `@types/*` are not auto-included; add to `types` in `tsconfig.json`.
+- `EXPO_PUBLIC_*` variables are read only through `@/lib/env` (schema in `src/lib/env.schema.ts`);
+  never `process.env` directly. Document new keys in `.env.example`.
 
 ## CI/CD shape (see PLAN.md decisions 1–3, 12–13)
 

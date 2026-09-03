@@ -32,7 +32,7 @@ module.exports = defineConfig([
     },
   },
   {
-    files: ['scripts/**/*.js', 'eslint/**/*.js', '*.config.js'],
+    files: ['scripts/**/*.{js,ts}', 'eslint/**/*.js', '*.config.js'],
     languageOptions: {
       globals: {
         __dirname: 'readonly',

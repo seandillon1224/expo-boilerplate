@@ -6,7 +6,11 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { assertEnv } from '@/lib/env';
 import { QueryProvider } from '@/providers/query-provider';
+
+// Surface EXPO_PUBLIC_* misconfiguration before any screen mounts.
+assertEnv();
 
 SplashScreen.preventAutoHideAsync();
 

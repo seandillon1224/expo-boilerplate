@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { env } from '@/lib/env';
+
 /** Shape of a JSONPlaceholder post. Runtime validation with Zod arrives in a later ticket. */
 export type Post = {
   userId: number;
@@ -8,7 +10,7 @@ export type Post = {
   body: string;
 };
 
-const POSTS_URL = 'https://jsonplaceholder.typicode.com/posts?_limit=10';
+const POSTS_URL = `${env.API_URL}/posts?_limit=10`;
 
 /** Query-key factory: every posts-related key hangs off `postKeys.all`. */
 const postKeys = {
