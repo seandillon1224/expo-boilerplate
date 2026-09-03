@@ -12,22 +12,22 @@ proven on the boilerplate itself (a live, paid EAS project). Every future projec
 
 ## Locked decisions
 
-| # | Decision | Choice |
-|---|----------|--------|
-| 1 | CI orchestration | **GitHub Actions** for the JS gate; **EAS Workflows** for the native lane (fingerprint → get-build/build → repack → maestro → update → approval → submit). EAS reports checks back to the PR. |
-| 2 | Base builds | Produced by **EAS Build**, keyed by `@expo/fingerprint`. CI never runs Metro. |
-| 3 | Branching / environments | Trunk-based. `main` → auto OTA to `staging`. `uat` and `production` are manual, approval-gated republishes of the same update group. Three installable app variants via `APP_VARIANT`. Store builds on version tag. |
-| 4 | Packaging | Public GitHub template repo + self-deleting `bun run init` script. Boilerplate dogfoods its own pipeline on a real EAS project. |
-| 5 | App scaffold | Opinionated infra, thin product. Expo Router (typed routes), NativeWind v5 / Tailwind v4, TanStack Query, Zod, i18next, Sentry (errors, off until DSN), EAS Observe (perf), `expo-updates` with a policy hook. Demo: home tab, settings tab, updates screen, one fetch screen. No auth/backend/forms. |
-| 6 | Tests | **Jest + jest-expo + RNTL** for unit/component. **Maestro** for E2E on iOS, Android, and web. No Playwright. |
-| 7 | Performance | Now: Rozenite (Query + network plugins), expo-atlas, Reassure, per-platform bundle budgets. Later epic: Flashlight. Prod telemetry: EAS Observe; Sentry perf tracing off. |
-| 8 | Code quality | ESLint 9 flat + `eslint-config-expo` + import-sort + unused-imports + RN a11y; Prettier; knip; Lefthook; commitlint (Conventional Commits) + PR-title check; Renovate (grouped Expo SDK, patch auto-merge). |
-| 9 | Config / secrets | **EAS Environment Variables** are the source of truth (`development`/`preview`/`production` ↔ staging/UAT/prod). `eas env:pull` locally and in CI. GitHub secrets hold only `EXPO_TOKEN`, Sentry auth token. Zod `env-check` at startup and in CI. |
-| 10 | Web | First-class. `expo export --platform web` in the JS gate, Maestro web against the static export, **EAS Hosting** deploy on the same three-environment ladder with PR previews. API routes / SSR opt-in only. |
-| 11 | Tracking | GitHub Issues + Project board. `.claude/` ships the ledger, `ship-next`, `grill-me`, `repo-audit` skills and an Expo-tuned `CLAUDE.md`. |
-| 12 | Build sharing | Staging/UAT variants = **EAS internal distribution** (hosted install page + QR; iOS ad hoc with self-serve device registration). Production RCs = TestFlight internal group + Play internal track via the release workflow. Engineers use Expo Orbit. No Firebase App Distribution. Install links posted by `slack` and `github-comment` jobs. |
-| 13 | Fingerprint change on `main` | `deploy-staging` runs `fingerprint` → `get-build`; on miss it auto-builds staging internal builds for both platforms, then publishes the update and posts "reinstall required" links. UAT builds only at promotion time. Promotion to production with a changed fingerprint is refused; go through the store release workflow. |
-| 14 | Defaults | Latest stable SDK, CNG only (no committed `ios/`/`android/`), New Architecture on, React Compiler on. README + `docs/*.md`, no docs site. No Storybook. `testID` lint rule. MIT. Node pinned via `.node-version` for tools; all scripts run via Bun. Both Maestro platforms on every PR (tiered mode as a workflow input). |
+| #   | Decision                     | Choice                                                                                                                                                                                                                                                                                                                                         |
+| --- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | CI orchestration             | **GitHub Actions** for the JS gate; **EAS Workflows** for the native lane (fingerprint → get-build/build → repack → maestro → update → approval → submit). EAS reports checks back to the PR.                                                                                                                                                  |
+| 2   | Base builds                  | Produced by **EAS Build**, keyed by `@expo/fingerprint`. CI never runs Metro.                                                                                                                                                                                                                                                                  |
+| 3   | Branching / environments     | Trunk-based. `main` → auto OTA to `staging`. `uat` and `production` are manual, approval-gated republishes of the same update group. Three installable app variants via `APP_VARIANT`. Store builds on version tag.                                                                                                                            |
+| 4   | Packaging                    | Public GitHub template repo + self-deleting `bun run init` script. Boilerplate dogfoods its own pipeline on a real EAS project.                                                                                                                                                                                                                |
+| 5   | App scaffold                 | Opinionated infra, thin product. Expo Router (typed routes), NativeWind v5 / Tailwind v4, TanStack Query, Zod, i18next, Sentry (errors, off until DSN), EAS Observe (perf), `expo-updates` with a policy hook. Demo: home tab, settings tab, updates screen, one fetch screen. No auth/backend/forms.                                          |
+| 6   | Tests                        | **Jest + jest-expo + RNTL** for unit/component. **Maestro** for E2E on iOS, Android, and web. No Playwright.                                                                                                                                                                                                                                   |
+| 7   | Performance                  | Now: Rozenite (Query + network plugins), expo-atlas, Reassure, per-platform bundle budgets. Later epic: Flashlight. Prod telemetry: EAS Observe; Sentry perf tracing off.                                                                                                                                                                      |
+| 8   | Code quality                 | ESLint 9 flat + `eslint-config-expo` + import-sort + unused-imports + RN a11y; Prettier; knip; Lefthook; commitlint (Conventional Commits) + PR-title check; Renovate (grouped Expo SDK, patch auto-merge).                                                                                                                                    |
+| 9   | Config / secrets             | **EAS Environment Variables** are the source of truth (`development`/`preview`/`production` ↔ staging/UAT/prod). `eas env:pull` locally and in CI. GitHub secrets hold only `EXPO_TOKEN`, Sentry auth token. Zod `env-check` at startup and in CI.                                                                                             |
+| 10  | Web                          | First-class. `expo export --platform web` in the JS gate, Maestro web against the static export, **EAS Hosting** deploy on the same three-environment ladder with PR previews. API routes / SSR opt-in only.                                                                                                                                   |
+| 11  | Tracking                     | GitHub Issues + Project board. `.claude/` ships the ledger, `ship-next`, `grill-me`, `repo-audit` skills and an Expo-tuned `CLAUDE.md`.                                                                                                                                                                                                        |
+| 12  | Build sharing                | Staging/UAT variants = **EAS internal distribution** (hosted install page + QR; iOS ad hoc with self-serve device registration). Production RCs = TestFlight internal group + Play internal track via the release workflow. Engineers use Expo Orbit. No Firebase App Distribution. Install links posted by `slack` and `github-comment` jobs. |
+| 13  | Fingerprint change on `main` | `deploy-staging` runs `fingerprint` → `get-build`; on miss it auto-builds staging internal builds for both platforms, then publishes the update and posts "reinstall required" links. UAT builds only at promotion time. Promotion to production with a changed fingerprint is refused; go through the store release workflow.                 |
+| 14  | Defaults                     | Latest stable SDK, CNG only (no committed `ios/`/`android/`), New Architecture on, React Compiler on. README + `docs/*.md`, no docs site. No Storybook. `testID` lint rule. MIT. Node pinned via `.node-version` for tools; all scripts run via Bun. Both Maestro platforms on every PR (tiered mode as a workflow input).                     |
 
 ## Deferred deep dives (each = research ticket → grill session → its own epic)
 
@@ -46,6 +46,7 @@ proven on the boilerplate itself (a live, paid EAS project). Every future projec
 Order is dependency order. Ticket IDs are provisional until mirrored to GitHub Issues.
 
 ### E0 — Repo bootstrap and tooling baseline
+
 Goal: an empty-but-complete Expo app that lints, typechecks, and tests locally under Bun.
 
 - **T0.1** `git init`, create public GitHub repo, mark as template, MIT license, `.gitignore`, `.node-version`, `bunfig.toml`, Bun-only `preinstall` guard.
@@ -60,6 +61,7 @@ Goal: an empty-but-complete Expo app that lints, typechecks, and tests locally u
 - **T0.10** `testID`-required ESLint rule for pressables/inputs (find existing rule or write a local one).
 
 ### E1 — Demo app and app-layer infra
+
 Goal: enough real UI for Maestro, perf tooling, and OTA experiments.
 
 - **T1.1** NativeWind v5 / Tailwind v4 setup per the `expo-tailwind-setup` guide; theme tokens; dark mode.
@@ -73,6 +75,7 @@ Goal: enough real UI for Maestro, perf tooling, and OTA experiments.
 - **T1.9** Error boundary + standard Loading/Empty/Error components.
 
 ### E2 — JS gate (GitHub Actions)
+
 Goal: every PR gets a < 5 minute verdict on everything that doesn't need a simulator.
 
 - **T2.1** `ci.yml`: setup-bun with cache, `bun install --frozen-lockfile`, jobs for lint, typecheck, format, knip, unit (with JUnit + coverage artifacts), concurrency cancel-in-progress.
@@ -85,6 +88,7 @@ Goal: every PR gets a < 5 minute verdict on everything that doesn't need a simul
 - **T2.8** Required-checks doc: which checks gate merge, how EAS checks appear on the PR.
 
 ### E3 — EAS foundation
+
 Goal: the boilerplate is a real EAS project with environments and profiles ready for workflows.
 
 - **T3.1** `eas init`, `eas.json`: profiles `development`, `staging`, `uat`, `production`, plus `e2e-ios-sim` and `e2e-android-apk` (release-mode simulator/APK builds for Maestro). `appVersionSource: remote`.
@@ -95,6 +99,7 @@ Goal: the boilerplate is a real EAS project with environments and profiles ready
 - **T3.6** Local reproduce scripts in Bun: `bun run fingerprint`, `bun run e2e:build`, `bun run e2e:repack`, `bun run e2e:ios|android` — same steps the workflows run, for laptop debugging.
 
 ### E4 — Native E2E lane (EAS Workflows)
+
 Goal: every PR runs Maestro on iOS and Android against a repacked release build, with reports and recordings.
 
 - **T4.1** `.maestro/` layout: `config.yaml`, `flows/` (smoke, tabs, fetch, updates), `subflows/launch`, platform tags (`ios`, `android`, `web`), `APP_ID` env.
@@ -105,6 +110,7 @@ Goal: every PR runs Maestro on iOS and Android against a repacked release build,
 - **T4.6** Flake budget: retries policy, quarantine tag, and a "flaky flow" issue template.
 
 ### E5 — Delivery ladder
+
 Goal: main → staging automatically; UAT and production by approval; stores on tag; web on the same ladder.
 
 - **T5.1** `deploy-staging.yml`: on push to `main`, `fingerprint` → `get-build` (staging profile, both platforms) → on miss `build` staging internal builds → `update` to `staging` with Sentry source maps → `deploy` web export to EAS Hosting staging alias → `slack` with install links/QR, flagged "reinstall required" when a new build was made.
@@ -116,6 +122,7 @@ Goal: main → staging automatically; UAT and production by approval; stores on 
 - **T5.7** Runbook: `docs/release-ladder.md` covering the full path, rollback (`eas update:republish` / `update:rollback`), and channel/branch mapping.
 
 ### E6 — Performance tooling
+
 Goal: dev-time, CI, and prod layers all present with seed usage.
 
 - **T6.1** Rozenite host + TanStack Query, network, performance plugins; docs on adding a project plugin.
@@ -125,6 +132,7 @@ Goal: dev-time, CI, and prod layers all present with seed usage.
 - **T6.5** Performance doc: what each layer answers and where to look.
 
 ### E7 — Template init script
+
 Goal: one command turns the template into a new project.
 
 - **T7.1** `bun run init`: prompts for name, slug, bundle ID, package, EAS project ID, scheme; rewrites `app.config.ts`, `eas.json`, `.maestro/config.yaml` + flow envs, workflow YAML, README badges, `package.json` name.
@@ -134,11 +142,13 @@ Goal: one command turns the template into a new project.
 - **T7.5** End-to-end test: spawn a throwaway project from the template in CI and run the JS gate on it.
 
 ### E8 — Docs
+
 - **T8.1** README: what's inside, quick start, the pipeline diagram, "commonly added next".
 - **T8.2** `docs/`: ci-overview, js-gate, native-e2e, release-ladder, environments-and-secrets, performance, testing, conventions.
 - **T8.3** ADR folder with the decisions table above as ADR-0001.
 
 ### E9 — Deferred deep-dive research tickets
+
 Each produces a short findings doc and triggers a grill session before any implementation epic is cut.
 
 - **T9.1** D1 release-please + versioning.
