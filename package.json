@@ -26,7 +26,8 @@
     "react-native-screens": "~4.26.0",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.10.1",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",
@@ -57,6 +58,7 @@
     "start": "expo start",
     "ios": "expo start --ios",
     "android": "expo start --android",
+    "env:check": "bun scripts/env-check.ts",
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "node scripts/ensure-expo-env.js && tsc --noEmit",

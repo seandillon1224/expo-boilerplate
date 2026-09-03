@@ -23,3 +23,5 @@ pre-push:
       run: bun run typecheck
     - name: knip
       run: bun run knip
+    - name: env-check
+      run: bun run env:check
