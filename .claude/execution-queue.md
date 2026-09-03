@@ -37,8 +37,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 
 - [x] **#20 T2.1** — `ci.yml`: setup-bun with cache, `bun install --frozen-lockfile`, jobs for lint, typecheck, format, knip, unit (with JUnit + coverage artifacts), concurrency cancel-in-progress.
 - [x] **#21 T2.2** — PR title conventional-commit check; commitlint on push.
-- [~] **#22 T2.3** — Secret scan (gitleaks) job.
-- [ ] **#23 T2.4** — `expo export --platform web` + bundle budget check (`bundle-budget.json`, per-platform); iOS/Android JS-only export budgets.
+- [x] **#22 T2.3** — Secret scan (gitleaks) job.
+- [~] **#23 T2.4** — `expo export --platform web` + bundle budget check (`bundle-budget.json`, per-platform); iOS/Android JS-only export budgets.
 - [ ] **#24 T2.5** — Maestro web: serve the static export, run `.maestro` web-tagged flows, JUnit report + screenshots on failure as artifacts.
 - [ ] **#25 T2.6** — Reassure perf tests job with baseline compare on PR.
 - [ ] **#26 T2.7** — Renovate auto-merge wiring (required checks, branch protection as code via `gh` script).
@@ -121,3 +121,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #19 | t19-error-boundary-states | https://github.com/seandillon1224/expo-boilerplate/pull/92 | merged | 2026-09-03 — E1 complete
 - 2026-09-03 — #20 | t20-ci-workflow | https://github.com/seandillon1224/expo-boilerplate/pull/93 | merged | 2026-09-03
 - 2026-09-03 — #21 | t21-pr-title-commitlint | https://github.com/seandillon1224/expo-boilerplate/pull/94 | merged | 2026-09-03
+- 2026-09-03 — #22 | t22-gitleaks | https://github.com/seandillon1224/expo-boilerplate/pull/95 | merged | 2026-09-03
