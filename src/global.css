@@ -1,9 +1,58 @@
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css';
+
+@import 'nativewind/theme';
+
+/*
+ * Semantic theme tokens. Raw values live on :root (light) and are overridden for
+ * dark mode via prefers-color-scheme, which NativeWind maps to the Appearance API
+ * on native and to the real media query on web. Values mirror Colors in
+ * src/constants/theme.ts so StyleSheet-based and className-based UI agree.
+ */
 :root {
-  --font-display:
-    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
-    Segoe UI Symbol, Noto Color Emoji;
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-  --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
-  --font-serif: Georgia, 'Times New Roman', serif;
+  --background: #ffffff;
+  --foreground: #000000;
+  --muted: #f0f0f3;
+  --muted-foreground: #60646c;
+  --primary: #3c87f7;
+  --primary-foreground: #ffffff;
+  --border: #e0e1e6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #000000;
+    --foreground: #ffffff;
+    --muted: #212225;
+    --muted-foreground: #b0b4ba;
+    --primary: #3c87f7;
+    --primary-foreground: #ffffff;
+    --border: #2e3135;
+  }
+}
+
+/* Register the tokens as Tailwind colors: bg-background, text-foreground, border-border, ... */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-border: var(--border);
+}
+
+/* Web font stacks; native platforms get theirs from nativewind/theme.
+   The @supports guard is the same web-only test nativewind's `web:` variant uses. */
+@supports selector(div > div) {
+  :root {
+    --font-display:
+      Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
+      Segoe UI Symbol, Noto Color Emoji;
+    --font-mono:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+    --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
+    --font-serif: Georgia, 'Times New Roman', serif;
+  }
 }

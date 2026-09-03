@@ -2,7 +2,12 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   // knip's built-in Expo plugin already understands app.config.ts, expo-router
   // file routes, and the SDK's implicit peer dependencies. Only extras go here.
-  "entry": ["src/**/*.{ios,android,web,native}.{ts,tsx}", "scripts/**/*.{js,ts}"],
+  "entry": [
+    "src/**/*.{ios,android,web,native}.{ts,tsx}",
+    "scripts/**/*.{js,ts}",
+    // Styling primitives are a public surface for future screens; do not report unused exports.
+    "src/tw/index.tsx",
+  ],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{js,ts}", "*.{js,ts}"],
   "ignoreDependencies": [
     // Only referenced in jest.config.js when CI is set; knip evaluates it without CI.
