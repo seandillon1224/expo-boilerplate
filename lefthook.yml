@@ -25,3 +25,5 @@ pre-push:
       run: bun run knip
     - name: env-check
       run: bun run env:check
+    - name: i18n-check
+      run: bun run i18n:check

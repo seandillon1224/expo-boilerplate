@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, FlatList } from 'react-native';
 
 import { type Post, usePosts } from '@/features/posts/api';
@@ -19,6 +20,7 @@ function Centered({ children }: { children: React.ReactNode }) {
 }
 
 export default function FetchScreen() {
+  const { t } = useTranslation();
   const { data, isPending, isError, error, refetch, isFetching } = usePosts();
 
   let content: React.ReactNode;
@@ -26,13 +28,13 @@ export default function FetchScreen() {
     content = (
       <Centered>
         <ActivityIndicator testID="fetch-loading" />
-        <Text className="text-muted-foreground">Loading posts…</Text>
+        <Text className="text-muted-foreground">{t('fetch.loading')}</Text>
       </Centered>
     );
   } else if (isError) {
     content = (
       <Centered>
-        <Text className="text-foreground text-center font-semibold">Something went wrong</Text>
+        <Text className="text-foreground text-center font-semibold">{t('fetch.errorTitle')}</Text>
         <Text className="text-muted-foreground text-center">{error.message}</Text>
         <Pressable
           testID="fetch-retry"
@@ -40,15 +42,15 @@ export default function FetchScreen() {
           onPress={() => refetch()}
           className="bg-primary rounded-md px-4 py-2"
         >
-          <Text className="text-primary-foreground font-semibold">Retry</Text>
+          <Text className="text-primary-foreground font-semibold">{t('fetch.retry')}</Text>
         </Pressable>
       </Centered>
     );
   } else if (data.length === 0) {
     content = (
       <Centered>
-        <Text className="text-foreground font-semibold">No posts yet</Text>
-        <Text className="text-muted-foreground text-center">The API returned an empty list.</Text>
+        <Text className="text-foreground font-semibold">{t('fetch.emptyTitle')}</Text>
+        <Text className="text-muted-foreground text-center">{t('fetch.emptyBody')}</Text>
       </Centered>
     );
   } else {
@@ -66,7 +68,7 @@ export default function FetchScreen() {
   return (
     <View testID="fetch-screen" className="bg-background flex-1">
       <View className="border-border flex-row items-center justify-between border-b px-4 py-2">
-        <Text className="text-muted-foreground">jsonplaceholder.typicode.com/posts</Text>
+        <Text className="text-muted-foreground">{t('fetch.source')}</Text>
         <Pressable
           testID="fetch-refetch"
           accessibilityRole="button"
@@ -74,7 +76,9 @@ export default function FetchScreen() {
           onPress={() => refetch()}
           className="bg-muted rounded-md px-3 py-1"
         >
-          <Text className="text-foreground">{isFetching ? 'Refreshing…' : 'Refetch'}</Text>
+          <Text className="text-foreground">
+            {isFetching ? t('fetch.refreshing') : t('fetch.refetch')}
+          </Text>
         </Pressable>
       </View>
       {content}
