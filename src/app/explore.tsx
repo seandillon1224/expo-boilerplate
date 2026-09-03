@@ -36,7 +36,8 @@ export default function TabTwoScreen() {
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
       contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
+      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}
+    >
       <ThemedView style={styles.container}>
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="subtitle">Explore</ThemedText>
@@ -45,7 +46,10 @@ export default function TabTwoScreen() {
           </ThemedText>
 
           <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => pressed && styles.pressed}
+            >
               <ThemedView type="backgroundElement" style={styles.linkButton}>
                 <ThemedText type="link">Expo documentation</ThemedText>
                 <SymbolView
@@ -81,6 +85,7 @@ export default function TabTwoScreen() {
                 project.
               </ThemedText>
               <Image
+                accessibilityIgnoresInvertColors
                 source={require('@/assets/images/tutorial-web.png')}
                 style={styles.imageTutorial}
               />
@@ -93,7 +98,11 @@ export default function TabTwoScreen() {
               <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
               screen densities.
             </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
+            <Image
+              accessibilityIgnoresInvertColors
+              source={require('@/assets/images/react-logo.png')}
+              style={styles.imageReact}
+            />
             <ExternalLink href="https://reactnative.dev/docs/images">
               <ThemedText type="linkPrimary">Learn more</ThemedText>
             </ExternalLink>

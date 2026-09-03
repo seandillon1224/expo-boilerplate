@@ -1,0 +1,9 @@
+node_modules
+dist
+.expo
+coverage
+ios
+android
+bun.lock
+expo-env.d.ts
+assets
