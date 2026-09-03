@@ -77,6 +77,7 @@
     "knip": "knip",
     "knip:fix": "knip --fix",
     "prepare": "lefthook install",
+    "secrets:scan": "node scripts/secrets-scan.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

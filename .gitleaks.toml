@@ -1,0 +1,17 @@
+# Gitleaks config — used by the CI `secret-scan` job and `bun run secrets:scan`.
+# Extends the built-in ruleset; only repo-specific allowlisting lives here.
+title = "expo-boilerplate"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Committed placeholders and generated/binary files that cannot hold real secrets"
+paths = [
+  # Documented keys with empty placeholder values (SENTRY_AUTH_TOKEN= etc.).
+  '''^\.env\.example$''',
+  # Lockfile: integrity hashes look like high-entropy secrets.
+  '''^bun\.lock$''',
+  # Images, fonts and other binary assets.
+  '''^assets/''',
+]
