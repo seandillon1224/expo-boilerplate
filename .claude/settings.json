@@ -1,5 +1,28 @@
 {
   "enabledPlugins": {
     "expo@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bun run:*)",
+      "Bash(bun install:*)",
+      "Bash(bun add:*)",
+      "Bash(bun remove:*)",
+      "Bash(bunx:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git fetch:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh pr:*)",
+      "Bash(eas:*)",
+      "Bash(maestro:*)"
+    ]
   }
 }
