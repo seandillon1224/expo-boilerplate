@@ -1,0 +1,59 @@
+// Renovate config. Requires the Renovate GitHub App to be installed on the repo
+// (https://github.com/apps/renovate). Bun lockfiles are supported natively.
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended', ':semanticCommits', 'helpers:pinGitHubActionDigests'],
+  timezone: 'America/New_York',
+  schedule: ['before 6am on monday'],
+  labels: ['dependencies'],
+  rangeStrategy: 'bump',
+  lockFileMaintenance: { enabled: true, schedule: ['before 6am on the first day of the month'] },
+  packageRules: [
+    // Expo SDK packages move together and must be bumped with `bunx expo install --fix`
+    // on an SDK upgrade, not one at a time. Group them and never auto-merge; majors are
+    // handled by the expo-upgrade flow (D1/D5 will decide the cadence).
+    {
+      groupName: 'expo sdk',
+      matchPackageNames: [
+        'expo',
+        'react-native',
+        'react',
+        'react-dom',
+        'react-test-renderer',
+        'jest-expo',
+      ],
+      matchPackagePrefixes: [
+        'expo-',
+        '@expo/',
+        'react-native-',
+        '@react-native/',
+        'eslint-config-expo',
+      ],
+      matchUpdateTypes: ['minor', 'patch'],
+      automerge: false,
+    },
+    {
+      matchPackageNames: ['expo', 'react-native', 'react', 'react-dom'],
+      matchPackagePrefixes: ['expo-', '@expo/', 'react-native-', '@react-native/'],
+      matchUpdateTypes: ['major'],
+      enabled: false,
+    },
+    // Dev tooling patch/minor: auto-merge once the JS gate is green.
+    {
+      matchDepTypes: ['devDependencies'],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'dev tooling (minor/patch)',
+      automerge: true,
+      automergeType: 'pr',
+      platformAutomerge: true,
+    },
+    // GitHub Actions: pin to digests, auto-merge minor/patch.
+    {
+      matchManagers: ['github-actions'],
+      matchUpdateTypes: ['minor', 'patch', 'digest'],
+      groupName: 'github actions',
+      automerge: true,
+      platformAutomerge: true,
+    },
+  ],
+}
