@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // knip's built-in Expo plugin already understands app.config.ts, expo-router
+  // file routes, and the SDK's implicit peer dependencies. Only extras go here.
+  "entry": ["src/**/*.{ios,android,web,native}.{ts,tsx}", "scripts/**/*.{js,ts}"],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{js,ts}", "*.{js,ts}"],
+  "ignoreDependencies": [
+    // Referenced by knip's Expo plugin through app.config.ts; installed in E1 (T1.7).
+    "expo-updates",
+  ],
+}
