@@ -35,8 +35,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 
 ### E2 — JS gate (GitHub Actions) (tracker #69)
 
-- [~] **#20 T2.1** — `ci.yml`: setup-bun with cache, `bun install --frozen-lockfile`, jobs for lint, typecheck, format, knip, unit (with JUnit + coverage artifacts), concurrency cancel-in-progress.
-- [ ] **#21 T2.2** — PR title conventional-commit check; commitlint on push.
+- [x] **#20 T2.1** — `ci.yml`: setup-bun with cache, `bun install --frozen-lockfile`, jobs for lint, typecheck, format, knip, unit (with JUnit + coverage artifacts), concurrency cancel-in-progress.
+- [~] **#21 T2.2** — PR title conventional-commit check; commitlint on push.
 - [ ] **#22 T2.3** — Secret scan (gitleaks) job.
 - [ ] **#23 T2.4** — `expo export --platform web` + bundle budget check (`bundle-budget.json`, per-platform); iOS/Android JS-only export budgets.
 - [ ] **#24 T2.5** — Maestro web: serve the static export, run `.maestro` web-tagged flows, JUnit report + screenshots on failure as artifacts.
@@ -119,3 +119,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #17 | t17-expo-updates | https://github.com/seandillon1224/expo-boilerplate/pull/90 | merged | 2026-09-03 (human owes: EAS_UPDATE_URL after eas init #28)
 - 2026-09-03 — #18 | t18-eas-observe | https://github.com/seandillon1224/expo-boilerplate/pull/91 | merged | 2026-09-03 (silent until eas init #28 sets projectId)
 - 2026-09-03 — #19 | t19-error-boundary-states | https://github.com/seandillon1224/expo-boilerplate/pull/92 | merged | 2026-09-03 — E1 complete
+- 2026-09-03 — #20 | t20-ci-workflow | https://github.com/seandillon1224/expo-boilerplate/pull/93 | merged | 2026-09-03
