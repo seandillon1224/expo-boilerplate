@@ -40,7 +40,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#22 T2.3** — Secret scan (gitleaks) job.
 - [x] **#23 T2.4** — `expo export --platform web` + bundle budget check (`bundle-budget.json`, per-platform); iOS/Android JS-only export budgets.
 - [x] **#24 T2.5** — Maestro web: serve the static export, run `.maestro` web-tagged flows, JUnit report + screenshots on failure as artifacts.
-- [ ] **#25 T2.6** — Reassure perf tests job with baseline compare on PR.
+- [~] **#25 T2.6** — Reassure perf tests job with baseline compare on PR.
 - [ ] **#26 T2.7** — Renovate auto-merge wiring (required checks, branch protection as code via `gh` script).
 - [ ] **#27 T2.8** — Required-checks doc: which checks gate merge, how EAS checks appear on the PR.
 
