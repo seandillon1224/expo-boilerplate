@@ -1,0 +1,25 @@
+# https://lefthook.dev — installed via the `prepare` script on `bun install`.
+# Fast, changed-files-only checks locally; the full gate runs in CI.
+pre-commit:
+  parallel: true
+  jobs:
+    - name: eslint
+      glob: '*.{js,ts,tsx}'
+      run: bunx eslint --fix {staged_files}
+      stage_fixed: true
+    - name: prettier
+      glob: '*.{js,ts,tsx,json,jsonc,md,yml,yaml,css}'
+      run: bunx prettier --write {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  jobs:
+    - name: commitlint
+      run: bunx commitlint --edit {1}
+
+pre-push:
+  jobs:
+    - name: typecheck
+      run: bun run typecheck
+    - name: knip
+      run: bun run knip
