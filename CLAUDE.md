@@ -52,7 +52,8 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 
 ## CI/CD shape (see PLAN.md decisions 1–3, 12–13)
 
-- GitHub Actions (`.github/workflows/ci.yml`) = JS gate only (lint, typecheck, unit, knip, format, secret scan, bundle budget, Maestro web).
+- GitHub Actions (`.github/workflows/ci.yml`) = JS gate only (lint, typecheck, unit, knip, format, commitlint on the commit range, secret scan, bundle budget, Maestro web).
+- `.github/workflows/pr-title.yml` lints the PR title with the same `commitlint.config.js` (the title becomes the squash commit).
 - EAS Workflows = native lane (fingerprint → get-build/build → repack → maestro → update → approval → submit).
 - `main` → OTA to `staging`; UAT/production are manual, approval-gated promotions of the same update group.
 
