@@ -29,8 +29,14 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
-    "eslint": "^9.0.0",
+    "eslint": "^9",
     "eslint-config-expo": "~57.0.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-native-a11y": "^3.5.1",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "prettier": "^3.9.6",
+    "prettier-plugin-tailwindcss": "^0.8.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -40,7 +46,9 @@
     "android": "expo start --android",
     "web": "expo start --web",
     "lint": "expo lint",
-    "typecheck": "node scripts/ensure-expo-env.js && tsc --noEmit"
+    "typecheck": "node scripts/ensure-expo-env.js && tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "private": true,
   "license": "MIT"
