@@ -9,6 +9,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 ## OPEN QUEUE (dependency order)
 
 ### E0 — Repo bootstrap and tooling baseline (tracker #67)
+
 - [ ] **#1 T0.1** — `git init`, create public GitHub repo, mark as template, MIT license, `.gitignore`, `.node-version`, `bunfig.toml`, Bun-only `preinstall` guard.
 - [ ] **#2 T0.2** — `create-expo-app` on latest stable SDK with Expo Router; enable New Architecture + React Compiler; typed routes; `app.config.ts` with `APP_VARIANT` driving name/slug/bundle ID/package/icon badge.
 - [ ] **#3 T0.3** — TypeScript strict, path aliases (`@/`), `expo-env.d.ts`.
@@ -21,6 +22,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [ ] **#10 T0.10** — `testID`-required ESLint rule for pressables/inputs (find existing rule or write a local one).
 
 ### E1 — Demo app and app-layer infra (tracker #68)
+
 - [ ] **#11 T1.1** — NativeWind v5 / Tailwind v4 setup per the `expo-tailwind-setup` guide; theme tokens; dark mode.
 - [ ] **#12 T1.2** — Layout: native tabs (Home, Settings); Stack inside each.
 - [ ] **#13 T1.3** — TanStack Query provider + persistence-ready setup; **Fetch screen** hitting a public API with loading/empty/error states.
@@ -32,6 +34,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [ ] **#19 T1.9** — Error boundary + standard Loading/Empty/Error components.
 
 ### E2 — JS gate (GitHub Actions) (tracker #69)
+
 - [ ] **#20 T2.1** — `ci.yml`: setup-bun with cache, `bun install --frozen-lockfile`, jobs for lint, typecheck, format, knip, unit (with JUnit + coverage artifacts), concurrency cancel-in-progress.
 - [ ] **#21 T2.2** — PR title conventional-commit check; commitlint on push.
 - [ ] **#22 T2.3** — Secret scan (gitleaks) job.
@@ -42,6 +45,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [ ] **#27 T2.8** — Required-checks doc: which checks gate merge, how EAS checks appear on the PR.
 
 ### E3 — EAS foundation (tracker #70)
+
 - [ ] **#28 T3.1** — `eas init`, `eas.json`: profiles `development`, `staging`, `uat`, `production`, plus `e2e-ios-sim` and `e2e-android-apk` (release-mode simulator/APK builds for Maestro). `appVersionSource: remote`.
 - [ ] **#29 T3.2** — EAS Environment Variables for `development`/`preview`/`production`; `bun run env:pull`; document the mapping to staging/UAT/prod.
 - [ ] **#30 T3.3** — Update channels `staging`, `uat`, `production`; `runtimeVersion` policy = `fingerprint`.
@@ -50,6 +54,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [ ] **#33 T3.6** — Local reproduce scripts in Bun: `bun run fingerprint`, `bun run e2e:build`, `bun run e2e:repack`, `bun run e2e:ios|android` — same steps the workflows run, for laptop debugging.
 
 ### E4 — Native E2E lane (EAS Workflows) (tracker #71)
+
 - [ ] **#34 T4.1** — `.maestro/` layout: `config.yaml`, `flows/` (smoke, tabs, fetch, updates), `subflows/launch`, platform tags (`ios`, `android`, `web`), `APP_ID` env.
 - [ ] **#35 T4.2** — `e2e.yml` workflow: `fingerprint` → `get-build` (by fingerprint + profile) → conditional `build` → `repack` → `maestro` (both platforms, sharding, retries, `record_screen`, JUnit).
 - [ ] **#36 T4.3** — `github-comment` job posting results, QR codes for the dev/preview builds, links to recordings.
@@ -58,6 +63,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [ ] **#39 T4.6** — Flake budget: retries policy, quarantine tag, and a "flaky flow" issue template.
 
 ### E5 — Delivery ladder (tracker #72)
+
 - [ ] **#40 T5.1** — `deploy-staging.yml`: on push to `main`, `fingerprint` → `get-build` (staging profile, both platforms) → on miss `build` staging internal builds → `update` to `staging` with Sentry source maps → `deploy` web export to EAS Hosting staging alias → `slack` with install links/QR, flagged "reinstall required" when a new build was made.
 - [ ] **#41 T5.2** — `promote.yml` (manual): `require-approval` → fingerprint gate: UAT auto-builds its variant on a fingerprint miss; production **refuses** on a miss with a pointer to `release.yml` → republish the chosen update group to `uat` or `production`; promote web alias; GitHub Environments with required reviewers.
 - [ ] **#42 T5.3** — `release.yml`: on `v*` tag, `build` production for both platforms, `submit` to Play internal track, `testflight` internal group; refuses/skips with a clear message when the fingerprint hasn't changed since the last store release.
@@ -67,6 +73,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [ ] **#46 T5.7** — Runbook: `docs/release-ladder.md` covering the full path, rollback (`eas update:republish` / `update:rollback`), and channel/branch mapping.
 
 ### E6 — Performance tooling (tracker #73)
+
 - [ ] **#47 T6.1** — Rozenite host + TanStack Query, network, performance plugins; docs on adding a project plugin.
 - [ ] **#48 T6.2** — expo-atlas wiring + `bun run atlas`.
 - [ ] **#49 T6.3** — Reassure baseline + two seed tests (already in gate via T2.6; this ticket owns setup).
@@ -74,6 +81,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [ ] **#51 T6.5** — Performance doc: what each layer answers and where to look.
 
 ### E7 — Template init script (tracker #74)
+
 - [ ] **#52 T7.1** — `bun run init`: prompts for name, slug, bundle ID, package, EAS project ID, scheme; rewrites `app.config.ts`, `eas.json`, `.maestro/config.yaml` + flow envs, workflow YAML, README badges, `package.json` name.
 - [ ] **#53 T7.2** — Toolchain check: Bun version, EAS CLI login, Maestro, Xcode, Android SDK, Java; prints fix hints.
 - [ ] **#54 T7.3** — Resets `.claude/execution-queue.md`, clears CHANGELOG, fresh git history option, self-deletes.
@@ -81,11 +89,13 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [ ] **#56 T7.5** — End-to-end test: spawn a throwaway project from the template in CI and run the JS gate on it.
 
 ### E8 — Docs (tracker #75)
+
 - [ ] **#57 T8.1** — README: what's inside, quick start, the pipeline diagram, "commonly added next".
 - [ ] **#58 T8.2** — `docs/`: ci-overview, js-gate, native-e2e, release-ladder, environments-and-secrets, performance, testing, conventions.
 - [ ] **#59 T8.3** — ADR folder with the decisions table above as ADR-0001.
 
 ### E9 — Deferred deep-dive research tickets (tracker #76)
+
 - [D] **#60 T9.1** — D1 release-please + versioning.
 - [D] **#61 T9.2** — D2 multi-runtime OTA backports.
 - [D] **#62 T9.3** — D3 update policies (forced / opt-in / silent).

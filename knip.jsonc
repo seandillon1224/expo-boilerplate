@@ -5,6 +5,8 @@
   "entry": ["src/**/*.{ios,android,web,native}.{ts,tsx}", "scripts/**/*.{js,ts}"],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{js,ts}", "*.{js,ts}"],
   "ignoreDependencies": [
+    // Only referenced in jest.config.js when CI is set; knip evaluates it without CI.
+    "jest-junit",
     // Referenced by knip's Expo plugin through app.config.ts; installed in E1 (T1.7).
     "expo-updates",
   ],

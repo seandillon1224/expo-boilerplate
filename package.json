@@ -27,6 +27,8 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
+    "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "^29",
     "@types/react": "~19.2.2",
     "eslint": "^9",
     "eslint-config-expo": "~57.0.2",
@@ -34,10 +36,14 @@
     "eslint-plugin-react-native-a11y": "^3.5.1",
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "eslint-plugin-unused-imports": "^4.4.1",
+    "jest": "~29.7",
+    "jest-expo": "~57",
+    "jest-junit": "^17.0.0",
     "knip": "^6.34.0",
     "lefthook": "^2.1.12",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
+    "test-renderer": "^1.2.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -52,7 +58,10 @@
     "format:check": "prettier --check .",
     "knip": "knip",
     "knip:fix": "knip --fix",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "private": true,
   "license": "MIT"
