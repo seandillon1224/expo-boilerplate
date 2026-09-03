@@ -1,0 +1,30 @@
+# PR titles become the squash-merge commit message (PLAN.md decision 8), so they
+# must be Conventional Commits. Reuses commitlint.config.js so the rules live in
+# one place: the same config gates local commits (lefthook) and the commitlint job.
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-title:
+    name: PR title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Lint PR title with commitlint
+        # Passed via env, never interpolated into the script (title is attacker-controlled).
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | bunx commitlint --verbose
