@@ -5,6 +5,8 @@
   "entry": [
     "src/**/*.{ios,android,web,native}.{ts,tsx}",
     "scripts/**/*.{js,ts}",
+    // Reassure perf tests: run by `bun run perf` (Reassure's own Jest invocation), not jest.config.js.
+    "src/__perf__/**/*.perf-test.tsx",
     // Styling primitives are a public surface for future screens; do not report unused exports.
     "src/tw/index.tsx",
   ],

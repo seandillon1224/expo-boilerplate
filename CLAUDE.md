@@ -17,6 +17,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run typecheck` — `tsc --noEmit` (writes `expo-env.d.ts` first if missing)
 - `bun run test` — Jest; `test:coverage` for coverage
 - `bun run knip` — dead code / unused deps
+- `bun run perf:baseline` then `bun run perf` — Reassure render-perf compare (`.reassure/output.md`); `perf:gate` fails on significant regressions, `perf:check` measures machine stability
 - `bun run export:web` (or `export:ios` / `export:android`) then `bun run budget` — JS-only export + gzip bundle-budget check (`bundle-budget.json`)
 - `bun run e2e:web` — Maestro web flows (`.maestro/flows`, tag `web`) against the static export; needs `bun run export:web` and `bun run serve:web` running first
 - `bun run env:check` — validate `EXPO_PUBLIC_*` against the Zod schema (also runs at app startup)
@@ -33,6 +34,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
   (`development` | `staging` | `uat` | `production`). Never hardcode identifiers elsewhere.
 - CNG only: never commit `ios/` or `android/`. Native changes go through config plugins.
 - Every pressable / input gets a `testID` (lint-enforced) — Maestro flows never select by text.
+- Perf tests are `*.perf-test.tsx` under `src/__perf__/`, run by Reassure (`bun run perf`) not Jest; CI compares each PR against its base commit.
 - `@testing-library/react-native` v14: `render`, `rerender`, `unmount` are **async** — `await` them.
 - TypeScript 6: `@types/*` are not auto-included; add to `types` in `tsconfig.json`.
 - EAS Observe (`src/lib/observe.ts`) owns prod perf telemetry and is silent until `eas init` adds
