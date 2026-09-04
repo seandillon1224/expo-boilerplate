@@ -16,3 +16,4 @@ bun run ios    # or android / web
 ## Docs
 
 - [JS gate: required checks](docs/js-gate.md) — what gates merge, how merging works, running the gate locally.
+- [Environments and secrets](docs/environments-and-secrets.md) — EAS build profiles (`eas.json`) and, from T3.2, environment variables.

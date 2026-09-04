@@ -20,7 +20,7 @@ export { RouteErrorBoundary as ErrorBoundary } from '@/components/route-error-bo
 assertEnv();
 // No-op unless EXPO_PUBLIC_SENTRY_DSN is set; must run before the first render.
 initSentry();
-// Silent until `extra.eas.projectId` exists (#28); enables per-route Expo Router metrics.
+// Dispatches only with `extra.eas.projectId` set; enables per-route Expo Router metrics.
 configureObserve();
 
 SplashScreen.preventAutoHideAsync();

@@ -16,6 +16,13 @@ const BASE = {
   bundleId: 'com.seandillon.expoboilerplate',
 } as const;
 
+/**
+ * EAS project id (`@seandillon1224/expo-boilerplate`, linked by `eas init`). This is the
+ * one place it lives: it feeds `extra.eas.projectId` (EAS Build / Update / Observe) and
+ * `updates.url`. `bun run init` (T7.1) rewrites it for a new app.
+ */
+const EAS_PROJECT_ID = '885fa7d0-e079-4722-bafa-e05da702b132';
+
 const SUFFIX: Record<Variant, { name: string; id: string; scheme: string }> = {
   development: { name: ' (Dev)', id: '.dev', scheme: '-dev' },
   staging: { name: ' (Staging)', id: '.staging', scheme: '-staging' },
@@ -27,13 +34,13 @@ const v = SUFFIX[VARIANT];
 
 /**
  * EAS Update. `runtimeVersion` follows the native fingerprint (PLAN.md #2), so an OTA
- * only reaches builds whose native code it was made for. `url` / `extra.eas.projectId`
- * are added by `eas init` (#28) and channels by T3.3; until then updates are configured
- * but inert, and the app runs the embedded bundle (`Updates.isEnabled` is false in dev
- * clients regardless). `checkAutomatically` stays ON_LOAD for now — the
- * `useUpdatePolicy` hook (src/features/updates, filled in by D3) owns runtime behaviour.
+ * only reaches builds whose native code it was made for. Channels are assigned per build
+ * profile in eas.json and created server-side by T3.3; a build with no channel (dev
+ * clients, `e2e-*`) never receives an update and runs the embedded bundle.
+ * `checkAutomatically` stays ON_LOAD for now — the `useUpdatePolicy` hook
+ * (src/features/updates, filled in by D3) owns runtime behaviour.
  */
-const UPDATES_URL = process.env.EAS_UPDATE_URL;
+const UPDATES_URL = `https://u.expo.dev/${EAS_PROJECT_ID}`;
 
 /**
  * Sentry org/project are build-time values (never EXPO_PUBLIC_*). They are only
@@ -80,7 +87,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     enabled: true,
     checkAutomatically: 'ON_LOAD',
     fallbackToCacheTimeout: 0,
-    ...(UPDATES_URL ? { url: UPDATES_URL } : {}),
+    url: UPDATES_URL,
   },
   plugins: [
     'expo-router',
@@ -102,7 +109,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     appVariant: VARIANT,
-    // TODO(#28): `eas init` adds `eas: { projectId }` here. EAS Observe (src/lib/observe.ts)
-    // reads it natively and stays silent until it exists. Never hardcode it.
+    // Read natively by EAS Build / Update and EAS Observe (src/lib/observe.ts).
+    eas: { projectId: EAS_PROJECT_ID },
   },
 });

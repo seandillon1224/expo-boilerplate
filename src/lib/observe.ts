@@ -2,8 +2,8 @@
  * EAS Observe (PLAN.md #5, #7): production performance telemetry — cold/warm launch,
  * TTR, per-route navigation TTR, and TTI where a screen calls `markInteractive`.
  *
- * Silent until the project is linked: the native module only dispatches when
- * `extra.eas.projectId` is present in the app config (added by `eas init`, #28).
+ * The native module dispatches only when `extra.eas.projectId` is present in the app
+ * config (`EAS_PROJECT_ID` in app.config.ts).
  * Debug builds / `__DEV__` bundles never dispatch (`dispatchInDebug: false`), Expo Go
  * has no native module, and web is a no-op. Sentry perf tracing stays off; this is the
  * one place to tune sampling.

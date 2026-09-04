@@ -1,0 +1,64 @@
+{
+  "cli": {
+    "version": ">= 23.0.0",
+    "appVersionSource": "remote",
+    "promptToConfigurePushNotifications": false
+  },
+  "build": {
+    "base": {
+      "bun": "1.3.10",
+      "env": {}
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": { "APP_VARIANT": "development" }
+    },
+    "development-simulator": {
+      "extends": "development",
+      "ios": { "simulator": true }
+    },
+    "staging": {
+      "extends": "base",
+      "distribution": "internal",
+      "channel": "staging",
+      "env": { "APP_VARIANT": "staging" },
+      "android": { "buildType": "apk" }
+    },
+    "uat": {
+      "extends": "base",
+      "distribution": "internal",
+      "channel": "uat",
+      "env": { "APP_VARIANT": "uat" },
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "extends": "base",
+      "distribution": "store",
+      "channel": "production",
+      "autoIncrement": true,
+      "env": { "APP_VARIANT": "production" }
+    },
+    "e2e-ios-sim": {
+      "extends": "base",
+      "distribution": "internal",
+      "developmentClient": false,
+      "env": { "APP_VARIANT": "development" },
+      "ios": { "simulator": true, "buildConfiguration": "Release" }
+    },
+    "e2e-android-apk": {
+      "extends": "base",
+      "distribution": "internal",
+      "developmentClient": false,
+      "env": { "APP_VARIANT": "development" },
+      "android": { "buildType": "apk", "gradleCommand": ":app:assembleRelease" }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {},
+      "android": { "track": "internal" }
+    }
+  }
+}
