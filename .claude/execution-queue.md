@@ -51,11 +51,11 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#30 T3.3** — Update channels `staging`, `uat`, `production`; `runtimeVersion` policy = `fingerprint`.
 - [x] **#31 T3.4** — Credentials: iOS + Android signing on EAS for the boilerplate's own bundle IDs. _Android keystores done; iOS + Play credentials are owner steps (docs/environments-and-secrets.md → Credentials)._
 - [x] **#32 T3.5** — Device onboarding: `bun run devices:add` (wraps `eas device:create`), `apple-device-registration-request` job, docs for non-engineers.
-- [~] **#33 T3.6** — Local reproduce scripts in Bun: `bun run fingerprint`, `bun run e2e:build`, `bun run e2e:repack`, `bun run e2e:ios|android` — same steps the workflows run, for laptop debugging.
+- [x] **#33 T3.6** — Local reproduce scripts in Bun: `bun run fingerprint`, `bun run e2e:build`, `bun run e2e:repack`, `bun run e2e:ios|android` — same steps the workflows run, for laptop debugging.
 
 ### E4 — Native E2E lane (EAS Workflows) (tracker #71)
 
-- [ ] **#34 T4.1** — `.maestro/` layout: `config.yaml`, `flows/` (smoke, tabs, fetch, updates), `subflows/launch`, platform tags (`ios`, `android`, `web`), `APP_ID` env.
+- [~] **#34 T4.1** — `.maestro/` layout: `config.yaml`, `flows/` (smoke, tabs, fetch, updates), `subflows/launch`, platform tags (`ios`, `android`, `web`), `APP_ID` env.
 - [ ] **#35 T4.2** — `e2e.yml` workflow: `fingerprint` → `get-build` (by fingerprint + profile) → conditional `build` → `repack` → `maestro` (both platforms, sharding, retries, `record_screen`, JUnit).
 - [ ] **#36 T4.3** — `github-comment` job posting results, QR codes for the dev/preview builds, links to recordings.
 - [ ] **#37 T4.4** — Failure artifacts: recordings, Maestro logs, device logs; document how to pull them from the dashboard.
@@ -132,3 +132,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #30 | t30-update-channels | https://github.com/seandillon1224/expo-boilerplate/pull/103 | merged | 2026-09-03 (channels staging/uat/production created; note: package.json scripts are a fingerprint source)
 - 2026-09-03 — #31 | t31-credentials | https://github.com/seandillon1224/expo-boilerplate/pull/104 | merged | 2026-09-03 (4 Android keystores on EAS; human owes iOS ad hoc/App Store creds, ASC API key, Play service account)
 - 2026-09-03 — #32 | t32-device-onboarding | https://github.com/seandillon1224/expo-boilerplate/pull/105 | merged | 2026-09-03 (account has two Apple teams: LT39NG6Z8B, B8SZSHYJL3 — human picks; ASC API key owed)
+- 2026-09-03 — #33 | t33-e2e-local-scripts | https://github.com/seandillon1224/expo-boilerplate/pull/106 | merged | 2026-09-03 — E3 complete (human owes: one paid e2e-ios-sim + e2e-android-apk build to validate repack path)
