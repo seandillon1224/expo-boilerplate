@@ -46,8 +46,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 
 ### E3 — EAS foundation (tracker #70)
 
-- [~] **#28 T3.1** — `eas init`, `eas.json`: profiles `development`, `staging`, `uat`, `production`, plus `e2e-ios-sim` and `e2e-android-apk` (release-mode simulator/APK builds for Maestro). `appVersionSource: remote`.
-- [ ] **#29 T3.2** — EAS Environment Variables for `development`/`preview`/`production`; `bun run env:pull`; document the mapping to staging/UAT/prod.
+- [x] **#28 T3.1** — `eas init`, `eas.json`: profiles `development`, `staging`, `uat`, `production`, plus `e2e-ios-sim` and `e2e-android-apk` (release-mode simulator/APK builds for Maestro). `appVersionSource: remote`.
+- [~] **#29 T3.2** — EAS Environment Variables for `development`/`preview`/`production`; `bun run env:pull`; document the mapping to staging/UAT/prod.
 - [ ] **#30 T3.3** — Update channels `staging`, `uat`, `production`; `runtimeVersion` policy = `fingerprint`.
 - [ ] **#31 T3.4** — Credentials: iOS + Android signing on EAS for the boilerplate's own bundle IDs.
 - [ ] **#32 T3.5** — Device onboarding: `bun run devices:add` (wraps `eas device:create`), `apple-device-registration-request` job, docs for non-engineers.
@@ -116,7 +116,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #14 | t14-zod-env | https://github.com/seandillon1224/expo-boilerplate/pull/87 | merged | 2026-09-03
 - 2026-09-03 — #15 | t15-i18next | https://github.com/seandillon1224/expo-boilerplate/pull/88 | merged | 2026-09-03
 - 2026-09-03 — #16 | t16-sentry | https://github.com/seandillon1224/expo-boilerplate/pull/89 | merged | 2026-09-03 (human owes: Sentry DSN + SENTRY_ORG/PROJECT/AUTH_TOKEN in EAS env, SENTRY_AUTH_TOKEN GitHub secret)
-- 2026-09-03 — #17 | t17-expo-updates | https://github.com/seandillon1224/expo-boilerplate/pull/90 | merged | 2026-09-03 (human owes: EAS_UPDATE_URL after eas init #28)
+- 2026-09-03 — #17 | t17-expo-updates | https://github.com/seandillon1224/expo-boilerplate/pull/90 | merged | 2026-09-03 (EAS_UPDATE_URL later superseded by #28)
 - 2026-09-03 — #18 | t18-eas-observe | https://github.com/seandillon1224/expo-boilerplate/pull/91 | merged | 2026-09-03 (silent until eas init #28 sets projectId)
 - 2026-09-03 — #19 | t19-error-boundary-states | https://github.com/seandillon1224/expo-boilerplate/pull/92 | merged | 2026-09-03 — E1 complete
 - 2026-09-03 — #20 | t20-ci-workflow | https://github.com/seandillon1224/expo-boilerplate/pull/93 | merged | 2026-09-03
@@ -127,3 +127,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #25 | t25-reassure | https://github.com/seandillon1224/expo-boilerplate/pull/98 | merged | 2026-09-03
 - 2026-09-03 — #26 | t26-branch-protection | https://github.com/seandillon1224/expo-boilerplate/pull/99 | merged | 2026-09-03 (protection applied via repo:settings:apply after user approval; 14 required checks, strict=false, admins not enforced)
 - 2026-09-03 — #27 | t27-required-checks-doc | https://github.com/seandillon1224/expo-boilerplate/pull/100 | merged | 2026-09-03 — E2 complete
+- 2026-09-03 — #28 | t28-eas-init-profiles | https://github.com/seandillon1224/expo-boilerplate/pull/101 | merged | 2026-09-03 (eas init run by orchestrator; project 885fa7d0-e079-4722-bafa-e05da702b132; human owes: upgrade global eas-cli to >=23)
