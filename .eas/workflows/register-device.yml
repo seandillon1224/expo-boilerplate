@@ -1,0 +1,35 @@
+# EAS Workflows live in .eas/workflows/ (PLAN.md decisions 1, 12). One file per workflow; the
+# native lane (E4 / E5) adds build / e2e / update / release workflows next to this one.
+#
+# Register an iPhone / iPad for internal-distribution (ad hoc) builds without anyone running the
+# CLI: trigger the run, send the tester the QR code / link from the run page, approve the enrolment.
+# Full walkthrough (including the non-engineer half): docs/device-onboarding.md.
+#
+# Run it:   bun run eas workflow:run .eas/workflows/register-device.yml
+#           (or expo.dev → project → Workflows → "Register test device" → Run)
+# Needs an App Store Connect API key on EAS (docs/environments-and-secrets.md → iOS runbook, step 5).
+name: Register test device
+
+on:
+  workflow_dispatch:
+    inputs:
+      apple_team_id:
+        type: string
+        required: true
+        description: >-
+          Apple Team ID (10 characters, Membership page on developer.apple.com). Required because
+          an Expo account may have several Apple teams; the ad hoc profile belongs to one team.
+      note:
+        type: string
+        required: false
+        description: Whose device this is (for example "Ana, design, iPhone 15"). Shown in run inputs.
+
+jobs:
+  register:
+    name: Register test device
+    # Pauses the run (status "action required") and shows a QR code + registration link on the
+    # run page. The tester opens it on the phone and installs the profile; a team member then
+    # approves the enrolment on the same page. Outputs: identifier (UDID), model, name, ...
+    type: apple-device-registration-request
+    params:
+      apple_team_identifier: ${{ inputs.apple_team_id }}

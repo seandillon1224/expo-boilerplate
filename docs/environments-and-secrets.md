@@ -267,7 +267,7 @@ once; afterwards anyone with access to the EAS project builds without Apple acce
 1. **Apple Developer Program.** Confirm the team that will own `com.seandillon.expoboilerplate*` has an
    active [Apple Developer Program](https://developer.apple.com/programs/) membership (the paid one;
    ad hoc distribution is capped at 100 iPhones per team per year). Note the Team ID (Membership page).
-2. **Register at least one device** (T3.5 / #32): `bun run eas device:create` — the ad hoc
+2. **Register at least one device** (`docs/device-onboarding.md`): `bun run devices:add` — the ad hoc
    provisioning profiles below embed the device UDID allow-list, and EAS refuses to create an ad hoc
    profile with zero devices. Every later device addition needs a rebuild (or a re-sign from the
    `eas credentials` menu) to pick it up.

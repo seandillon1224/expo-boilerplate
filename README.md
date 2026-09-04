@@ -17,3 +17,4 @@ bun run ios    # or android / web
 
 - [JS gate: required checks](docs/js-gate.md) — what gates merge, how merging works, running the gate locally.
 - [Environments and secrets](docs/environments-and-secrets.md) — EAS build profiles (`eas.json`) and, from T3.2, environment variables.
+- [Getting the staging app on your iPhone](docs/device-onboarding.md) — device registration for testers (plain language) and the engineer side (`bun run devices:add`, the `Register test device` workflow, rebuild after).
