@@ -9,7 +9,9 @@ runs in EAS Workflows and is wired in E4; see [How EAS checks appear on the PR](
 ## Checks
 
 Check names are the job `name:` values in `.github/workflows/ci.yml` and `pr-title.yml`; that exact
-string is what branch protection matches on. Durations are from a recent PR run
+string is what branch protection matches on. A third workflow, `release.yml`, is not a PR check: it runs on
+a pushed `v*` tag, behind the `production` GitHub Environment, and only starts the EAS store
+release ([release ladder](release-ladder.md#store-release-tag)). Durations are from a recent PR run
 (`gh run view <id>`), wall-clock per job on `ubuntu-latest`; all jobs start in parallel except
 `Maestro web`.
 
