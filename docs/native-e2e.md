@@ -13,12 +13,12 @@ When the `e2e` workflow goes red, run the same steps on a laptop. Each script is
 here runs Metro against a dev server: the app under test is the release build EAS produced, with
 the JS bundle from your working tree.
 
-| EAS Workflows job     | Local script                              | What it does                                                                                                                                                                                                                                                                                                                                                               |
-| --------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fingerprint`         | `bun run fingerprint [--platform <p>]`    | Native fingerprint hash of the tree (`scripts/fingerprint.js`). The other scripts compute it themselves; run this to compare with the workflow's value.                                                                                                                                                                                                                    |
-| `get-build` / `build` | `bun run e2e:build [--platform <p>]`      | Finds a finished EAS build of the E2E profile (`e2e-ios-sim` / `e2e-android-apk` in `eas.json`) whose fingerprint matches, downloads it to `e2e/builds/<p>/base.(app\|apk)` and records it in `base.json`. On a miss it prints the `eas build` command and exits 2; pass `--build` to run that (paid) build and wait for it. `--build-id <id>` downloads a specific build. |
-| `repack`              | `bun run e2e:repack [--platform <p>]`     | `@expo/repack-app`: runs `expo export:embed` for the current tree (Hermes bytecode, `APP_VARIANT=development` like the base build) and injects it into `base.(app\|apk)`, writing `e2e/builds/<p>/repacked.(app\|apk)`. No native rebuild.                                                                                                                                 |
-| `maestro`             | `bun run e2e:ios` / `bun run e2e:android` | Boots a simulator / emulator, installs `repacked.*` (or `base.*` if you skipped repack) and runs `maestro test .maestro --include-tags <p> -e MAESTRO_APP_ID=<bundle id \| package>` with JUnit output in `maestro-<p>/` (same layout as `bun run e2e:web`).                                                                                                               |
+| EAS Workflows job     | Local script                              | What it does                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fingerprint`         | `bun run fingerprint [--platform <p>]`    | Native fingerprint hash of the tree (`scripts/fingerprint.js`). The other scripts compute it themselves; run this to compare with the workflow's value.                                                                                                                                                                                                                                                                          |
+| `get-build` / `build` | `bun run e2e:build [--platform <p>]`      | Finds a finished EAS build of the E2E profile (`e2e-ios-sim` / `e2e-android-apk` in `eas.json`) whose fingerprint matches, downloads it to `e2e/builds/<p>/base.(app\|apk)` and records it in `base.json`. On a miss it prints the `eas build` command and exits 2; pass `--build` to run that (paid) build and wait for it. `--build-id <id>` downloads a specific build.                                                       |
+| `repack`              | `bun run e2e:repack [--platform <p>]`     | `@expo/repack-app`: runs `expo export:embed` for the current tree (Hermes bytecode, `APP_VARIANT=development` like the base build) and injects it into `base.(app\|apk)`, writing `e2e/builds/<p>/repacked.(app\|apk)`. No native rebuild.                                                                                                                                                                                       |
+| `maestro`             | `bun run e2e:ios` / `bun run e2e:android` | Boots a simulator / emulator, installs `repacked.*` (or `base.*` if you skipped repack) and runs `maestro test .maestro --include-tags <p> -e MAESTRO_APP_ID=<bundle id \| package>` with JUnit output in `maestro-<p>/` (same layout as `bun run e2e:web`), Maestro's debug output in `maestro-<p>/debug/` and, after a failure, the simulator log / logcat in `maestro-<p>/device/` ([Failure artifacts](#failure-artifacts)). |
 
 `--platform` defaults to `ios`. `e2e/builds/`, `maestro-ios/` and `maestro-android/` are git-ignored.
 
@@ -62,14 +62,14 @@ fingerprint ─┬─ get_build_ios ─────┬─ repack_ios      (hit: 
                                                                └── comment   (PR only, runs after everything)
 ```
 
-| Job             | Type             | Inputs                                                                                                                                                                                                                                                      | Outputs used downstream                            |
-| --------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `fingerprint`   | `fingerprint`    | `environment: development`, `env.APP_VARIANT=development` (must equal the E2E build profiles, or the hash never matches)                                                                                                                                    | `ios_fingerprint_hash`, `android_fingerprint_hash` |
-| `get_build_<p>` | `get-build`      | `platform`, `profile: e2e-ios-sim \| e2e-android-apk`, `simulator: true` (ios), `fingerprint_hash`, `wait_for_in_progress`                                                                                                                                  | `build_id` (empty on a miss)                       |
-| `build_<p>`     | `build`          | `if: !get_build.build_id`; `platform`, `profile` (same E2E profile)                                                                                                                                                                                         | `build_id`                                         |
-| `repack_<p>`    | `repack`         | `if: get_build.build_id`; `build_id` of the cached base build, `profile` (same E2E profile)                                                                                                                                                                 | `build_id` (the repacked build)                    |
-| `maestro_<p>`   | `maestro`        | `after: [repack, build]`; `build_id: repack \|\| build`, `flow_path: .maestro`, `include_tags: [<p>]`, `maestro_version: 2.10.0`, `shards: 2`, `retries: 2`, `retry_failed_only: true`, `record_screen: true`, `output_format: junit`, `env.MAESTRO_APP_ID` | JUnit report + recordings in the run's artifacts   |
-| `comment`       | `github-comment` | `after:` every job above; `if: github.event_name == 'pull_request'`; `params.payload` (custom markdown built from `after.<job>.status` / `.outputs`)                                                                                                        | `comment_url` (unused)                             |
+| Job             | Type             | Inputs                                                                                                                                                                                                                                                                                                                  | Outputs used downstream                                                                                                                               |
+| --------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fingerprint`   | `fingerprint`    | `environment: development`, `env.APP_VARIANT=development` (must equal the E2E build profiles, or the hash never matches)                                                                                                                                                                                                | `ios_fingerprint_hash`, `android_fingerprint_hash`                                                                                                    |
+| `get_build_<p>` | `get-build`      | `platform`, `profile: e2e-ios-sim \| e2e-android-apk`, `simulator: true` (ios), `fingerprint_hash`, `wait_for_in_progress`                                                                                                                                                                                              | `build_id` (empty on a miss)                                                                                                                          |
+| `build_<p>`     | `build`          | `if: !get_build.build_id`; `platform`, `profile` (same E2E profile)                                                                                                                                                                                                                                                     | `build_id`                                                                                                                                            |
+| `repack_<p>`    | `repack`         | `if: get_build.build_id`; `build_id` of the cached base build, `profile` (same E2E profile)                                                                                                                                                                                                                             | `build_id` (the repacked build)                                                                                                                       |
+| `maestro_<p>`   | `maestro`        | `after: [repack, build]`; `build_id: repack \|\| build`, `flow_path: .maestro`, `include_tags: [<p>]`, `maestro_version: 2.10.0`, `shards: 2`, `retries: 2`, `retry_failed_only: true`, `record_screen: true`, `output_format: junit`, `env.MAESTRO_APP_ID`; `hooks.after_maestro_tests` collects + uploads device logs | Run artifacts: **Maestro Test Results** (recordings, JUnit, Maestro debug output) and **Device logs (<p>)** ([Failure artifacts](#failure-artifacts)) |
+| `comment`       | `github-comment` | `after:` every job above; `if: github.event_name == 'pull_request'`; `params.payload` (custom markdown built from `after.<job>.status` / `.outputs`)                                                                                                                                                                    | `comment_url` (unused)                                                                                                                                |
 
 How the cache works: `get-build` asks EAS for a finished build of the E2E profile whose
 fingerprint equals this commit's. JS-only PRs hit (fingerprint unchanged since the last native
@@ -89,7 +89,9 @@ value is spelled out in the workflow because the job cannot run `expo config`; `
 (T7.1) rewrites it with the identifiers in `app.config.ts`. Sharding (`shards: 2`, 4 flows) is
 experimental on EAS — set it to `1` first if a run misbehaves. `retries: 2` re-runs only the
 failed flows; T4.6 turns that into a tracked flake budget. Recordings, screenshots and the JUnit
-report are in the **Maestro Test Results** artifact on the run page (T4.4 documents triage).
+report are in the **Maestro Test Results** artifact on the run page; an `after_maestro_tests` hook
+adds the simulator log / logcat as **Device logs (<p>)** — see [Failure artifacts](#failure-artifacts)
+for what each contains and how to pull it.
 
 ### PR comment
 
@@ -103,14 +105,14 @@ to; without the `if` it would fail the run).
 
 What the comment contains, and where each value comes from:
 
-| Line               | Source                                                                                                                                                                                                                                                                                                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Maestro result     | `after.maestro_<p>.status`, plus `successful_flows_count / total_flows_count` and `failed_flow_names_json` from the `maestro` job outputs.                                                                                                                                                                                                                          |
-| Build              | "cached base + repack" when `get_build_<p>` returned a `build_id`, else "fresh build". The link goes to the build page of the build Maestro actually ran (`repack_<p>.build_id \|\| build_<p>.build_id`), `https://expo.dev/accounts/<account>/projects/<slug>/builds/<id>`. No context exposes the Expo account or slug, so the prefix is spelled out in the YAML. |
-| Fingerprint        | `after.fingerprint.outputs.<p>_fingerprint_hash`, shortened to 12 characters.                                                                                                                                                                                                                                                                                       |
-| Install / QR       | The build page. The Android APK is an internal-distribution build, so its page hosts the install link and QR code; neither `build` nor `get-build` exposes an install URL output. The iOS build is a simulator `.app` — no QR, download it from the page or with `bun run e2e:build --platform ios --build-id <id>`.                                                |
-| Recordings / JUnit | `${{ workflow.url }}` → the run page → **Maestro Test Results** artifact (T4.4 documents triage).                                                                                                                                                                                                                                                                   |
-| Reproduce locally  | The three-script loop from [Local reproduce](#local-reproduce).                                                                                                                                                                                                                                                                                                     |
+| Line                             | Source                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Maestro result                   | `after.maestro_<p>.status`, plus `successful_flows_count / total_flows_count` and `failed_flow_names_json` from the `maestro` job outputs.                                                                                                                                                                                                                          |
+| Build                            | "cached base + repack" when `get_build_<p>` returned a `build_id`, else "fresh build". The link goes to the build page of the build Maestro actually ran (`repack_<p>.build_id \|\| build_<p>.build_id`), `https://expo.dev/accounts/<account>/projects/<slug>/builds/<id>`. No context exposes the Expo account or slug, so the prefix is spelled out in the YAML. |
+| Fingerprint                      | `after.fingerprint.outputs.<p>_fingerprint_hash`, shortened to 12 characters.                                                                                                                                                                                                                                                                                       |
+| Install / QR                     | The build page. The Android APK is an internal-distribution build, so its page hosts the install link and QR code; neither `build` nor `get-build` exposes an install URL output. The iOS build is a simulator `.app` — no QR, download it from the page or with `bun run e2e:build --platform ios --build-id <id>`.                                                |
+| Recordings / JUnit / device logs | `${{ workflow.url }}` → the run page → **Maestro Test Results** and **Device logs (<p>)** artifacts; the triage walkthrough is [Failure artifacts](#failure-artifacts).                                                                                                                                                                                             |
+| Reproduce locally                | The three-script loop from [Local reproduce](#local-reproduce).                                                                                                                                                                                                                                                                                                     |
 
 The job's `payload` mode is fully custom markdown (it cannot be combined with `message` /
 `build_ids`; the default mode renders EAS's own builds table instead). The job has no
@@ -134,7 +136,7 @@ Example (JS-only PR on iOS, native change on Android, one Android flow failed):
 - Android failed flows: `["native/tabs"]`
 
 - **Install**: the Android build page hosts the install link + QR code (internal distribution). The iOS build is a simulator `.app` with no QR code: download it from its page or `bun run e2e:build --platform ios --build-id <id>`.
-- **Recordings / JUnit**: [workflow run](…) → artifacts → **Maestro Test Results**.
+- **Recordings / JUnit / device logs**: [workflow run](…) → artifacts → **Maestro Test Results** + **Device logs (ios | android)**. Triage: docs/native-e2e.md → Failure artifacts.
 - **Reproduce locally**: `bun run e2e:build --platform <p> && bun run e2e:repack --platform <p> && bun run e2e:<p>` (docs/native-e2e.md).
 ```
 
@@ -157,6 +159,77 @@ placeholder for T4.5 and is not read yet.
    `gh pr checks <n>`, add that string verbatim to `REQUIRED_CHECKS` in `scripts/repo-settings.js`
    and run `bun run repo:settings:apply` (see `docs/js-gate.md` → How EAS checks appear on the
    PR). Until then the EAS check is informational.
+
+## Failure artifacts
+
+What a red `maestro_<p>` job leaves behind, where it lives, and the local twin of each file. On
+the dashboard everything hangs off the run page: expo.dev → account → project **expo-boilerplate**
+→ **Workflows** → the run (the PR comment links it) → **Artifacts** (one list per run) and, per
+job, the step logs. The `maestro` job's only artifact-related inputs are `record_screen` and
+`output_format` (checked against the live schema, `https://api.expo.dev/v2/workflows/schema`):
+there is no failure-only recording switch and no debug-output or device-log input, which is why
+device logs come from an `after_maestro_tests` hook that runs the same collector the local scripts
+use.
+
+| Artifact                                                                                               | Produced by                                                                                                                                   | Dashboard                                                                                                                                               | CLI                                                                                                         | Local equivalent                                                                                                  |
+| ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Screen recording per flow                                                                              | `record_screen: true` (EAS records the simulator / emulator screen; `large` runner on Android for that reason)                                | run → Artifacts → **Maestro Test Results**                                                                                                              | — (no artifact download command in eas-cli 23; `eas/download_artifact` only works inside a later job)       | none: rerun with `bun run e2e:<p> --keep` and watch, or add `startRecording` to a flow                            |
+| JUnit report (`report.xml`, one `<testcase>` per flow with the failing command in `<failure>`)         | `output_format: junit`                                                                                                                        | run → Artifacts → **Maestro Test Results** (Expo's docs also show it as a **Maestro Test Report (junit)** artifact — check both names on the first run) | —                                                                                                           | `maestro-<p>/report.xml`                                                                                          |
+| Maestro debug output: failure screenshots, `maestro.log`, per-flow command/hierarchy JSON              | Maestro CLI (`$MAESTRO_TESTS_DIR` on the worker, `~/.maestro/tests/<timestamp>/` by default)                                                  | run → Artifacts → **Maestro Test Results**                                                                                                              | —                                                                                                           | `maestro-<p>/debug/` (`--debug-output … --flatten-debug-output`, same flags as `bun run e2e:web`)                 |
+| Device logs: simulator unified log of the app's processes + crash reports (ios), `logcat -d` (android) | `hooks.after_maestro_tests` → `node scripts/e2e-device-logs.js` → `eas/upload_artifact` (`if: always()`, so it runs after a red Maestro step) | run → Artifacts → **Device logs (ios \| android)**                                                                                                      | —                                                                                                           | `maestro-<p>/device/` (`device.log` + `crashes/*.ips`, or `logcat.txt`; written only when Maestro exits non-zero) |
+| Step logs (device boot, install, Maestro's per-flow output, the hook)                                  | EAS                                                                                                                                           | run → job → step                                                                                                                                        | `bun run eas workflow:logs <run or job id> --all-steps` (`--json` for machines)                             | the terminal output of `bun run e2e:<p>`                                                                          |
+| Run / job summary (statuses, ids, the build that was tested)                                           | EAS                                                                                                                                           | run page                                                                                                                                                | `bun run eas workflow:runs`, `workflow:view <run id> --json`, `workflow:status <run id>`, `workflow:cancel` | —                                                                                                                 |
+
+Sharding and retries: every shard and every retry attempt of a job writes into the same **Maestro
+Test Results** artifact, so a flow can appear more than once. The flow `name:` (`native/<flow>`,
+set in `.maestro/flows/<flow>.yaml`) is the stable key — search the artifact by it, and read the
+last attempt's entry as the verdict (`retry_failed_only: true` re-runs only the failed flows).
+
+Retention: Expo does not document a retention window for workflow artifacts; treat them as living
+as long as the run does and download anything worth keeping (attach it to the issue). The web
+lane's `maestro-web` GitHub Actions artifact (same layout: `report.xml`, `debug/`) is kept for
+14 days (`retention-days` in `.github/workflows/ci.yml`).
+
+### A flow failed on the PR — now what
+
+1. **PR comment** → the `<p> failed flows` line names the flow(s); the **workflow run** link opens
+   the run. No comment (GitHub App not linked yet, or a `workflow_dispatch` run)? `bun run eas
+workflow:runs` lists recent runs with ids.
+2. **Job logs**: run → **Maestro (<p>)** → the Maestro step. Maestro prints each flow as it runs
+   and, for the failing one, the command and selector that failed, so this alone usually answers
+   "which step". `bun run eas workflow:logs <run id> --all-steps > run.log` pulls the whole run.
+3. **Recording**: Artifacts → **Maestro Test Results** → the failing flow's video. Scrub to the
+   end: is the screen you expected there at all (wrong tab, permission dialog, blank screen after a
+   JS crash), or is it the right screen with the wrong `testID`?
+4. **JUnit**: `report.xml` → the `<failure>` message of that `<testcase>` is the exact assertion
+   (command, selector, timeout). Useful when the recording is ambiguous.
+5. **Maestro debug output** (same artifact): the failure screenshot, then `maestro.log` around the
+   failing command, then the flow's command JSON for the view hierarchy Maestro saw — the place to
+   confirm a `testID` is really missing rather than off-screen. Reading guide below.
+6. **Device logs**: Artifacts → **Device logs (<p>)** → `device.log` / `logcat.txt`. Look for
+   `ReactNativeJS` / `RCTLog` lines (JS exceptions, red-box text), `Fatal`, `SIGABRT`, and
+   network failures; a crash on iOS also lands as `crashes/*.ips`.
+7. **Reproduce**: `bun run e2e:build --platform <p> && bun run e2e:repack --platform <p> &&
+bun run e2e:<p> --keep` writes the same set under `maestro-<p>/` and leaves the device up for
+   `maestro studio` / a look around. Fix, rerun, push.
+8. **Green on retry?** The job already re-runs failures (`retries: 2`); a flow that only passes on
+   the second attempt is a flake candidate for T4.6's `quarantine` tag, not a fix.
+
+### Reading Maestro's debug output
+
+`--flatten-debug-output` (both `bun run e2e:*` and the workflow's Maestro run) puts every file of
+the run flat in one directory, no per-run timestamp folder (names as of Maestro 2.10):
+
+| File                                     | What it is                                                                                                                                                                              |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maestro.log`                            | The CLI's full log: driver setup, every command with its result, the failing command's stack. Grep for the flow name, then `Failed`.                                                    |
+| `screenshot-❌-<timestamp>-(<flow>).png` | Taken automatically at the failing command (✅-prefixed ones come from explicit `takeScreenshot` steps). One glance usually explains the failure.                                       |
+| `commands-(<flow>).json`                 | Every command of the flow with its status and timing; failed commands carry the error and the view hierarchy Maestro matched against — search it for the `testID` you expected to find. |
+| `<flow>.mp4` / `<name>.png`              | Only if a flow uses `startRecording` / `takeScreenshot` with a relative path; EAS's `record_screen` videos are separate and not in this directory locally.                              |
+
+Web parity: the JS gate's `Maestro web` job uploads `maestro-web/` (`report.xml` + `debug/`, the
+same layout) as the `maestro-web` artifact on the GitHub Actions run (`docs/js-gate.md`); there is
+no recording and no device log on web — the headless Chromium's console output is in `maestro.log`.
 
 ## Maestro flows and tags
 
