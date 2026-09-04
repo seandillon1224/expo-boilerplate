@@ -54,4 +54,8 @@ junit/
 .maestro/**/*.mp4
 .maestro/**/*.png
 maestro-web/
+maestro-ios/
+maestro-android/
+# native E2E base/repacked builds pulled by `bun run e2e:build` / `e2e:repack`
+e2e/builds/
 .reassure/
