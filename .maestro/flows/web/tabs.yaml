@@ -1,0 +1,7 @@
+# Web entry for the tabs steps (subflows/steps/tabs.yaml). Keep it to these two runFlow lines.
+name: web/tabs
+url: ${APP_URL}
+tags: [web]
+---
+- runFlow: ../../subflows/launch-web.yaml
+- runFlow: ../../subflows/steps/tabs.yaml

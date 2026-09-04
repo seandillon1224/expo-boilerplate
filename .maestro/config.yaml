@@ -1,17 +1,40 @@
 # Maestro workspace (PLAN.md decision 6: Maestro for E2E on iOS, Android, and web).
 #
-# Layout (E4 / #34 owns the full shape; only the `web` tag is wired into CI so far — see the
-# `maestro-web` job in .github/workflows/ci.yml):
-#   flows/      one flow per feature, tagged with the platforms it runs on (web, ios, android)
-#   subflows/   shared steps (`launch.yaml`) pulled in with `runFlow`; not discovered as flows
+# Run it as a workspace — `maestro test .maestro …` — so this file is read (Maestro only loads
+# config.yaml from the directory it is given, and its default discovery is non-recursive).
+#
+# Layout — one set of steps per feature, thin entry files per platform:
+#   flows/<name>.yaml        native entry: `appId: ${APP_ID}`, `tags: [ios, android]`
+#   flows/web/<name>.yaml    web entry:    `url: ${APP_URL}`,  `tags: [web]`
+#   subflows/launch.yaml     native launchApp (clearState, permissions allowed)
+#   subflows/launch-web.yaml web launchApp (opens the entry's `url`)
+#   subflows/select-tab.yaml the only per-platform selector (tab bar; see below)
+#   subflows/steps/<name>.yaml  the shared steps every entry runs after launching
+#   Only `flows/*` and `flows/web/*` are flows; subflows are never discovered on their own.
+#
+# Why two entry files: Maestro picks the Chromium driver from a `url:` header alone (`url` beats
+# `appId`, `--platform` does not override it), so a file with `url:` can never run natively.
+# Each entry is therefore just header + two runFlow lines; the steps live once in subflows/.
+#
+# Tags (`--include-tags` picks entries, never subflows):
+#   web            flows/web/*   — CI `maestro-web` job / `bun run e2e:web`
+#   ios, android   flows/*       — EAS `e2e` workflow (T4.2) / `bun run e2e:ios|android`
+#   quarantine     reserved for T4.6 (flaky flows excluded from the gate with --exclude-tags)
+#
+# Selectors: testID only (CLAUDE.md) — `id:` is accessibilityIdentifier on iOS, resource-id on
+# Android, DOM id on web. One exception, kept inside subflows/select-tab.yaml: NativeTabs renders
+# the platform tab bar, whose items Maestro cannot address by id on Android (the trigger `testID`
+# becomes a view tag there) or on web (Radix generates `…-trigger-(route)-…` ids), so that
+# subflow matches the tab by generated id on web and by its visible label on Android.
 #
 # Env (`maestro test -e KEY=value`):
 #   APP_URL  web: where the static export is served; `bun run e2e:web` defaults it to
-#            http://localhost:8081 (`bun run serve:web`). A flow whose header has `url:` is a
-#            web flow (Maestro picks Chromium from that key alone; `--platform` does not).
-#   APP_ID   native (E4): the variant's bundle id / package derived in app.config.ts, e.g.
-#            com.example.app.dev — YAML cannot read APP_VARIANT, so the native lane passes it.
+#            http://localhost:8081 (`bun run serve:web`).
+#   APP_ID   native: the variant's bundle id / package derived in app.config.ts (YAML cannot read
+#            APP_VARIANT, so the caller passes it), e.g. com.seandillon.expoboilerplate.dev.
 #
 # Run web locally:  bun run export:web && bun run serve:web &   then   bun run e2e:web
+# Run native:       see docs/native-e2e.md (bun run e2e:ios | e2e:android)
 flows:
   - 'flows/*'
+  - 'flows/web/*'

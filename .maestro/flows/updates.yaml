@@ -1,16 +1,7 @@
-# Updates: Settings tab -> Updates screen shows the runtime version row.
-# Web tab selector: see tabs.yaml.
-url: ${APP_URL}
-tags: [web]
+# Native entry for the updates steps (subflows/steps/updates.yaml). Keep it to these two runFlow lines.
+name: native/updates
+appId: ${APP_ID}
+tags: [ios, android]
 ---
 - runFlow: ../subflows/launch.yaml
-- tapOn:
-    id: ".*-trigger-\\(settings\\)-.*"
-- assertVisible:
-    id: settings-screen
-- tapOn:
-    id: settings-updates-link
-- assertVisible:
-    id: updates-screen
-- assertVisible:
-    id: updates-row-runtimeVersion
+- runFlow: ../subflows/steps/updates.yaml

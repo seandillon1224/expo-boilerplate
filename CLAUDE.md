@@ -39,6 +39,8 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
   (`development` | `staging` | `uat` | `production`). Never hardcode identifiers elsewhere.
 - CNG only: never commit `ios/` or `android/`. Native changes go through config plugins.
 - Every pressable / input gets a `testID` (lint-enforced) — Maestro flows never select by text.
+- Maestro: `.maestro/` is a workspace (`maestro test .maestro`). Shared steps live once in
+  `subflows/steps/`; `flows/<name>.yaml` (native) and `flows/web/<name>.yaml` (web) are thin entries.
 - Perf tests are `*.perf-test.tsx` under `src/__perf__/`, run by Reassure (`bun run perf`) not Jest; CI compares each PR against its base commit.
 - `@testing-library/react-native` v14: `render`, `rerender`, `unmount` are **async** — `await` them.
 - TypeScript 6: `@types/*` are not auto-included; add to `types` in `tsconfig.json`.

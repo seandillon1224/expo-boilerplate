@@ -1,0 +1,5 @@
+# Web launch, first step of every flows/web/<name>.yaml entry: opens `url` (the served static
+# export) in Maestro's Chromium. A bare `launchApp` needs the target in this file's own header.
+url: ${APP_URL}
+---
+- launchApp

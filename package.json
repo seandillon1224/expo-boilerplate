@@ -92,7 +92,7 @@
     "e2e:repack": "node scripts/e2e-repack.js",
     "e2e:ios": "node scripts/e2e-run.js --platform ios",
     "e2e:android": "node scripts/e2e-run.js --platform android",
-    "e2e:web": "maestro test .maestro/flows -e APP_URL=${APP_URL:-http://localhost:8081} --include-tags web --headless --screen-size 1280x800 --format junit --output maestro-web/report.xml --test-output-dir maestro-web --debug-output maestro-web/debug --flatten-debug-output",
+    "e2e:web": "maestro test .maestro -e APP_URL=${APP_URL:-http://localhost:8081} --include-tags web --headless --screen-size 1280x800 --format junit --output maestro-web/report.xml --test-output-dir maestro-web --debug-output maestro-web/debug --flatten-debug-output",
     "lint": "expo lint",
     "typecheck": "node scripts/ensure-expo-env.js && tsc --noEmit",
     "format": "prettier --write .",

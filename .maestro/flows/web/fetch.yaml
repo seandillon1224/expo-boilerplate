@@ -1,0 +1,7 @@
+# Web entry for the fetch steps (subflows/steps/fetch.yaml). Keep it to these two runFlow lines.
+name: web/fetch
+url: ${APP_URL}
+tags: [web]
+---
+- runFlow: ../../subflows/launch-web.yaml
+- runFlow: ../../subflows/steps/fetch.yaml

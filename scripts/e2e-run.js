@@ -1,7 +1,8 @@
 // `bun run e2e:ios` / `e2e:android` — local twin of the workflow's `maestro` job. Boots a
 // simulator / emulator, installs the repacked build (falls back to the base build), and runs the
-// Maestro flows tagged for the platform with the same JUnit output layout as `e2e:web`
-// (`maestro-<platform>/`). Shuts the device down again only if this script booted it.
+// Maestro workspace's flows tagged for the platform (`.maestro/flows/*`, native entries) with the
+// same JUnit output layout as `e2e:web` (`maestro-<platform>/`). Shuts the device down again only
+// if this script booted it.
 //
 // APP_ID is the variant's bundle id / package derived in app.config.ts for APP_VARIANT=development
 // (what the e2e-* build profiles use); `.maestro/config.yaml` documents the env contract.
@@ -26,7 +27,7 @@ const USAGE = `Usage: bun run e2e:ios | bun run e2e:android   (node scripts/e2e-
 
 Mirrors the native lane's maestro job: boots a device, installs
 e2e/builds/<platform>/repacked.(app|apk) (or base.(app|apk) if you skipped e2e:repack) and runs
-  maestro test .maestro/flows --include-tags <platform> -e APP_ID=<bundle id | package>
+  maestro test .maestro --include-tags <platform> -e APP_ID=<bundle id | package>
 with JUnit output in maestro-<platform>/.
 
 Device selection:
@@ -61,7 +62,8 @@ function onExit(cleanup) {
   process.on('exit', cleanup);
 }
 
-// Flows are discovered by tag; until the native flows are tagged (E4) there may be none.
+// Native entries live flat in .maestro/flows (web ones in flows/web, see .maestro/config.yaml);
+// list the ones tagged for this platform so the notice below can name them.
 function flowsTagged(tag) {
   if (!fs.existsSync(flowsDir)) return [];
   return fs.readdirSync(flowsDir).filter((file) => {
@@ -223,7 +225,7 @@ function maestroTest(maestro, id, device) {
     '--device',
     device,
     'test',
-    '.maestro/flows',
+    '.maestro',
     '--include-tags',
     platform,
     '-e',
@@ -245,8 +247,8 @@ function maestroTest(maestro, id, device) {
 const flows = flowsTagged(platform);
 if (flows.length === 0) {
   console.log(
-    `${NAME}: no flow in .maestro/flows is tagged \`${platform}\` yet, so there is nothing to run ` +
-      `(the native flows are tagged in E4). Build ${relative(artifact)} is ready; exiting 0.`,
+    `${NAME}: no flow in .maestro/flows is tagged \`${platform}\`, so there is nothing to run. ` +
+      `Build ${relative(artifact)} is ready; exiting 0.`,
   );
   process.exit(0);
 }
