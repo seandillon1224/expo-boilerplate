@@ -11,16 +11,19 @@
     },
     "development": {
       "extends": "base",
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal",
       "env": { "APP_VARIANT": "development" }
     },
     "development-simulator": {
       "extends": "development",
+      "environment": "development",
       "ios": { "simulator": true }
     },
     "staging": {
       "extends": "base",
+      "environment": "preview",
       "distribution": "internal",
       "channel": "staging",
       "env": { "APP_VARIANT": "staging" },
@@ -28,6 +31,7 @@
     },
     "uat": {
       "extends": "base",
+      "environment": "preview",
       "distribution": "internal",
       "channel": "uat",
       "env": { "APP_VARIANT": "uat" },
@@ -35,6 +39,7 @@
     },
     "production": {
       "extends": "base",
+      "environment": "production",
       "distribution": "store",
       "channel": "production",
       "autoIncrement": true,
@@ -42,6 +47,7 @@
     },
     "e2e-ios-sim": {
       "extends": "base",
+      "environment": "development",
       "distribution": "internal",
       "developmentClient": false,
       "env": { "APP_VARIANT": "development" },
@@ -49,6 +55,7 @@
     },
     "e2e-android-apk": {
       "extends": "base",
+      "environment": "development",
       "distribution": "internal",
       "developmentClient": false,
       "env": { "APP_VARIANT": "development" },

@@ -21,6 +21,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run export:web` (or `export:ios` / `export:android`) then `bun run budget` — JS-only export + gzip bundle-budget check (`bundle-budget.json`)
 - `bun run e2e:web` — Maestro web flows (`.maestro/flows`, tag `web`) against the static export; needs `bun run export:web` and `bun run serve:web` running first
 - `bun run env:check` — validate `EXPO_PUBLIC_*` against the Zod schema (also runs at app startup)
+- `bun run env:pull` — pull EAS environment variables into `.env.local` (`EAS_ENV=preview|production` or `env:pull:preview` / `env:pull:production`); uses the repo-pinned `eas-cli`
 - `bun run i18n:extract` / `i18n:check` — sync `src/i18n/locales/*/common.json` with `t()` keys in code / fail if out of sync
 - `bun run repo:settings:apply` / `repo:settings:check` — push / diff `main` branch protection + merge settings (`scripts/repo-settings.js`; plain `repo:settings` is a dry run)
 - Full local gate before a PR: `bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check`
@@ -48,6 +49,8 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
   (`bun run sentry:sourcemaps` after `expo export` / `eas update`); never `EXPO_PUBLIC_`.
 - `EXPO_PUBLIC_*` variables are read only through `@/lib/env` (schema in `src/lib/env.schema.ts`);
   never `process.env` directly. Document new keys in `.env.example`.
+- EAS environment variables are the source of truth (`development` / `preview` / `production` ↔ dev / staging+UAT / prod);
+  `.env.local` is pulled, never hand-edited. Every `eas.json` profile sets `environment`; profile `env` beats EAS vars of the same name.
 - OTA updates: `useUpdatePolicy` (`src/features/updates/use-update-policy.ts`) is the single place to
   change update behaviour (check / download / reload, and later forced / opt-in / silent + rollout);
   never call `expo-updates` actions from screens directly. `useUpdateInfo` is the read-only view.
