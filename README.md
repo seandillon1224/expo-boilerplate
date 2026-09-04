@@ -12,3 +12,7 @@ Opinionated Expo template: Bun-only, EAS Workflows native lane, GitHub Actions J
 bun install
 bun run ios    # or android / web
 ```
+
+## Docs
+
+- [JS gate: required checks](docs/js-gate.md) — what gates merge, how merging works, running the gate locally.
