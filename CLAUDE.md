@@ -20,6 +20,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run perf:baseline` then `bun run perf` — Reassure render-perf compare (`.reassure/output.md`); `perf:gate` fails on significant regressions, `perf:check` measures machine stability
 - `bun run export:web` (or `export:ios` / `export:android`) then `bun run budget` — JS-only export + gzip bundle-budget check (`bundle-budget.json`)
 - `bun run e2e:web` — Maestro web flows (`.maestro/flows`, tag `web`) against the static export; needs `bun run export:web` and `bun run serve:web` running first
+- `bun run e2e:build` → `e2e:repack` → `e2e:ios` / `e2e:android` — native lane on a laptop (fingerprint-matched EAS build → JS repack → Maestro on simulator/emulator); mirrors `.eas/workflows` jobs, see `docs/native-e2e.md`
 - `bun run fingerprint` — native fingerprint hashes (= EAS Update runtime version) for iOS/Android; `--platform ios|android`, `--debug` (see `docs/environments-and-secrets.md`)
 - `bun run devices:add` / `devices:list` — register / list iOS test devices (`eas device:create` / `device:list`); walkthrough in `docs/device-onboarding.md`
 - `bun run env:check` — validate `EXPO_PUBLIC_*` against the Zod schema (also runs at app startup)
