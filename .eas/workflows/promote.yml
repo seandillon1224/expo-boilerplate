@@ -1,0 +1,319 @@
+# UAT / production rung (PLAN.md 3, 10, 13): promote a staging update group — the exact bytes
+# already on `staging` — to `uat` or `production`, by hand, behind an expo.dev approval.
+# resolve → approve → fingerprint + get_build (target variant) → gate (uat: build on a miss;
+# production: refuse) → republish → web redeploy to the target alias → Slack.
+# Runbook + gate matrix: docs/release-ladder.md → UAT and production.
+#
+# Run:       bun run eas workflow:run .eas/workflows/promote.yml -F target=uat [-F update_group_id=<id>]
+# Validate:  bun run eas workflow:validate .eas/workflows/promote.yml   (cap: 16 KiB)
+#
+# Repo constants, deploy-staging.yml idiom (input default == `|| '<literal>'` on the job `if`):
+# IOS_BUILDS → build_ios, HOSTING → promote_web_*. Custom jobs run the eas CLI themselves: the VM
+# is not logged in, so they export EXPO_TOKEN from `${ eas.job.secrets.robotAccessToken }`
+# (single-brace = steps-runtime interpolation of the run's own robot token, not a stored secret).
+name: Promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        type: choice
+        options: [uat, production]
+        default: uat
+        required: true
+        description: Channel to promote to. production refuses a fingerprint miss (release.yml).
+      update_group_id:
+        type: string
+        required: false
+        description: Update group to promote. Empty = the newest group on the `staging` branch.
+      web:
+        type: choice
+        options: [promote, skip]
+        default: promote
+        required: false
+        description: promote = redeploy the web export to the target alias (needs HOSTING).
+      ios_builds:
+        type: choice
+        options: [enabled, disabled]
+        default: disabled
+        required: false
+        description: enabled = cut an iOS uat build on a fingerprint miss (needs ad hoc credentials).
+      hosting:
+        type: choice
+        options: [enabled, disabled]
+        default: disabled
+        required: false
+        description: enabled = EAS Hosting is claimed; the web export can be deployed.
+
+jobs:
+  # --- Which update group?
+
+  resolve:
+    name: Resolve update group
+    # Runs before the approval so the approver sees the group, its message, commit and runtime
+    # in this job's log; nothing is built or published here.
+    outputs:
+      group_id: ${{ steps.group.outputs.group_id }}
+      ios_runtime: ${{ steps.group.outputs.ios_runtime }}
+      android_runtime: ${{ steps.group.outputs.android_runtime }}
+      commit: ${{ steps.group.outputs.commit }}
+      message: ${{ steps.group.outputs.message }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: group
+        name: Look up the group on EAS
+        env:
+          INPUT_GROUP: ${{ inputs.update_group_id || '' }}
+        run: |
+          export EXPO_TOKEN="${ eas.job.secrets.robotAccessToken }"
+          cat > resolve.js <<'__JS__'
+          const { execFileSync } = require('node:child_process');
+          const eas = (...args) => JSON.parse(execFileSync('bun', ['run', 'eas', ...args, '--json', '--non-interactive'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }));
+          let group = (process.env.INPUT_GROUP || '').trim();
+          if (!group) {
+            group = eas('update:list', '--branch', 'staging', '--limit', '1').currentPage?.[0]?.group ?? '';
+            if (!group) { console.error('No update group on the `staging` branch yet — merge to main first (deploy-staging.yml).'); process.exit(1); }
+          }
+          const updates = eas('update:view', group);
+          if (!Array.isArray(updates) || updates.length === 0) { console.error(`Update group ${group} not found.`); process.exit(1); }
+          if (updates[0].branch !== 'staging') { console.error(`Update group ${group} is on branch "${updates[0].branch}", not staging — promote only what staging has run.`); process.exit(1); }
+          const rt = (p) => updates.find((u) => u.platform === p)?.runtimeVersion ?? '';
+          const out = { group_id: group, ios_runtime: rt('ios'), android_runtime: rt('android'), commit: updates[0].gitCommitHash ?? '', message: (updates[0].message ?? '').slice(0, 120) };
+          console.log(JSON.stringify(out, null, 2));
+          require('node:fs').writeFileSync('outputs.txt', Object.entries(out).map(([k, v]) => `${k}\t${v}`).join('\n'));
+          __JS__
+          node resolve.js
+          while IFS=$'\t' read -r key value; do set-output "$key" "$value"; done < outputs.txt
+
+  # --- Approval (expo.dev)
+
+  approve:
+    name: Approve promotion
+    type: require-approval
+    # Gates everything that spends money or reaches users. A project member approves or rejects
+    # on the run page; rejection fails this job and every `needs` descendant. GitHub Environments
+    # (scripts/repo-settings.js) gate the GitHub Actions side (release.yml), not this run.
+    needs: [resolve]
+
+  # --- Fingerprint of the checkout for the target variant
+
+  fingerprint_uat:
+    name: Fingerprint (uat)
+    type: fingerprint
+    needs: [approve]
+    if: ${{ inputs.target == 'uat' }}
+    environment: preview
+    env:
+      APP_VARIANT: uat
+
+  fingerprint_production:
+    name: Fingerprint (production)
+    type: fingerprint
+    needs: [approve]
+    if: ${{ inputs.target == 'production' }}
+    environment: production
+    env:
+      APP_VARIANT: production
+
+  # --- Does the target already have a build that runs this group? Keyed by the GROUP's runtime
+  # (the fingerprint it was published for), not the checkout's, per platform.
+
+  get_build_ios:
+    name: Get build (ios)
+    type: get-build
+    needs: [approve, resolve]
+    if: ${{ needs.resolve.outputs.ios_runtime }}
+    params:
+      platform: ios
+      profile: ${{ inputs.target }}
+      distribution: "${{ inputs.target == 'production' ? 'store' : 'internal' }}"
+      fingerprint_hash: ${{ needs.resolve.outputs.ios_runtime }}
+      wait_for_in_progress: true
+
+  get_build_android:
+    name: Get build (android)
+    type: get-build
+    needs: [approve, resolve]
+    if: ${{ needs.resolve.outputs.android_runtime }}
+    params:
+      platform: android
+      profile: ${{ inputs.target }}
+      distribution: "${{ inputs.target == 'production' ? 'store' : 'internal' }}"
+      fingerprint_hash: ${{ needs.resolve.outputs.android_runtime }}
+      wait_for_in_progress: true
+
+  # --- The gate
+
+  gate:
+    name: Fingerprint gate
+    after: [resolve, fingerprint_uat, fingerprint_production, get_build_ios, get_build_android]
+    if: ${{ after.resolve.status == 'success' && (after.fingerprint_uat.status == 'success' || after.fingerprint_production.status == 'success') }}
+    outputs:
+      build_ios: ${{ steps.decide.outputs.build_ios }}
+      build_android: ${{ steps.decide.outputs.build_android }}
+    env:
+      TARGET: ${{ inputs.target }}
+      GROUP: ${{ after.resolve.outputs.group_id }}
+      COMMIT: ${{ after.resolve.outputs.commit }}
+      IOS_RUNTIME: ${{ after.resolve.outputs.ios_runtime }}
+      ANDROID_RUNTIME: ${{ after.resolve.outputs.android_runtime }}
+      IOS_FP: ${{ after.fingerprint_uat.outputs.ios_fingerprint_hash || after.fingerprint_production.outputs.ios_fingerprint_hash }}
+      ANDROID_FP: ${{ after.fingerprint_uat.outputs.android_fingerprint_hash || after.fingerprint_production.outputs.android_fingerprint_hash }}
+      IOS_BUILD: ${{ after.get_build_ios.outputs.build_id }}
+      ANDROID_BUILD: ${{ after.get_build_android.outputs.build_id }}
+    steps:
+      - id: decide
+        name: Hit or miss, per platform
+        # uat miss  + checkout fingerprint == group runtime → build here (build_<p>=true)
+        # uat miss  + checkout fingerprint != group runtime → fail: re-run with --ref <commit>
+        # production miss                                  → fail: release.yml (T5.3)
+        run: |
+          fail=0
+          decide() {
+            p="$1"; runtime="$2"; fp="$3"; build="$4"; verdict=false
+            if [ -z "$runtime" ]; then echo "$p: not in group $GROUP — skipped"; set-output "build_$p" false; return; fi
+            if [ -n "$build" ]; then echo "$p: HIT — $TARGET build $build runs runtime $runtime"
+            elif [ "$TARGET" = "production" ]; then
+              echo "$p: MISS — no store build of production runs runtime $runtime (checkout fingerprint: $fp)."
+              echo "  Production never builds at promotion time: tag a release and run release.yml (T5.3), then promote again."
+              fail=1
+            elif [ "$fp" = "$runtime" ]; then echo "$p: MISS — cutting a uat build from this checkout (fingerprint $fp)"; verdict=true
+            else
+              echo "$p: MISS — and this checkout's fingerprint ($fp) is not the group's runtime ($runtime), so a build from here could not run it."
+              echo "  Re-run from the group's commit: bun run eas workflow:run .eas/workflows/promote.yml --ref ${COMMIT:-<commit>} -F target=uat -F update_group_id=$GROUP"
+              fail=1
+            fi
+            set-output "build_$p" "$verdict"
+          }
+          decide ios "$IOS_RUNTIME" "$IOS_FP" "$IOS_BUILD"
+          decide android "$ANDROID_RUNTIME" "$ANDROID_FP" "$ANDROID_BUILD"
+          [ "$fail" = 0 ] || { echo "Fingerprint gate: refusing to promote group $GROUP to $TARGET."; exit 1; }
+
+  # --- UAT builds on a miss (never for production)
+
+  build_ios:
+    name: Build (ios, uat)
+    type: build
+    needs: [gate, resolve]
+    # IOS_BUILDS — ad hoc credentials for `uat` (docs/environments-and-secrets.md → iOS runbook).
+    if: ${{ needs.gate.outputs.build_ios == 'true' && (inputs.ios_builds || 'disabled') == 'enabled' }}
+    params:
+      platform: ios
+      profile: uat
+      message: uat build for update group ${{ needs.resolve.outputs.group_id }}
+
+  build_android:
+    name: Build (android, uat)
+    type: build
+    needs: [gate, resolve]
+    if: ${{ needs.gate.outputs.build_android == 'true' }}
+    params:
+      platform: android
+      profile: uat
+      message: uat build for update group ${{ needs.resolve.outputs.group_id }}
+
+  # --- Republish the same group to the target channel
+
+  republish:
+    name: Republish
+    # `after` the builds: a failed uat build must not block the OTA (it is keyed by runtime and
+    # harmless for a platform with no matching build — same rule as deploy-staging.yml). A
+    # failed gate does.
+    after: [resolve, gate, build_ios, build_android]
+    if: ${{ after.gate.status == 'success' }}
+    outputs:
+      group_id: ${{ steps.republish.outputs.group_id }}
+    env:
+      APP_VARIANT: ${{ inputs.target }}
+      TARGET: ${{ inputs.target }}
+      GROUP: ${{ after.resolve.outputs.group_id }}
+      SOURCE_MESSAGE: ${{ after.resolve.outputs.message }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: republish
+        name: eas update:republish
+        # `--group` is the only selector allowed with --non-interactive; the destination channel
+        # resolves (or creates and links) the target branch. Same assets, same runtime, new group.
+        run: |
+          export EXPO_TOKEN="${ eas.job.secrets.robotAccessToken }"
+          bun run eas update:republish --group "$GROUP" --destination-channel "$TARGET" \
+            --message "promote ${GROUP:0:8} (staging → $TARGET): $SOURCE_MESSAGE" --json --non-interactive > republished.json
+          node -e '
+            const r = JSON.parse(require("node:fs").readFileSync("republished.json", "utf8"));
+            const id = (Array.isArray(r) ? r[0] : r)?.group ?? "";
+            console.log("republished as group", id || "(id not in output)");
+            require("node:fs").writeFileSync("group.txt", id);
+          '
+          set-output group_id "$(cat group.txt)"
+
+  # --- Web: same commit, target alias
+  # `deploy` always exports fresh; there is no non-interactive way to look up the staging
+  # deployment id, so the alias gets a redeploy of this checkout (run with --ref <commit> to
+  # make it byte-identical). Hand alternative: eas deploy:alias --alias uat --id <deployment-id>.
+
+  promote_web_uat:
+    name: Deploy web (uat)
+    type: deploy
+    needs: [republish]
+    if: ${{ inputs.target == 'uat' && (inputs.web || 'promote') == 'promote' && (inputs.hosting || 'disabled') == 'enabled' }}
+    environment: preview
+    env:
+      APP_VARIANT: uat
+    params:
+      alias: uat
+      prod: false
+
+  promote_web_production:
+    name: Deploy web (production)
+    type: deploy
+    needs: [republish]
+    if: ${{ inputs.target == 'production' && (inputs.web || 'promote') == 'promote' && (inputs.hosting || 'disabled') == 'enabled' }}
+    environment: production
+    env:
+      APP_VARIANT: production
+    params:
+      prod: true
+
+  # --- Slack
+
+  slack:
+    name: Slack
+    # Same custom job as deploy-staging.yml (a `type: slack` webhook_url cannot be an expression).
+    after:
+      [
+        resolve,
+        approve,
+        gate,
+        build_ios,
+        build_android,
+        republish,
+        promote_web_uat,
+        promote_web_production,
+      ]
+    environment: preview
+    steps:
+      - name: Compose message
+        run: |
+          cat > slack.txt <<'__SLACK_MSG__'
+          *Promote → ${{ inputs.target }}* · ${{ after.republish.status == 'success' ? '✅ promoted' : after.approve.status == 'failure' ? '🚫 rejected' : after.gate.status == 'failure' ? '⛔ fingerprint gate refused' : after.republish.status == 'failure' ? '❌ republish failed' : '⏭️ nothing published' }} · group `${{ substring(after.resolve.outputs.group_id || '', 0, 8) }}` ${{ after.resolve.outputs.message ? '— ' + after.resolve.outputs.message : '' }}
+          ${{ (after.build_ios.status == 'success' || after.build_android.status == 'success') ? ':warning: *Reinstall required* — new uat builds were cut; installed uat apps will NOT receive this update.' : after.republish.status == 'success' ? 'Installed ' + inputs.target + ' apps pick it up on next launch.' : 'Gate verdict per platform: see the run log.' }}
+          • *Update*: ${{ after.republish.outputs.group_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/updates/' + after.republish.outputs.group_id + '|' + substring(after.republish.outputs.group_id || '', 0, 8) + '> on `' + inputs.target + '`' : 'none' }}
+          • *iOS*: ${{ after.build_ios.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_ios.outputs.build_id + '|new uat build — install page + QR>' : after.build_ios.status == 'failure' ? '❌ build failed (credentials?)' : after.gate.outputs.build_ios == 'true' ? '⏭️ build needed, IOS_BUILDS disabled' : 'existing build' }}
+          • *Android*: ${{ after.build_android.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_android.outputs.build_id + '|new uat build — install page + QR>' : after.build_android.status == 'failure' ? '❌ build failed' : 'existing build' }}
+          • *Web*: ${{ after.promote_web_uat.outputs.deploy_url || after.promote_web_production.outputs.deploy_url ? '<' + (after.promote_web_uat.outputs.deploy_url || after.promote_web_production.outputs.deploy_url) + '>' : (after.promote_web_uat.status == 'failure' || after.promote_web_production.status == 'failure') ? '❌ deploy failed' : '⏭️ skipped (web=skip or HOSTING disabled)' }}
+          • *Runtime*: ios `${{ substring(after.resolve.outputs.ios_runtime || '', 0, 12) }}` · android `${{ substring(after.resolve.outputs.android_runtime || '', 0, 12) }}` · <${{ workflow.url }}|workflow run>
+          __SLACK_MSG__
+      - name: Post to Slack
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "SLACK_WEBHOOK_URL is not set in the preview environment — skipping (docs/release-ladder.md → Enable)."
+            exit 0
+          fi
+          node -e '
+            const text = require("node:fs").readFileSync("slack.txt", "utf8").trim();
+            fetch(process.env.SLACK_WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) })
+              .then((r) => r.ok ? console.log("posted") : Promise.reject(new Error("Slack " + r.status)))
+              .catch((e) => { console.error(e.message); process.exit(1); });
+          '

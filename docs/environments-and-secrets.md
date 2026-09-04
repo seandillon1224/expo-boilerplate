@@ -46,8 +46,8 @@ builds. A build polls one **channel** (set by its `eas.json` profile); a channel
 | Channel      | Branch       | Fed by                                                                                     | Builds that poll it  |
 | ------------ | ------------ | ------------------------------------------------------------------------------------------ | -------------------- |
 | `staging`    | `staging`    | Every merge to `main` (`deploy-staging` workflow, T5.1) via `eas update --channel staging` | `staging` profile    |
-| `uat`        | `uat`        | Manual, approval-gated `eas update:republish --channel uat` of a staging group (T5.2)      | `uat` profile        |
-| `production` | `production` | Manual, approval-gated `eas update:republish --channel production` of the UAT group (T5.2) | `production` profile |
+| `uat`        | `uat`        | Manual, approval-gated republish of a staging update group (`promote.yml`, T5.2)           | `uat` profile        |
+| `production` | `production` | Manual, approval-gated republish of the same staging group (`promote.yml`, T5.2)           | `production` profile |
 
 PLAN.md decision 3: UAT and production are **republishes of the same update group**, never a fresh
 `eas update` from a different commit, so what was tested is what ships. `development*` and `e2e-*`
@@ -217,6 +217,13 @@ the owner can provide. Until each is done the matching job skips itself and the 
 - [ ] **iOS ad hoc credentials** for `staging` (iOS runbook below, steps 1–3), then flip `IOS_BUILDS`
       to `enabled` in `deploy-staging.yml`.
 - [ ] Sentry variables above, then set `upload_sentry_sourcemaps: true` on the `update` job.
+- [ ] **GitHub Environments `uat` / `production`** (required reviewer = repo owner) — run
+      `bun run repo:settings:apply` again; `scripts/repo-settings.js` now carries them (T5.2). They
+      gate GitHub Actions jobs that declare `environment:` (`release.yml`, T5.3); the EAS-side
+      `promote.yml` is gated by its `require-approval` job. `bun run repo:settings:check` reports
+      `environments.<name>: missing` until this is done.
+- [ ] iOS ad hoc credentials for `uat` (iOS runbook, step 3), then run `promote.yml` with
+      `-F ios_builds=enabled` when a uat build is needed.
 
 ```sh
 bun run eas env:set --scope project --environment preview --environment production \
