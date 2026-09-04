@@ -57,8 +57,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 
 - [x] **#34 T4.1** — `.maestro/` layout: `config.yaml`, `flows/` (smoke, tabs, fetch, updates), `subflows/launch`, platform tags (`ios`, `android`, `web`), `APP_ID` env.
 - [x] **#35 T4.2** — `e2e.yml` workflow: `fingerprint` → `get-build` (by fingerprint + profile) → conditional `build` → `repack` → `maestro` (both platforms, sharding, retries, `record_screen`, JUnit).
-- [~] **#36 T4.3** — `github-comment` job posting results, QR codes for the dev/preview builds, links to recordings.
-- [ ] **#37 T4.4** — Failure artifacts: recordings, Maestro logs, device logs; document how to pull them from the dashboard.
+- [x] **#36 T4.3** — `github-comment` job posting results, QR codes for the dev/preview builds, links to recordings.
+- [~] **#37 T4.4** — Failure artifacts: recordings, Maestro logs, device logs; document how to pull them from the dashboard.
 - [ ] **#38 T4.5** — Tiered mode input (`ios: always|main-only|label`) documented and wired.
 - [ ] **#39 T4.6** — Flake budget: retries policy, quarantine tag, and a "flaky flow" issue template.
 
@@ -135,3 +135,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #33 | t33-e2e-local-scripts | https://github.com/seandillon1224/expo-boilerplate/pull/106 | merged | 2026-09-03 — E3 complete (human owes: one paid e2e-ios-sim + e2e-android-apk build to validate repack path)
 - 2026-09-03 — #34 | t34-maestro-layout | https://github.com/seandillon1224/expo-boilerplate/pull/107 | merged | 2026-09-03 (iOS 4/4 verified locally; Android tab selector label-based, unverified; invoke `maestro test .maestro` at workspace root)
 - 2026-09-03 — #35 | t35-e2e-workflow | https://github.com/seandillon1224/expo-boilerplate/pull/108 | merged | 2026-09-03 (validated, not executed; human owes: link Expo GitHub App, first run = 2 paid builds, then add EAS check context to REQUIRED_CHECKS)
+- 2026-09-03 — #36 | t36-github-comment | https://github.com/seandillon1224/expo-boilerplate/pull/109 | merged | 2026-09-03 (validated, not executed; github-comment has no update-in-place; expo.dev URL prefix hardcoded for init to rewrite)
