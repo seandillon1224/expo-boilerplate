@@ -62,6 +62,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - Required checks on `main` (every CI job except `Perf (Reassure)`) and merge settings (squash-only, auto-merge on for Renovate) are managed by `scripts/repo-settings.js`; run `bun run repo:settings:apply` once after creating a repo from the template.
 - EAS Workflows = native lane (fingerprint → get-build/build → repack → maestro → update → approval → submit).
 - `main` → OTA to `staging`; UAT/production are manual, approval-gated promotions of the same update group.
+- Which checks gate merge, how merging/auto-merge works, how to change the required set: `docs/js-gate.md`.
 
 ## Queue process
 
