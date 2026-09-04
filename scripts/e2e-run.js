@@ -1,8 +1,9 @@
 // `bun run e2e:ios` / `e2e:android` — local twin of the workflow's `maestro` job. Boots a
 // simulator / emulator, installs the repacked build (falls back to the base build), and runs the
 // Maestro workspace's flows tagged for the platform (`.maestro/flows/*`, native entries) with the
-// same JUnit output layout as `e2e:web` (`maestro-<platform>/`). Shuts the device down again only
-// if this script booted it.
+// same JUnit output layout as `e2e:web` (`maestro-<platform>/`, plus Maestro's debug output under
+// `debug/` and, after a failure, device logs under `device/` — docs/native-e2e.md → Failure
+// artifacts). Shuts the device down again only if this script booted it.
 //
 // MAESTRO_APP_ID is the variant's bundle id / package derived in app.config.ts for APP_VARIANT=development
 // (what the e2e-* build profiles use); `.maestro/config.yaml` documents the env contract.
@@ -10,6 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { collectDeviceLogs } = require('./e2e-device-logs');
 const {
   PROFILES,
   artifactPaths,
@@ -28,7 +30,8 @@ const USAGE = `Usage: bun run e2e:ios | bun run e2e:android   (node scripts/e2e-
 Mirrors the native lane's maestro job: boots a device, installs
 e2e/builds/<platform>/repacked.(app|apk) (or base.(app|apk) if you skipped e2e:repack) and runs
   maestro test .maestro --include-tags <platform> -e MAESTRO_APP_ID=<bundle id | package>
-with JUnit output in maestro-<platform>/.
+with JUnit output in maestro-<platform>/ (report.xml, Maestro debug output in debug/, and on a
+failure the simulator log / logcat in device/ — the same set the workflow's maestro job uploads).
 
 Device selection:
   ios      an already-booted iPhone simulator, else the newest available iPhone (xcrun simctl)
@@ -214,6 +217,8 @@ function runAndroid(maestro, id) {
   console.log(`Device: ${serial}`);
   const install = run(adb, ['-s', serial, 'install', '-r', artifact], { stdio: 'inherit' });
   if (install.status !== 0) fail(NAME, `adb install ${relative(artifact)} failed.`);
+  // Start logcat from a clean buffer so device/logcat.txt only covers this run.
+  run(adb, ['-s', serial, 'logcat', '-c']);
   return maestroTest(maestro, id, serial);
 }
 
@@ -241,7 +246,18 @@ function maestroTest(maestro, id, device) {
     '--flatten-debug-output',
   ];
   console.log(`$ maestro ${args.join(' ')}`);
-  return run(maestro, args, { stdio: 'inherit' }).status ?? 1;
+  const startedAt = new Date();
+  const status = run(maestro, args, { stdio: 'inherit' }).status ?? 1;
+  if (status !== 0) {
+    // Same collector the workflow's after_maestro_tests hook runs (scripts/e2e-device-logs.js).
+    const deviceDir = path.join(outputDir, 'device');
+    collectDeviceLogs({ platform, device, outDir: deviceDir, since: startedAt });
+    console.error(
+      `${NAME}: maestro exited ${status}. Recording/screenshots + maestro.log: ${relative(outputDir)}/debug/, ` +
+        `device logs: ${relative(deviceDir)}/ (docs/native-e2e.md → Failure artifacts).`,
+    );
+  }
+  return status;
 }
 
 const flows = flowsTagged(platform);

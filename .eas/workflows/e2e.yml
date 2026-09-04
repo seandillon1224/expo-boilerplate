@@ -20,11 +20,12 @@
 #
 # `comment` (github-comment, PLAN.md decision 12) posts one comment per run on the PR: per-platform
 # result, fingerprint, cached-or-fresh build with a link to its page (install QR for the Android
-# APK), the run link for recordings + JUnit, and the local reproduce line. It runs after every
+# APK), the run link for recordings + JUnit + device logs, and the local reproduce line. It runs after every
 # other job whatever their status, and is skipped on `workflow_dispatch` (no PR to post to).
 #
 # Local twins of each job: docs/native-e2e.md (`bun run fingerprint | e2e:build | e2e:repack |
-# e2e:ios | e2e:android`).
+# e2e:ios | e2e:android`). What a red maestro job leaves behind and how to pull it:
+# docs/native-e2e.md → Failure artifacts.
 #
 # Run it by hand:  bun run eas workflow:run .eas/workflows/e2e.yml
 #                  (or expo.dev → project → Workflows → "E2E (native)" → Run)
@@ -126,13 +127,34 @@ jobs:
       # Pin to the version the JS gate and the local scripts use (docs/native-e2e.md).
       maestro_version: 2.10.0
       # 4 flows → 2 shards. Sharding is experimental on EAS; drop to 1 first if a run misbehaves.
+      # Every shard (and every retry attempt) writes into the same "Maestro Test Results"
+      # artifact; the flow `name:` (native/<flow>) is the stable key to search it by.
       shards: 2
       # Re-run only the failed flows, up to twice (T4.6 turns this into a tracked flake budget).
       retries: 2
       retry_failed_only: true
-      # Screen recordings + `junit` report land in the "Maestro Test Results" run artifact.
+      # Screen recordings + `junit` report land in the "Maestro Test Results" run artifact. These
+      # two are the job's only artifact inputs (live schema, T4.4): there is no failure-only
+      # recording switch, no debug-output or device-log input — device logs come from the hook.
       record_screen: true
       output_format: junit
+    hooks:
+      # Device logs are the one failure artifact Maestro does not produce. The hook runs the same
+      # collector `bun run e2e:ios` uses on a red exit (scripts/e2e-device-logs.js: unified log
+      # of the app's processes + crash reports, Node built-ins only — no node_modules here) and
+      # uploads it next to "Maestro Test Results". `always()` so it runs after a red maestro
+      # step; the collector never exits non-zero, so a log hiccup cannot fail the job.
+      after_maestro_tests:
+        - name: Collect simulator log
+          if: ${{ always() }}
+          run: node scripts/e2e-device-logs.js --platform ios --out device-logs
+        - name: Upload device logs
+          if: ${{ always() }}
+          uses: eas/upload_artifact
+          with:
+            type: other
+            name: Device logs (ios)
+            path: device-logs
 
   # --- Android -----------------------------------------------------------------------------
 
@@ -188,6 +210,19 @@ jobs:
       retry_failed_only: true
       record_screen: true
       output_format: junit
+    hooks:
+      # Same as maestro_ios: `adb logcat -d` of the emulator into its own artifact.
+      after_maestro_tests:
+        - name: Collect logcat
+          if: ${{ always() }}
+          run: node scripts/e2e-device-logs.js --platform android --out device-logs
+        - name: Upload device logs
+          if: ${{ always() }}
+          uses: eas/upload_artifact
+          with:
+            type: other
+            name: Device logs (android)
+            path: device-logs
 
   # --- PR comment --------------------------------------------------------------------------
 
@@ -226,5 +261,5 @@ jobs:
         ${{ after.maestro_android.outputs.failed_flows_count > 0 ? '- Android failed flows: `' + after.maestro_android.outputs.failed_flow_names_json + '`' : '' }}
 
         - **Install**: the Android build page hosts the install link + QR code (internal distribution). The iOS build is a simulator `.app` with no QR code: download it from its page or `bun run e2e:build --platform ios --build-id <id>`.
-        - **Recordings / JUnit**: [workflow run](${{ workflow.url }}) → artifacts → **Maestro Test Results**.
+        - **Recordings / JUnit / device logs**: [workflow run](${{ workflow.url }}) → artifacts → **Maestro Test Results** + **Device logs (ios | android)**. Triage: docs/native-e2e.md → Failure artifacts.
         - **Reproduce locally**: `bun run e2e:build --platform <p> && bun run e2e:repack --platform <p> && bun run e2e:<p>` (docs/native-e2e.md).
