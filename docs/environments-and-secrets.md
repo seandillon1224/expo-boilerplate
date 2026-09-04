@@ -112,15 +112,15 @@ must set `environment:` explicitly to stay in sync with the profile it pairs wit
 
 ### Variables
 
-| Name                      | Visibility  | Environments                             | Set by                     | Consumed by                                                                                                             |
-| ------------------------- | ----------- | ---------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `EXPO_PUBLIC_API_URL`     | `plaintext` | all three (same demo value today)        | Template (created in T3.2) | App via `@/lib/env`; inlined into the JS bundle at build / update / export time.                                        |
-| `EXPO_PUBLIC_APP_VARIANT` | `plaintext` | `development` / `staging` / `production` | Template (created in T3.2) | App via `@/lib/env`. **Overridden by the profile `env`** (`uat` builds get `uat` even though `preview` says `staging`). |
-| `EXPO_PUBLIC_SENTRY_DSN`  | `plaintext` | all three (may share one DSN)            | **Owner** (see checklist)  | `src/lib/sentry.ts`; absent → Sentry is a no-op.                                                                        |
-| `SENTRY_ORG`              | `plaintext` | all three                                | **Owner**                  | `@sentry/react-native/expo` config plugin (EAS Build) and `bun run sentry:sourcemaps` (EAS Update).                     |
-| `SENTRY_PROJECT`          | `plaintext` | all three                                | **Owner**                  | Same as `SENTRY_ORG`.                                                                                                   |
-| `SENTRY_AUTH_TOKEN`       | `secret`    | all three                                | **Owner**                  | Same as `SENTRY_ORG`; `secret` so it is never readable outside EAS servers and is redacted in job logs.                 |
-| `SLACK_WEBHOOK_URL`       | `secret`    | `preview`, `production`                  | **Owner** (see checklist)  | The `slack` job of `deploy-staging.yml` (T5.1) and the promotion workflow (T5.2); absent → the job logs and skips.      |
+| Name                      | Visibility  | Environments                             | Set by                     | Consumed by                                                                                                                     |
+| ------------------------- | ----------- | ---------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_API_URL`     | `plaintext` | all three (same demo value today)        | Template (created in T3.2) | App via `@/lib/env`; inlined into the JS bundle at build / update / export time.                                                |
+| `EXPO_PUBLIC_APP_VARIANT` | `plaintext` | `development` / `staging` / `production` | Template (created in T3.2) | App via `@/lib/env`. **Overridden by the profile `env`** (`uat` builds get `uat` even though `preview` says `staging`).         |
+| `EXPO_PUBLIC_SENTRY_DSN`  | `plaintext` | all three (may share one DSN)            | **Owner** (see checklist)  | `src/lib/sentry.ts`; absent → Sentry is a no-op.                                                                                |
+| `SENTRY_ORG`              | `plaintext` | all three                                | **Owner**                  | `@sentry/react-native/expo` config plugin (EAS Build) and `bun run sentry:sourcemaps` (EAS Update).                             |
+| `SENTRY_PROJECT`          | `plaintext` | all three                                | **Owner**                  | Same as `SENTRY_ORG`.                                                                                                           |
+| `SENTRY_AUTH_TOKEN`       | `secret`    | all three                                | **Owner**                  | Same as `SENTRY_ORG`; `secret` so it is never readable outside EAS servers and is redacted in job logs.                         |
+| `SLACK_WEBHOOK_URL`       | `secret`    | `preview`, `production`                  | **Owner** (see checklist)  | The `slack` job of `deploy-staging.yml` (T5.1), `promote.yml` (T5.2) and `release.yml` (T5.3); absent → the job logs and skips. |
 
 All variables are `--scope project`. `APP_VARIANT` itself is deliberately **not** an EAS variable: it
 is owned by the build profile (`eas.json` → `env`), which is the only thing that distinguishes
@@ -224,6 +224,12 @@ the owner can provide. Until each is done the matching job skips itself and the 
       `environments.<name>: missing` until this is done.
 - [ ] iOS ad hoc credentials for `uat` (iOS runbook, step 3), then run `promote.yml` with
       `-F ios_builds=enabled` when a uat build is needed.
+- [ ] **`EXPO_TOKEN` GitHub repository secret** (EAS robot token) — `.github/workflows/release.yml`
+      (T5.3) starts the EAS release with it and fails early with a readable error while it is missing.
+- [ ] App Store credentials + ASC API key on EAS and `ascAppId` in `eas.json` (below), then flip
+      `IOS_RELEASE` to `enabled` in `.eas/workflows/release.yml`.
+- [ ] Play service-account key on EAS after the first manual AAB upload (below), then flip
+      `PLAY_SUBMIT` to `enabled` in `.eas/workflows/release.yml`.
 
 ```sh
 bun run eas env:set --scope project --environment preview --environment production \

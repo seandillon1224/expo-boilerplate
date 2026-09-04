@@ -1,0 +1,231 @@
+# Store rung of the delivery ladder (PLAN.md decisions 3, 12, 13): a `vX.Y.Z` tag becomes
+# production store builds for both platforms, submitted to the Play internal track and to
+# TestFlight (internal group — an iOS submit without a release lands there).
+# version check → fingerprint → get_build (production, store) → gate (unchanged fingerprint =
+# skip, green) → build → submit → Slack.  Runbook: docs/release-ladder.md → Store release (tag).
+#
+# Trigger: `workflow_dispatch` ONLY — never `push: tags`, although EAS supports it. The tag push
+# lands in .github/workflows/release.yml, whose `environment: production` waits for the GitHub
+# reviewer before it runs `bun run eas workflow:run .eas/workflows/release.yml -F tag=<tag>`;
+# an EAS tag trigger would bypass that gate. Until D1 (#60) the tag is cut by a human:
+#   git tag v1.2.3 && git push origin v1.2.3
+# Run by hand:  bun run eas workflow:run .eas/workflows/release.yml -F tag=v1.2.3 [-F force=yes]
+# Validate:     bun run eas workflow:validate .eas/workflows/release.yml   (cap: 16 KiB)
+#
+# Repo constants, deploy-staging.yml idiom (input default == `|| '<literal>'` on the job `if`):
+#   IOS_RELEASE  build_ios.if       disabled until App Store credentials + ASC API key + ascAppId
+#   PLAY_SUBMIT  submit_android.if  disabled until the Play service-account key is on EAS
+# Android builds run regardless; only the submit is guarded. Slack skips itself without
+# SLACK_WEBHOOK_URL. So a tag today yields an Android store build and a green run.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        type: string
+        required: true
+        description: The pushed tag, vX.Y.Z. Must equal `v` + app.config.ts `version`.
+      platforms:
+        type: choice
+        options: [both, ios, android]
+        default: both
+        required: false
+        description: Platforms to release.
+      force:
+        type: choice
+        options: ['no', 'yes']
+        default: 'no'
+        required: false
+        description: yes = build + submit even when a store build with this fingerprint exists.
+      ios_release:
+        type: choice
+        options: [enabled, disabled]
+        default: disabled
+        required: false
+        description: enabled = iOS store build + TestFlight submit (needs App Store credentials, ASC API key, ascAppId).
+      play_submit:
+        type: choice
+        options: [enabled, disabled]
+        default: disabled
+        required: false
+        description: enabled = submit the Android build to the Play internal track (needs the service-account key on EAS).
+
+jobs:
+  # --- Tag ↔ version (D1 / #60 refines this into real versioning)
+
+  version_check:
+    name: Tag matches app version
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    environment: production
+    env:
+      APP_VARIANT: production
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: check
+        name: Compare tag with expo config version
+        run: |
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "Tag '$TAG' is not vX.Y.Z — release tags are semver with a v prefix (git tag v1.2.3)."; exit 1 ;;
+          esac
+          version="$(bunx expo config --json --type public | node -e 'let s="";process.stdin.on("data",(d)=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).version ?? ""))')"
+          if [ "v$version" != "$TAG" ]; then
+            echo "Tag '$TAG' does not match app.config.ts version '$version'."
+            echo "  Bump \`version\` in app.config.ts via a PR, merge, then tag that commit: git tag v$version && git push origin v$version"
+            echo "  (or delete the tag: git push origin :refs/tags/$TAG)."
+            exit 1
+          fi
+          echo "Tag $TAG matches app.config.ts version $version."
+          set-output version "$version"
+
+  # --- Fingerprint of the checkout as the production variant
+
+  fingerprint:
+    name: Fingerprint (production)
+    type: fingerprint
+    needs: [version_check]
+    # Must equal the `production` build profile (eas.json → environment + env).
+    environment: production
+    env:
+      APP_VARIANT: production
+
+  # --- Is there already a store build of this fingerprint? A hit = nothing native changed
+  # since the last release, so a fresh store build would ship the same binary again.
+
+  check_ios:
+    name: Get store build (ios)
+    type: get-build
+    needs: [fingerprint]
+    if: ${{ inputs.platforms != 'android' }}
+    params:
+      platform: ios
+      profile: production
+      distribution: store
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  check_android:
+    name: Get store build (android)
+    type: get-build
+    needs: [fingerprint]
+    if: ${{ inputs.platforms != 'ios' }}
+    params:
+      platform: android
+      profile: production
+      distribution: store
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  # --- The gate: skip (exit 0, green) when nothing native changed, unless force=yes
+
+  gate:
+    name: Fingerprint gate
+    after: [fingerprint, check_ios, check_android]
+    if: ${{ after.fingerprint.status == 'success' }}
+    outputs:
+      release_ios: ${{ steps.decide.outputs.release_ios }}
+      release_android: ${{ steps.decide.outputs.release_android }}
+    env:
+      TAG: ${{ inputs.tag }}
+      PLATFORMS: ${{ inputs.platforms || 'both' }}
+      FORCE: ${{ inputs.force || 'no' }}
+      IOS_FP: ${{ after.fingerprint.outputs.ios_fingerprint_hash }}
+      ANDROID_FP: ${{ after.fingerprint.outputs.android_fingerprint_hash }}
+      IOS_BUILD: ${{ after.check_ios.outputs.build_id }}
+      ANDROID_BUILD: ${{ after.check_android.outputs.build_id }}
+    steps:
+      - id: decide
+        name: Hit or miss, per platform
+        run: |
+          releasing=0
+          decide() {
+            p="$1"; fp="$2"; build="$3"; verdict=false
+            if [ "$PLATFORMS" != both ] && [ "$PLATFORMS" != "$p" ]; then echo "$p: not selected (platforms=$PLATFORMS) — skipped"
+            elif [ -n "$build" ] && [ "$FORCE" != yes ]; then
+              echo "$p: fingerprint $fp unchanged since last store build $build; nothing to release."
+              echo "  Bump a native dependency / config plugin to change the fingerprint, or re-run with force=yes."
+            elif [ -n "$build" ]; then echo "$p: store build $build already has fingerprint $fp — force=yes, releasing $TAG anyway"; verdict=true; releasing=1
+            else echo "$p: MISS — no store build with fingerprint $fp; releasing $TAG"; verdict=true; releasing=1
+            fi
+            set-output "release_$p" "$verdict"
+          }
+          decide ios "$IOS_FP" "$IOS_BUILD"
+          decide android "$ANDROID_FP" "$ANDROID_BUILD"
+          [ "$releasing" = 1 ] || echo "Release $TAG skipped: fingerprint unchanged on every selected platform. Run is green; nothing was built or submitted."
+
+  # --- Store builds (production profile: distribution store, autoIncrement, channel production)
+
+  build_ios:
+    name: Build (ios, production)
+    type: build
+    needs: [gate, version_check]
+    # IOS_RELEASE — App Store credentials + ASC API key (docs/environments-and-secrets.md → iOS runbook).
+    if: ${{ needs.gate.outputs.release_ios == 'true' && (inputs.ios_release || 'disabled') == 'enabled' }}
+    params:
+      platform: ios
+      profile: production
+      message: release ${{ inputs.tag }} (${{ needs.version_check.outputs.version }})
+
+  build_android:
+    name: Build (android, production)
+    type: build
+    needs: [gate, version_check]
+    if: ${{ needs.gate.outputs.release_android == 'true' }}
+    params:
+      platform: android
+      profile: production
+      message: release ${{ inputs.tag }} (${{ needs.version_check.outputs.version }})
+
+  # --- Submit: eas.json submit.production. iOS with no release = TestFlight (internal group,
+  # automatic distribution); Android track: internal.
+
+  submit_ios:
+    name: Submit (ios → TestFlight)
+    type: submit
+    needs: [build_ios]
+    if: ${{ (inputs.ios_release || 'disabled') == 'enabled' }}
+    params:
+      build_id: ${{ needs.build_ios.outputs.build_id }}
+      profile: production
+
+  submit_android:
+    name: Submit (android → Play internal)
+    type: submit
+    needs: [build_android]
+    # PLAY_SUBMIT — service-account key on EAS (docs/environments-and-secrets.md → Google Play runbook).
+    if: ${{ (inputs.play_submit || 'disabled') == 'enabled' }}
+    params:
+      build_id: ${{ needs.build_android.outputs.build_id }}
+      profile: production
+
+  # --- Slack (same custom job as deploy-staging.yml; skips itself without SLACK_WEBHOOK_URL)
+
+  notify:
+    name: Slack
+    after: [version_check, fingerprint, gate, build_ios, build_android, submit_ios, submit_android]
+    environment: production
+    steps:
+      - name: Compose message
+        run: |
+          cat > slack.txt <<'__SLACK_MSG__'
+          *Release ${{ inputs.tag }}* · ${{ after.version_check.status == 'failure' ? '❌ tag does not match app version' : after.gate.status != 'success' ? '❌ fingerprint / gate failed' : (after.build_ios.status == 'failure' || after.build_android.status == 'failure') ? '❌ build failed' : (after.submit_ios.status == 'failure' || after.submit_android.status == 'failure') ? '❌ submit failed' : (after.build_ios.status == 'success' || after.build_android.status == 'success') ? '✅ store builds cut' : '⏭️ skipped — fingerprint unchanged since last store build (force=yes to override)' }}
+          • *iOS*: ${{ after.build_ios.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_ios.outputs.build_id + '|build> · ' + (after.submit_ios.status == 'success' ? 'submitted → TestFlight internal group' : after.submit_ios.status == 'failure' ? '❌ submit failed (ASC API key / ascAppId?)' : 'submit skipped') : after.build_ios.status == 'failure' ? '❌ build failed (credentials?)' : after.gate.outputs.release_ios == 'true' ? '⏭️ IOS_RELEASE disabled' : '⏭️ nothing to release' }}
+          • *Android*: ${{ after.build_android.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_android.outputs.build_id + '|build> · ' + (after.submit_android.status == 'success' ? 'submitted → Play internal track' : after.submit_android.status == 'failure' ? '❌ submit failed (service account?)' : '⏭️ submit skipped (PLAY_SUBMIT disabled) — upload the AAB by hand') : after.build_android.status == 'failure' ? '❌ build failed' : '⏭️ nothing to release' }}
+          • *Fingerprint*: ios `${{ substring(after.fingerprint.outputs.ios_fingerprint_hash || '', 0, 12) }}` · android `${{ substring(after.fingerprint.outputs.android_fingerprint_hash || '', 0, 12) }}` · <${{ workflow.url }}|workflow run>
+          __SLACK_MSG__
+      - name: Post to Slack
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "SLACK_WEBHOOK_URL is not set in the production environment — skipping (docs/release-ladder.md → Enable)."
+            exit 0
+          fi
+          node -e '
+            const text = require("node:fs").readFileSync("slack.txt", "utf8").trim();
+            fetch(process.env.SLACK_WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) })
+              .then((r) => r.ok ? console.log("posted") : Promise.reject(new Error("Slack " + r.status)))
+              .catch((e) => { console.error(e.message); process.exit(1); });
+          '
