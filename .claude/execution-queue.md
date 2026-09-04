@@ -50,8 +50,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#29 T3.2** — EAS Environment Variables for `development`/`preview`/`production`; `bun run env:pull`; document the mapping to staging/UAT/prod.
 - [x] **#30 T3.3** — Update channels `staging`, `uat`, `production`; `runtimeVersion` policy = `fingerprint`.
 - [x] **#31 T3.4** — Credentials: iOS + Android signing on EAS for the boilerplate's own bundle IDs. _Android keystores done; iOS + Play credentials are owner steps (docs/environments-and-secrets.md → Credentials)._
-- [~] **#32 T3.5** — Device onboarding: `bun run devices:add` (wraps `eas device:create`), `apple-device-registration-request` job, docs for non-engineers.
-- [ ] **#33 T3.6** — Local reproduce scripts in Bun: `bun run fingerprint`, `bun run e2e:build`, `bun run e2e:repack`, `bun run e2e:ios|android` — same steps the workflows run, for laptop debugging.
+- [x] **#32 T3.5** — Device onboarding: `bun run devices:add` (wraps `eas device:create`), `apple-device-registration-request` job, docs for non-engineers.
+- [~] **#33 T3.6** — Local reproduce scripts in Bun: `bun run fingerprint`, `bun run e2e:build`, `bun run e2e:repack`, `bun run e2e:ios|android` — same steps the workflows run, for laptop debugging.
 
 ### E4 — Native E2E lane (EAS Workflows) (tracker #71)
 
@@ -131,3 +131,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #29 | t29-eas-env | https://github.com/seandillon1224/expo-boilerplate/pull/102 | merged | 2026-09-03 (human owes: Sentry vars via eas env:set, EXPO_TOKEN + SENTRY_AUTH_TOKEN GitHub secrets)
 - 2026-09-03 — #30 | t30-update-channels | https://github.com/seandillon1224/expo-boilerplate/pull/103 | merged | 2026-09-03 (channels staging/uat/production created; note: package.json scripts are a fingerprint source)
 - 2026-09-03 — #31 | t31-credentials | https://github.com/seandillon1224/expo-boilerplate/pull/104 | merged | 2026-09-03 (4 Android keystores on EAS; human owes iOS ad hoc/App Store creds, ASC API key, Play service account)
+- 2026-09-03 — #32 | t32-device-onboarding | https://github.com/seandillon1224/expo-boilerplate/pull/105 | merged | 2026-09-03 (account has two Apple teams: LT39NG6Z8B, B8SZSHYJL3 — human picks; ASC API key owed)
