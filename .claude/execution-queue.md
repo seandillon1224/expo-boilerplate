@@ -60,11 +60,11 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#36 T4.3** — `github-comment` job posting results, QR codes for the dev/preview builds, links to recordings.
 - [x] **#37 T4.4** — Failure artifacts: recordings, Maestro logs, device logs; document how to pull them from the dashboard.
 - [x] **#38 T4.5** — Tiered mode input (`ios: always|main-only|label`) documented and wired.
-- [~] **#39 T4.6** — Flake budget: retries policy, quarantine tag, and a "flaky flow" issue template.
+- [x] **#39 T4.6** — Flake budget: retries policy, quarantine tag, and a "flaky flow" issue template.
 
 ### E5 — Delivery ladder (tracker #72)
 
-- [ ] **#40 T5.1** — `deploy-staging.yml`: on push to `main`, `fingerprint` → `get-build` (staging profile, both platforms) → on miss `build` staging internal builds → `update` to `staging` with Sentry source maps → `deploy` web export to EAS Hosting staging alias → `slack` with install links/QR, flagged "reinstall required" when a new build was made.
+- [~] **#40 T5.1** — `deploy-staging.yml`: on push to `main`, `fingerprint` → `get-build` (staging profile, both platforms) → on miss `build` staging internal builds → `update` to `staging` with Sentry source maps → `deploy` web export to EAS Hosting staging alias → `slack` with install links/QR, flagged "reinstall required" when a new build was made.
 - [ ] **#41 T5.2** — `promote.yml` (manual): `require-approval` → fingerprint gate: UAT auto-builds its variant on a fingerprint miss; production **refuses** on a miss with a pointer to `release.yml` → republish the chosen update group to `uat` or `production`; promote web alias; GitHub Environments with required reviewers.
 - [ ] **#42 T5.3** — `release.yml`: on `v*` tag, `build` production for both platforms, `submit` to Play internal track, `testflight` internal group; refuses/skips with a clear message when the fingerprint hasn't changed since the last store release.
 - [ ] **#43 T5.4** — PR preview web deploys with unique URLs in the PR comment.
@@ -138,3 +138,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #36 | t36-github-comment | https://github.com/seandillon1224/expo-boilerplate/pull/109 | merged | 2026-09-03 (validated, not executed; github-comment has no update-in-place; expo.dev URL prefix hardcoded for init to rewrite)
 - 2026-09-03 — #37 | t37-failure-artifacts | https://github.com/seandillon1224/expo-boilerplate/pull/110 | merged | 2026-09-03 (e2e.yml at 14.5 KiB of 16 KiB cap — watch size in #38/#39)
 - 2026-09-03 — #38 | t38-tiered-mode | https://github.com/seandillon1224/expo-boilerplate/pull/111 | merged | 2026-09-03 (label e2e:ios created; #55 should add it to DESIRED labels)
+- 2026-09-03 — #39 | t39-flake-budget | https://github.com/seandillon1224/expo-boilerplate/pull/112 | merged | 2026-09-03 — E4 complete (labels flaky-flow, e2e created; #55 to absorb)
