@@ -48,9 +48,12 @@ device; locally the app is installed over whatever is already on the simulator (
 
 ## Workflow (`.eas/workflows/e2e.yml`)
 
-`E2E (native)` runs on every pull request into `main` (`on: pull_request`) and by hand
-(`workflow_dispatch`). Pushes to `main` are not a trigger: the staging OTA workflow (E5) covers
-those. A new push to the PR branch cancels the run in flight (`concurrency.cancel_in_progress`).
+`E2E (native)` runs on every pull request into `main` (`on: pull_request`), when a PR is
+labelled `e2e:ios` (`on: pull_request_labeled`), and by hand (`workflow_dispatch`). A `push` to
+`main` trigger exists but is switched off (`if: false`) unless the project runs iOS in
+`main-only` tier — see [Tiered mode](#tiered-mode); the staging OTA workflow (E5) covers `main`
+otherwise. A new push to the same branch cancels the run in flight
+(`concurrency.cancel_in_progress`).
 
 ```text
 fingerprint ─┬─ get_build_ios ─────┬─ repack_ios      (hit:  reuse base build, inject this JS)
@@ -65,7 +68,7 @@ fingerprint ─┬─ get_build_ios ─────┬─ repack_ios      (hit: 
 | Job             | Type             | Inputs                                                                                                                                                                                                                                                                                                                  | Outputs used downstream                                                                                                                               |
 | --------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `fingerprint`   | `fingerprint`    | `environment: development`, `env.APP_VARIANT=development` (must equal the E2E build profiles, or the hash never matches)                                                                                                                                                                                                | `ios_fingerprint_hash`, `android_fingerprint_hash`                                                                                                    |
-| `get_build_<p>` | `get-build`      | `platform`, `profile: e2e-ios-sim \| e2e-android-apk`, `simulator: true` (ios), `fingerprint_hash`, `wait_for_in_progress`                                                                                                                                                                                              | `build_id` (empty on a miss)                                                                                                                          |
+| `get_build_<p>` | `get-build`      | `platform`, `profile: e2e-ios-sim \| e2e-android-apk`, `simulator: true` (ios), `fingerprint_hash`, `wait_for_in_progress`; iOS only: the `IOS_MODE` `if:` ([Tiered mode](#tiered-mode)) — skipping it skips the whole iOS chain                                                                                        | `build_id` (empty on a miss)                                                                                                                          |
 | `build_<p>`     | `build`          | `if: !get_build.build_id`; `platform`, `profile` (same E2E profile)                                                                                                                                                                                                                                                     | `build_id`                                                                                                                                            |
 | `repack_<p>`    | `repack`         | `if: get_build.build_id`; `build_id` of the cached base build, `profile` (same E2E profile)                                                                                                                                                                                                                             | `build_id` (the repacked build)                                                                                                                       |
 | `maestro_<p>`   | `maestro`        | `after: [repack, build]`; `build_id: repack \|\| build`, `flow_path: .maestro`, `include_tags: [<p>]`, `maestro_version: 2.10.0`, `shards: 2`, `retries: 2`, `retry_failed_only: true`, `record_screen: true`, `output_format: junit`, `env.MAESTRO_APP_ID`; `hooks.after_maestro_tests` collects + uploads device logs | Run artifacts: **Maestro Test Results** (recordings, JUnit, Maestro debug output) and **Device logs (<p>)** ([Failure artifacts](#failure-artifacts)) |
@@ -100,8 +103,9 @@ The last job, `comment` (`type: github-comment`), posts the run's outcome on the
 wired with `after:` on every other job — `needs` would skip it as soon as anything failed, and
 half of the jobs are skipped by design (`build_<p>` xor `repack_<p>`) — so it posts whatever
 happened. `after.<job>.status` is `success | failure | skipped`, and the payload turns that into
-the ✅ / ❌ / ⏭️ per platform. The job is skipped on `workflow_dispatch` (there is no PR to post
-to; without the `if` it would fail the run).
+the ✅ / ❌ / ⏭️ per platform; an iOS row reads `⏭️ skipped (ios_mode; …)` when the tier, not a
+failure, skipped the lane. The job is skipped on `workflow_dispatch` and `push` (there is no PR
+to post to; without the `if` it would fail the run).
 
 What the comment contains, and where each value comes from:
 
@@ -141,9 +145,61 @@ Example (JS-only PR on iOS, native change on Android, one Android flow failed):
 ```
 
 Run it by hand: `bun run eas workflow:run .eas/workflows/e2e.yml` (or expo.dev → project →
-Workflows → **E2E (native)** → Run). Validate after editing:
-`bun run eas workflow:validate .eas/workflows/e2e.yml`. The `tier` dispatch input is a
-placeholder for T4.5 and is not read yet.
+Workflows → **E2E (native)** → Run); the only input is `ios_mode`, described next. Validate
+after editing: `bun run eas workflow:validate .eas/workflows/e2e.yml` — EAS caps a workflow file
+at 16 KiB, so long explanations belong on this page, not in the YAML.
+
+### Tiered mode
+
+Both platforms run on every PR by default (PLAN.md decision 14). iOS is the expensive lane — a
+macOS worker for every repack and Maestro run, ~15 min of macOS build time on a fingerprint miss
+— so a project can dial it down to one of three tiers. Android always runs: it is the cheap
+signal and catches most JS regressions on its own.
+
+| Event                              | `always` (default) | `main-only`       | `label`           |
+| ---------------------------------- | ------------------ | ----------------- | ----------------- |
+| PR opened / synchronize            | iOS ✅ Android ✅  | iOS ⏭️ Android ✅ | iOS ⏭️ Android ✅ |
+| PR carries the `e2e:ios` label     | iOS ✅ Android ✅  | iOS ✅ Android ✅ | iOS ✅ Android ✅ |
+| `e2e:ios` label added (`labeled`)  | iOS ✅ Android ✅  | iOS ✅ Android ✅ | iOS ✅ Android ✅ |
+| Push to `main`                     | no run             | iOS ✅ Android ✅ | no run            |
+| `workflow_dispatch` (input as set) | iOS ✅ Android ✅  | iOS ✅ Android ✅ | iOS ⏭️ Android ✅ |
+
+"PR carries the label" means every later push to a labelled PR keeps running iOS; the `labeled`
+row is the extra run EAS starts the moment the label lands (it cancels the run in flight for
+that branch and re-runs both platforms). The label is an escape hatch in every tier: in
+`main-only` it is how a reviewer asks for iOS on one risky PR without touching the file. In
+`always` it is redundant.
+
+**How it is wired.** EAS workflows have no top-level `env`, and `inputs.*` are empty on any run
+that is not a `workflow_dispatch`, so the tier is a literal in the YAML — a repo-level constant
+a PR author cannot override from the outside — with the dispatch input as the per-run override.
+The three places, all marked `IOS_MODE n/3` in `.eas/workflows/e2e.yml`:
+
+1. `get_build_ios.if` — `(inputs.ios_mode || 'always')`, twice: the `'always'` fallback _is_ the
+   constant. The expression is `mode == always || (mode == main-only && event != pull_request) || PR has the e2e:ios label`. Skipping `get_build_ios` skips `build_ios` / `repack_ios` through
+   `needs`, and `maestro_ios` through its empty-`build_id` guard; `comment` still posts.
+2. `on.push.if` — `false` for `always` and `label`, `true` for `main-only` (the post-merge run
+   is the only place iOS runs in that tier; in the other tiers it would repeat what the PR run
+   just proved). Cost of `true`: one run per merge — repack + Maestro per platform on a JS-only
+   merge, a full build per platform on a fingerprint change.
+3. `on.workflow_dispatch.inputs.ios_mode.default` — the value the dispatch form pre-fills. Keep
+   it equal to the constant so a plain "Run" behaves like a PR would.
+
+To change the tier, edit all three (grep `IOS_MODE`) and re-run `workflow:validate`.
+
+**Forcing a full run.** Add the `e2e:ios` label to the PR (create the label once in the repo:
+`gh label create e2e:ios -c 5319e7 -d "Run the iOS Maestro lane on this PR"`), or run
+`bun run eas workflow:run .eas/workflows/e2e.yml -F ios_mode=always` from the branch (a dispatch
+run has no PR, so no comment is posted — read the run page instead). Dispatching with
+`-F ios_mode=label` is the inverse: an Android-only run.
+
+**Limits.** The label check is `contains(toJSON(github.event.pull_request.labels), '"e2e:ios"')`
+— a substring match on the PR's label list, good enough unless a project adds another label
+whose name contains `"e2e:ios"` verbatim. The `github` context lists `event_name` as
+`pull_request | push | schedule | workflow_dispatch`; the `labeled` run is assumed to arrive as
+`pull_request` (the expression and the `comment` guard both tolerate either), which is unverified
+until the Expo GitHub App is linked and a labelled PR has run. No GitHub Actions helper or
+`EXPO_TOKEN` is involved: EAS starts the labelled run from its own webhook.
 
 ### Human prerequisites (once)
 

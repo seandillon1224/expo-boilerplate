@@ -1,58 +1,36 @@
-# Native E2E lane (PLAN.md decisions 1, 2, 6, 14): every PR runs the Maestro flows on a real iOS
-# Simulator and Android Emulator build, without CI ever running Metro or a native build it can
-# avoid. Per platform:
+# Native E2E lane (PLAN.md decisions 1, 2, 6, 14). Per platform: fingerprint → get_build (hit:
+# repack this commit's JS into the cached base | miss: paid full build) → maestro, then one PR
+# comment. iOS is the expensive lane and can be tiered down (IOS_MODE below). The full story —
+# cache idiom, tiered-mode matrix, local twins, failure artifacts — is docs/native-e2e.md.
 #
-#   fingerprint ─┬─ get_build_ios ─────┬─ repack_ios     (hit: inject this commit's JS bundle)
-#                │                     └─ build_ios      (miss: full EAS build, paid, ~15 min)
-#                │                          └────────────── maestro_ios
-#                └─ get_build_android ─┬─ repack_android
-#                                      └─ build_android
-#                                           └────────────── maestro_android
-#                                                                 └── comment  (PR only, always)
-#
-# `get-build` looks for a finished build of the E2E profile (`e2e-ios-sim` / `e2e-android-apk`,
-# eas.json) whose fingerprint equals this commit's. On a hit the base build is reused and
-# `repack` (@expo/repack-app) swaps in a fresh JS bundle; on a miss `build` produces a new base
-# for that fingerprint, which the next PR with the same native surface will then find. A fresh
-# build already embeds this commit's JS, so it is not repacked — that is the idiom from Expo's
-# "continuous deployment with fingerprint and repack" example, and `maestro` takes whichever id
-# exists.
-#
-# `comment` (github-comment, PLAN.md decision 12) posts one comment per run on the PR: per-platform
-# result, fingerprint, cached-or-fresh build with a link to its page (install QR for the Android
-# APK), the run link for recordings + JUnit + device logs, and the local reproduce line. It runs after every
-# other job whatever their status, and is skipped on `workflow_dispatch` (no PR to post to).
-#
-# Local twins of each job: docs/native-e2e.md (`bun run fingerprint | e2e:build | e2e:repack |
-# e2e:ios | e2e:android`). What a red maestro job leaves behind and how to pull it:
-# docs/native-e2e.md → Failure artifacts.
-#
-# Run it by hand:  bun run eas workflow:run .eas/workflows/e2e.yml
-#                  (or expo.dev → project → Workflows → "E2E (native)" → Run)
-# Validate:        bun run eas workflow:validate .eas/workflows/e2e.yml
-# PR trigger needs the Expo GitHub App linked to the repo (docs/native-e2e.md → Workflow).
+# Run by hand:  bun run eas workflow:run .eas/workflows/e2e.yml [-F ios_mode=always]
+# Validate:     bun run eas workflow:validate .eas/workflows/e2e.yml   (file cap: 16 KiB)
+# PR triggers need the Expo GitHub App linked to the repo (docs/native-e2e.md → Workflow).
 name: E2E (native)
 
 on:
-  # Every PR into main (PLAN.md decision 14). Pushes to main are covered by the staging OTA
-  # workflow (E5), which does its own fingerprint → get-build → update. Fork PRs never trigger
-  # EAS workflows (docs/js-gate.md); this template assumes same-repo branches.
+  # Every PR into main (decision 14). Fork PRs never trigger EAS workflows (docs/js-gate.md).
   pull_request:
     branches: [main]
+  # Adding this label re-runs the lane with iOS forced on, whatever IOS_MODE says.
+  pull_request_labeled: [e2e:ios]
+  # IOS_MODE 2/3 — post-merge run on main. `false` for always | label (the PR run already
+  # covered it); set `true` for main-only, which needs a place where iOS runs.
+  push:
+    branches: [main]
+    if: false
   workflow_dispatch:
     inputs:
-      # Placeholder for T4.5 (tiered mode). Only `full` exists today; the value is not read yet.
-      tier:
+      # IOS_MODE 3/3 — the dispatch-time override. Keep `default` equal to the repo constant.
+      ios_mode:
         type: choice
-        options: [full]
-        default: full
+        options: [always, main-only, label]
+        default: always
         required: false
-        description: Which flows to run. T4.5 adds cheaper tiers; `full` runs every native flow.
+        description: always = iOS on every run; main-only = iOS only on push-to-main / dispatch; label = iOS only on PRs labelled `e2e:ios`. Android always runs.
 
 concurrency:
-  # A new push to the same PR branch cancels the run in flight (a build can't be reused across
-  # commits with different JS anyway). `group` is the placeholder EAS asks for until custom
-  # groups ship.
+  # A new push to the same branch cancels the run in flight.
   cancel_in_progress: true
   group: ${{ workflow.filename }}-${{ github.ref }}
 
@@ -60,9 +38,7 @@ jobs:
   fingerprint:
     name: Fingerprint
     type: fingerprint
-    # Must match the E2E build profiles exactly or the hash never matches a stored build:
-    # `environment: development` plus the inline APP_VARIANT the profiles set in eas.json
-    # (app.config.ts derives the bundle id / package from it, and those feed the fingerprint).
+    # Must match the E2E build profiles in eas.json exactly, or the hash never matches a build.
     environment: development
     env:
       APP_VARIANT: development
@@ -73,13 +49,17 @@ jobs:
     name: Get build (ios)
     type: get-build
     needs: [fingerprint]
+    # IOS_MODE 1/3 — the repo-level tier is the `|| 'always'` fallback (inputs are empty outside
+    # workflow_dispatch). Skipping this job skips the whole iOS chain via `needs` / empty ids.
+    # always: run. main-only: run unless this is a PR. Any mode: run when the PR carries the
+    # `e2e:ios` label. Change both literals together, plus `push.if` and the input default.
+    if: ${{ (inputs.ios_mode || 'always') == 'always' || ((inputs.ios_mode || 'always') == 'main-only' && github.event_name != 'pull_request') || contains(toJSON(github.event.pull_request.labels || ''), '"e2e:ios"') }}
     params:
       platform: ios
       profile: e2e-ios-sim
       simulator: true
       fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
-      # Two PRs with the same new fingerprint: the second waits for the first's build instead
-      # of starting its own.
+      # Two PRs racing on the same new fingerprint: the second waits for the first's build.
       wait_for_in_progress: true
 
   build_ios:
@@ -99,8 +79,7 @@ jobs:
     if: ${{ needs.get_build_ios.outputs.build_id }}
     params:
       build_id: ${{ needs.get_build_ios.outputs.build_id }}
-      # Same as the source build's profile (the default); spelled out because eas-cli 23's
-      # `workflow:validate` crashes on a repack job without one.
+      # Spelled out because eas-cli 23's `workflow:validate` crashes on a repack without one.
       profile: e2e-ios-sim
       message: e2e repack of ${{ github.sha }}
 
@@ -108,42 +87,35 @@ jobs:
     name: Maestro (ios)
     type: maestro
     # `after`, not `needs`: exactly one of the two is skipped by design. The `if` keeps this job
-    # from starting with an empty build id when the one that ran has failed.
+    # from starting with an empty build id (the one that ran failed, or iOS is tiered off).
     after: [repack_ios, build_ios]
     if: ${{ needs.repack_ios.outputs.build_id || needs.build_ios.outputs.build_id }}
     environment: development
     env:
-      # Maestro reads `MAESTRO_*` shell variables as `${MAESTRO_…}` in flows; this is the bundle
-      # id / package app.config.ts derives for APP_VARIANT=development. The pre-packaged job cannot
-      # run `expo config`, so the value is spelled out here (and below) — `bun run init` (T7.1)
-      # rewrites it together with the identifiers in app.config.ts.
+      # Flows read `${MAESTRO_APP_ID}`: the bundle id / package app.config.ts derives for
+      # APP_VARIANT=development, spelled out (here and below) because a pre-packaged job cannot
+      # run `expo config`. `bun run init` (T7.1) rewrites it with app.config.ts.
       MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev
     params:
       build_id: ${{ needs.repack_ios.outputs.build_id || needs.build_ios.outputs.build_id }}
-      # The workspace directory, so .maestro/config.yaml is read and `include_tags` picks the
-      # native entries (flows/*.yaml) — same invocation as `bun run e2e:ios`.
+      # The workspace directory (config.yaml + include_tags), same invocation as `bun run e2e:ios`.
       flow_path: .maestro
       include_tags: [ios]
-      # Pin to the version the JS gate and the local scripts use (docs/native-e2e.md).
+      # Pinned to the version the JS gate and the local scripts use.
       maestro_version: 2.10.0
-      # 4 flows → 2 shards. Sharding is experimental on EAS; drop to 1 first if a run misbehaves.
-      # Every shard (and every retry attempt) writes into the same "Maestro Test Results"
-      # artifact; the flow `name:` (native/<flow>) is the stable key to search it by.
+      # 4 flows → 2 shards. Experimental on EAS; drop to 1 first if a run misbehaves.
       shards: 2
       # Re-run only the failed flows, up to twice (T4.6 turns this into a tracked flake budget).
       retries: 2
       retry_failed_only: true
-      # Screen recordings + `junit` report land in the "Maestro Test Results" run artifact. These
-      # two are the job's only artifact inputs (live schema, T4.4): there is no failure-only
-      # recording switch, no debug-output or device-log input — device logs come from the hook.
+      # Recordings + JUnit land in the "Maestro Test Results" artifact; these are the job's only
+      # artifact inputs (T4.4) — device logs come from the hook below.
       record_screen: true
       output_format: junit
     hooks:
-      # Device logs are the one failure artifact Maestro does not produce. The hook runs the same
-      # collector `bun run e2e:ios` uses on a red exit (scripts/e2e-device-logs.js: unified log
-      # of the app's processes + crash reports, Node built-ins only — no node_modules here) and
-      # uploads it next to "Maestro Test Results". `always()` so it runs after a red maestro
-      # step; the collector never exits non-zero, so a log hiccup cannot fail the job.
+      # Device logs are the one failure artifact Maestro does not produce: the same collector
+      # `bun run e2e:ios` uses (Node built-ins only — no node_modules here). `always()` so it runs
+      # after a red step; the collector never exits non-zero, so it cannot fail the job.
       after_maestro_tests:
         - name: Collect simulator log
           if: ${{ always() }}
@@ -185,8 +157,6 @@ jobs:
     if: ${{ needs.get_build_android.outputs.build_id }}
     params:
       build_id: ${{ needs.get_build_android.outputs.build_id }}
-      # Same as the source build's profile (the default); spelled out because eas-cli 23's
-      # `workflow:validate` crashes on a repack job without one.
       profile: e2e-android-apk
       message: e2e repack of ${{ github.sha }}
 
@@ -230,7 +200,7 @@ jobs:
     name: Comment on PR
     type: github-comment
     # `after`, not `needs`: the comment must post on failure too, and half of these jobs are
-    # skipped by design (build xor repack). `after.<job>.status` is success | failure | skipped.
+    # skipped by design. `after.<job>.status` is success | failure | skipped.
     after:
       - fingerprint
       - get_build_ios
@@ -241,20 +211,18 @@ jobs:
       - build_android
       - repack_android
       - maestro_android
-    # `workflow_dispatch` runs have no PR; the job would fail, not skip, without this guard.
-    if: ${{ github.event_name == 'pull_request' }}
+    # Dispatch / push runs have no PR; the job would fail, not skip, without this guard. The
+    # second clause covers the labelled event whatever its `event_name`.
+    if: ${{ github.event_name == 'pull_request' || github.event.pull_request.number }}
     params:
-      # `payload` = fully custom markdown (it excludes `message` / `build_ids`; the auto mode
-      # would render a builds table instead). No update-in-place option exists on the job, so
-      # every run adds a comment. The `expo.dev/accounts/…/projects/…` prefix is the Expo
-      # account + slug, not the GitHub owner — no context exposes it, so it is spelled out here
-      # and `bun run init` (T7.1) rewrites it with the identifiers in app.config.ts.
+      # Fully custom markdown; every run adds a comment (no update-in-place). The expo.dev
+      # account/slug prefix has no context — `bun run init` (T7.1) rewrites it.
       payload: |
         ## E2E (native) · `${{ substring(github.sha, 0, 7) }}`
 
         | Platform | Maestro | Build | Fingerprint |
         | --- | --- | --- | --- |
-        | iOS (simulator) | ${{ after.maestro_ios.status == 'success' ? '✅ passed' : after.maestro_ios.status == 'failure' ? '❌ failed' : '⏭️ skipped' }} ${{ after.maestro_ios.outputs.total_flows_count ? '(' + after.maestro_ios.outputs.successful_flows_count + '/' + after.maestro_ios.outputs.total_flows_count + ' flows)' : '' }} | ${{ after.get_build_ios.outputs.build_id ? 'cached base + repack' : 'fresh build' }} — ${{ (after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id) ? '[' + substring(after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id || '', 0, 8) + '](https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + (after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id) + ')' : 'none (' + (after.get_build_ios.outputs.build_id ? after.repack_ios.status : after.build_ios.status) + ')' }} | `${{ substring(after.fingerprint.outputs.ios_fingerprint_hash || '', 0, 12) }}` |
+        | iOS (simulator) | ${{ after.maestro_ios.status == 'success' ? '✅ passed' : after.maestro_ios.status == 'failure' ? '❌ failed' : after.get_build_ios.status == 'skipped' ? '⏭️ skipped (ios_mode; label `e2e:ios` to force)' : '⏭️ skipped' }} ${{ after.maestro_ios.outputs.total_flows_count ? '(' + after.maestro_ios.outputs.successful_flows_count + '/' + after.maestro_ios.outputs.total_flows_count + ' flows)' : '' }} | ${{ after.get_build_ios.outputs.build_id ? 'cached base + repack' : 'fresh build' }} — ${{ (after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id) ? '[' + substring(after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id || '', 0, 8) + '](https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + (after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id) + ')' : 'none (' + (after.get_build_ios.outputs.build_id ? after.repack_ios.status : after.build_ios.status) + ')' }} | `${{ substring(after.fingerprint.outputs.ios_fingerprint_hash || '', 0, 12) }}` |
         | Android (APK) | ${{ after.maestro_android.status == 'success' ? '✅ passed' : after.maestro_android.status == 'failure' ? '❌ failed' : '⏭️ skipped' }} ${{ after.maestro_android.outputs.total_flows_count ? '(' + after.maestro_android.outputs.successful_flows_count + '/' + after.maestro_android.outputs.total_flows_count + ' flows)' : '' }} | ${{ after.get_build_android.outputs.build_id ? 'cached base + repack' : 'fresh build' }} — ${{ (after.repack_android.outputs.build_id || after.build_android.outputs.build_id) ? '[' + substring(after.repack_android.outputs.build_id || after.build_android.outputs.build_id || '', 0, 8) + '](https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + (after.repack_android.outputs.build_id || after.build_android.outputs.build_id) + ')' : 'none (' + (after.get_build_android.outputs.build_id ? after.repack_android.status : after.build_android.status) + ')' }} | `${{ substring(after.fingerprint.outputs.android_fingerprint_hash || '', 0, 12) }}` |
 
         ${{ after.maestro_ios.outputs.failed_flows_count > 0 ? '- iOS failed flows: `' + after.maestro_ios.outputs.failed_flow_names_json + '`' : '' }}
