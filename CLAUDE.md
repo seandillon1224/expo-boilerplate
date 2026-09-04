@@ -41,6 +41,8 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - Every pressable / input gets a `testID` (lint-enforced) — Maestro flows never select by text.
 - Maestro: `.maestro/` is a workspace (`maestro test .maestro`). Shared steps live once in
   `subflows/steps/`; `flows/<name>.yaml` (native) and `flows/web/<name>.yaml` (web) are thin entries.
+- Flaky Maestro flows get the `quarantine` tag + a `flaky-flow` issue (docs/native-e2e.md → Flake
+  budget); never delete assertions to make a flow pass.
 - Perf tests are `*.perf-test.tsx` under `src/__perf__/`, run by Reassure (`bun run perf`) not Jest; CI compares each PR against its base commit.
 - `@testing-library/react-native` v14: `render`, `rerender`, `unmount` are **async** — `await` them.
 - TypeScript 6: `@types/*` are not auto-included; add to `types` in `tsconfig.json`.

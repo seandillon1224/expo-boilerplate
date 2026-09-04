@@ -65,14 +65,14 @@ fingerprint ─┬─ get_build_ios ─────┬─ repack_ios      (hit: 
                                                                └── comment   (PR only, runs after everything)
 ```
 
-| Job             | Type             | Inputs                                                                                                                                                                                                                                                                                                                  | Outputs used downstream                                                                                                                               |
-| --------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fingerprint`   | `fingerprint`    | `environment: development`, `env.APP_VARIANT=development` (must equal the E2E build profiles, or the hash never matches)                                                                                                                                                                                                | `ios_fingerprint_hash`, `android_fingerprint_hash`                                                                                                    |
-| `get_build_<p>` | `get-build`      | `platform`, `profile: e2e-ios-sim \| e2e-android-apk`, `simulator: true` (ios), `fingerprint_hash`, `wait_for_in_progress`; iOS only: the `IOS_MODE` `if:` ([Tiered mode](#tiered-mode)) — skipping it skips the whole iOS chain                                                                                        | `build_id` (empty on a miss)                                                                                                                          |
-| `build_<p>`     | `build`          | `if: !get_build.build_id`; `platform`, `profile` (same E2E profile)                                                                                                                                                                                                                                                     | `build_id`                                                                                                                                            |
-| `repack_<p>`    | `repack`         | `if: get_build.build_id`; `build_id` of the cached base build, `profile` (same E2E profile)                                                                                                                                                                                                                             | `build_id` (the repacked build)                                                                                                                       |
-| `maestro_<p>`   | `maestro`        | `after: [repack, build]`; `build_id: repack \|\| build`, `flow_path: .maestro`, `include_tags: [<p>]`, `maestro_version: 2.10.0`, `shards: 2`, `retries: 2`, `retry_failed_only: true`, `record_screen: true`, `output_format: junit`, `env.MAESTRO_APP_ID`; `hooks.after_maestro_tests` collects + uploads device logs | Run artifacts: **Maestro Test Results** (recordings, JUnit, Maestro debug output) and **Device logs (<p>)** ([Failure artifacts](#failure-artifacts)) |
-| `comment`       | `github-comment` | `after:` every job above; `if: github.event_name == 'pull_request'`; `params.payload` (custom markdown built from `after.<job>.status` / `.outputs`)                                                                                                                                                                    | `comment_url` (unused)                                                                                                                                |
+| Job             | Type             | Inputs                                                                                                                                                                                                                                                                                                                                                | Outputs used downstream                                                                                                                               |
+| --------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fingerprint`   | `fingerprint`    | `environment: development`, `env.APP_VARIANT=development` (must equal the E2E build profiles, or the hash never matches)                                                                                                                                                                                                                              | `ios_fingerprint_hash`, `android_fingerprint_hash`                                                                                                    |
+| `get_build_<p>` | `get-build`      | `platform`, `profile: e2e-ios-sim \| e2e-android-apk`, `simulator: true` (ios), `fingerprint_hash`, `wait_for_in_progress`; iOS only: the `IOS_MODE` `if:` ([Tiered mode](#tiered-mode)) — skipping it skips the whole iOS chain                                                                                                                      | `build_id` (empty on a miss)                                                                                                                          |
+| `build_<p>`     | `build`          | `if: !get_build.build_id`; `platform`, `profile` (same E2E profile)                                                                                                                                                                                                                                                                                   | `build_id`                                                                                                                                            |
+| `repack_<p>`    | `repack`         | `if: get_build.build_id`; `build_id` of the cached base build, `profile` (same E2E profile)                                                                                                                                                                                                                                                           | `build_id` (the repacked build)                                                                                                                       |
+| `maestro_<p>`   | `maestro`        | `after: [repack, build]`; `build_id: repack \|\| build`, `flow_path: .maestro`, `include_tags: [<p>]`, `exclude_tags: [quarantine]`, `maestro_version: 2.10.0`, `shards: 2`, `retries: 2`, `retry_failed_only: true`, `record_screen: true`, `output_format: junit`, `env.MAESTRO_APP_ID`; `hooks.after_maestro_tests` collects + uploads device logs | Run artifacts: **Maestro Test Results** (recordings, JUnit, Maestro debug output) and **Device logs (<p>)** ([Failure artifacts](#failure-artifacts)) |
+| `comment`       | `github-comment` | `after:` every job above; `if: github.event_name == 'pull_request'`; `params.payload` (custom markdown built from `after.<job>.status` / `.outputs`)                                                                                                                                                                                                  | `comment_url` (unused)                                                                                                                                |
 
 How the cache works: `get-build` asks EAS for a finished build of the E2E profile whose
 fingerprint equals this commit's. JS-only PRs hit (fingerprint unchanged since the last native
@@ -91,7 +91,8 @@ only way a pre-packaged job can pass a value; the local scripts set the same nam
 value is spelled out in the workflow because the job cannot run `expo config`; `bun run init`
 (T7.1) rewrites it with the identifiers in `app.config.ts`. Sharding (`shards: 2`, 4 flows) is
 experimental on EAS — set it to `1` first if a run misbehaves. `retries: 2` re-runs only the
-failed flows; T4.6 turns that into a tracked flake budget. Recordings, screenshots and the JUnit
+failed flows and `exclude_tags: [quarantine]` keeps quarantined flows out of the gate — the policy
+is the [Flake budget](#flake-budget). Recordings, screenshots and the JUnit
 report are in the **Maestro Test Results** artifact on the run page; an `after_maestro_tests` hook
 adds the simulator log / logcat as **Device logs (<p>)** — see [Failure artifacts](#failure-artifacts)
 for what each contains and how to pull it.
@@ -269,7 +270,8 @@ workflow:runs` lists recent runs with ids.
 bun run e2e:<p> --keep` writes the same set under `maestro-<p>/` and leaves the device up for
    `maestro studio` / a look around. Fix, rerun, push.
 8. **Green on retry?** The job already re-runs failures (`retries: 2`); a flow that only passes on
-   the second attempt is a flake candidate for T4.6's `quarantine` tag, not a fix.
+   the second attempt is a flake, not a fix — twice in a week and it goes through the
+   [Flake budget](#flake-budget) (issue, `quarantine` tag, fix or delete).
 
 ### Reading Maestro's debug output
 
@@ -310,8 +312,12 @@ lanes. Subflows are never discovered as flows (the globs only match `flows/*` an
 but Maestro 2.x still requires a config section in every file, hence the inert `appId: ${MAESTRO_APP_ID}`
 header on each subflow.
 
-Tags: `web`, `ios`, `android` select entries; `quarantine` is reserved for T4.6 (flaky flows
-excluded from the gate with `--exclude-tags quarantine`).
+Tags: `web`, `ios`, `android` select entries; `quarantine` marks a flaky entry and every gate
+excludes it (`--exclude-tags quarantine`) — see [Flake budget](#flake-budget) for the rules.
+Maestro's tag logic: several tags in one flag are OR (`--include-tags ios,android` = either);
+`--include-tags` and `--exclude-tags` together are AND (included, then minus excluded). There is
+no way to require two tags at once, which is why the quarantine run selects `quarantine` and
+excludes `web` rather than asking for `quarantine` + `ios`.
 
 Selectors are testIDs only (`id:` = accessibilityIdentifier on iOS, resource-id on Android, DOM
 id on web). The tab bar is the one exception, isolated in `select-tab.yaml`: `NativeTabs.Trigger`
@@ -341,6 +347,86 @@ the visible label is matched via `TAB_LABEL`) and absent on web (Radix generates
 4. Verify web locally (`bun run export:web && bun run serve:web &` then `bun run e2e:web`) and
    native with the loop above. A step that must differ per platform goes in its own subflow with
    `when: { platform: iOS | Android | Web }` blocks, like `select-tab.yaml`.
+
+## Flake budget
+
+A flow that fails and then passes on retry proves nothing about the app and everything about the
+test. The budget keeps such flows from silently turning the gate into "retry until green" without
+letting them block unrelated PRs either.
+
+### Policy
+
+| Rule                  | Native (EAS `e2e.yml`)                                                                                                                                                                                                                                                                     | Web (CI `maestro-web`) and local (`bun run e2e:*`)                                                                                                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Retries               | `retries: 2`, `retry_failed_only: true`. Two because they cover two different things: one for an infra hiccup (emulator boot, first-launch install), one for a genuine flake. A flow that fails three times in a row is a real failure, never a flake — read the artifacts, do not re-run. | **None.** Maestro CLI 2.10 has no flow-level retry flag or `config.yaml` option, and a wrapper re-running the whole suite would hide exactly the signal this section is about. Flakes therefore show up faster on web and locally — that is a feature. |
+| What counts as flaky  | Green on retry (attempt 1 red, attempt 2/3 green) **at least twice in one week** for the same flow, or any green-on-retry that a human cannot explain from the artifacts.                                                                                                                  | Any run that is red then green on an unchanged tree, twice in a week.                                                                                                                                                                                  |
+| What is never allowed | Deleting or weakening assertions, adding sleeps, or widening a timeout past the point where the assertion still means something, to make a flow pass. Fix the cause (`extendedWaitUntil`, a deterministic fixture, a `testID`) or quarantine it.                                           | Same.                                                                                                                                                                                                                                                  |
+| Quarantine max age    | 2 weeks from the tag landing on `main`. Then: fixed and un-quarantined, or the flow is deleted (with the issue explaining why the coverage was not worth keeping).                                                                                                                         | Same.                                                                                                                                                                                                                                                  |
+
+### Quarantining a flow
+
+1. **File the issue** with the _Flaky Maestro flow_ template (`.github/ISSUE_TEMPLATE/flaky-flow.yml`,
+   labels `flaky-flow` + `e2e`): flow file, platforms, run URL, failure rate, recording and JUnit
+   `<failure>` text, suspected cause. Download the artifacts you cite — runs are not kept forever.
+2. **Tag the entry file** — the native entry (`.maestro/flows/<name>.yaml`) or the web entry
+   (`.maestro/flows/web/<name>.yaml`), never a subflow — keeping the platform tags:
+
+   ```yaml
+   name: native/<name>
+   appId: ${MAESTRO_APP_ID}
+   # quarantine: #123 — passes on retry ~30% of Android runs; assertion races the fetch
+   tags: [ios, android, quarantine]
+   ```
+
+   One native entry serves both platforms, so quarantine applies to both; an iOS-only flake still
+   takes the flow out of the Android gate for those two weeks. The web entry is a separate file
+   and stays in the gate unless it is tagged too.
+
+3. **Open a PR** for the tag alone (Conventional Commit `test(e2e): quarantine <flow> (#123)`).
+   If this is the first quarantined flow, uncomment `schedule` in
+   `.eas/workflows/e2e-quarantine.yml` in the same PR so it starts running weekly. The gate goes
+   green because every lane excludes the tag: `exclude_tags: [quarantine]` in `e2e.yml`,
+   `--exclude-tags quarantine` in `bun run e2e:web` and `scripts/e2e-run.js`. Tick the
+   _Quarantine_ box on the issue with the PR number.
+4. **Fix it within 2 weeks** on a branch that removes the tag, so the PR's own E2E run proves the
+   fix (see the checklist below). No fix in 2 weeks → delete the entry, its web twin and the steps
+   subflow if nothing else uses it, and close the issue saying so.
+
+### Un-quarantine checklist
+
+- [ ] Root cause named in the issue (not "made it more robust").
+- [ ] The fix is in the flow or the app, not in the assertion: no removed `assertVisible`, no
+      added `sleep`, no timeout stretched past what the feature promises.
+- [ ] `bun run e2e:<p> --include-quarantine` (native) or a temporary tag swap for web passes 5×
+      in a row locally.
+- [ ] The tag and the `# quarantine:` comment are removed in the fixing PR; that PR's
+      `E2E (native)` / `Maestro web` checks are green on the first attempt (look at the JUnit in
+      **Maestro Test Results** for a retry entry).
+- [ ] Last quarantined flow gone? Comment `schedule` back out in `e2e-quarantine.yml` (`maestro
+test` exits 1 when no flow matches, so a weekly cron with nothing to run is a weekly red run).
+- [ ] Issue closed by the PR (`Closes #123`).
+
+### Running quarantined flows
+
+| Where | How                                                                                                                                                                                                                                                                                                                  |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| EAS   | `.eas/workflows/e2e-quarantine.yml`: `bun run eas workflow:run .eas/workflows/e2e-quarantine.yml` (or weekly via `schedule`, once enabled). Same fingerprint → get-build / build → repack → maestro shape as `e2e.yml`, `include_tags: [quarantine]` + `exclude_tags: [web]`, `retries: 0`, no PR comment, no hooks. |
+| Local | `bun run e2e:ios --include-quarantine` / `bun run e2e:android --include-quarantine` — same selection as the workflow (`quarantine` minus `web`).                                                                                                                                                                     |
+| Web   | No script flag: swap the tags by hand — `maestro test .maestro -e APP_URL=http://localhost:8081 --include-tags quarantine --exclude-tags ios,android --headless` after `bun run export:web && bun run serve:web &`.                                                                                                  |
+
+`maestro test` exits 1 when no flow matches the tags, on every lane.
+
+### Metrics
+
+- **Retries that saved a run**: the JUnit `report.xml` in **Maestro Test Results** (native) or the
+  `maestro-web` artifact (web) lists one `<testcase>` per attempt of a flow, keyed by its `name:`
+  (`native/<flow>` / `web/<flow>`); a flow with a `<failure>` entry followed by a passing entry
+  is a retry that passed. Count those per flow per week — two is the quarantine threshold.
+- **Run history**: `bun run eas workflow:runs` (`--json` for scripting) lists the `E2E (native)`
+  and `E2E (quarantine)` runs with status and commit; `workflow:view <run id> --json` gives the
+  per-job outcome. Web: `gh run list --workflow ci.yml --json conclusion,headSha,url`.
+- **Quarantine size and age**: `grep -rn '# quarantine:' .maestro/flows` — the issue number in
+  each comment dates it. Anything older than 2 weeks is overdue.
 
 ## Update → approval → submit
 

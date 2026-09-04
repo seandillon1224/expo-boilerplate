@@ -1,0 +1,137 @@
+# Quarantined Maestro flows (docs/native-e2e.md → Flake budget). A flow tagged `quarantine` is
+# excluded from the `E2E (native)` gate (e2e.yml, `exclude_tags`); this workflow is where it keeps
+# running so it cannot rot unnoticed. Same pipeline shape as e2e.yml minus the PR comment, the
+# device-log hooks and the iOS tiering: fingerprint → get-build (cache hit: repack | miss: paid
+# build) → maestro on both platforms. Non-blocking: nothing depends on this run being green.
+#
+# Tag logic: Maestro's `--include-tags a,b` is OR, so `[quarantine]` alone would also pick web
+# entries (`flows/web/*`); `exclude_tags: [web]` keeps it to native entries (include AND NOT
+# exclude). A native entry is quarantined on both platforms at once — one entry file, one tag.
+#
+# Run it:  bun run eas workflow:run .eas/workflows/e2e-quarantine.yml
+# Cron:    `maestro test` exits 1 when no flow matches, so the weekly schedule is off until the
+#          first flow is quarantined. Uncomment `schedule` in the PR that adds the tag; comment it
+#          back out in the PR that un-quarantines the last one (checklist in docs/native-e2e.md).
+name: E2E (quarantine)
+
+on:
+  workflow_dispatch: {}
+  # schedule:
+  #   # Mondays 06:00 GMT — before the week's first PRs land. Runs on `main` only.
+  #   cron: '0 6 * * 1'
+
+concurrency:
+  cancel_in_progress: true
+  group: ${{ workflow.filename }}-${{ github.ref }}
+
+jobs:
+  fingerprint:
+    name: Fingerprint
+    type: fingerprint
+    environment: development
+    env:
+      APP_VARIANT: development
+
+  # --- iOS ---------------------------------------------------------------------------------
+
+  get_build_ios:
+    name: Get build (ios)
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: ios
+      profile: e2e-ios-sim
+      simulator: true
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  build_ios:
+    name: Build (ios)
+    type: build
+    needs: [get_build_ios]
+    if: ${{ !needs.get_build_ios.outputs.build_id }}
+    params:
+      platform: ios
+      profile: e2e-ios-sim
+      message: e2e base build for fingerprint ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+
+  repack_ios:
+    name: Repack (ios)
+    type: repack
+    needs: [get_build_ios]
+    if: ${{ needs.get_build_ios.outputs.build_id }}
+    params:
+      build_id: ${{ needs.get_build_ios.outputs.build_id }}
+      profile: e2e-ios-sim
+      message: e2e quarantine repack of ${{ github.sha }}
+
+  maestro_ios:
+    name: Maestro quarantine (ios)
+    type: maestro
+    after: [repack_ios, build_ios]
+    if: ${{ needs.repack_ios.outputs.build_id || needs.build_ios.outputs.build_id }}
+    environment: development
+    env:
+      # Same value as e2e.yml (`bun run init` rewrites both).
+      MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev
+    params:
+      build_id: ${{ needs.repack_ios.outputs.build_id || needs.build_ios.outputs.build_id }}
+      flow_path: .maestro
+      include_tags: [quarantine]
+      exclude_tags: [web]
+      maestro_version: 2.10.0
+      # No retries on purpose: the point of this run is to observe the flake rate.
+      retries: 0
+      record_screen: true
+      output_format: junit
+
+  # --- Android -----------------------------------------------------------------------------
+
+  get_build_android:
+    name: Get build (android)
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: android
+      profile: e2e-android-apk
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  build_android:
+    name: Build (android)
+    type: build
+    needs: [get_build_android]
+    if: ${{ !needs.get_build_android.outputs.build_id }}
+    params:
+      platform: android
+      profile: e2e-android-apk
+      message: e2e base build for fingerprint ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+
+  repack_android:
+    name: Repack (android)
+    type: repack
+    needs: [get_build_android]
+    if: ${{ needs.get_build_android.outputs.build_id }}
+    params:
+      build_id: ${{ needs.get_build_android.outputs.build_id }}
+      profile: e2e-android-apk
+      message: e2e quarantine repack of ${{ github.sha }}
+
+  maestro_android:
+    name: Maestro quarantine (android)
+    type: maestro
+    after: [repack_android, build_android]
+    if: ${{ needs.repack_android.outputs.build_id || needs.build_android.outputs.build_id }}
+    environment: development
+    runs_on: linux-large-nested-virtualization
+    env:
+      MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev
+    params:
+      build_id: ${{ needs.repack_android.outputs.build_id || needs.build_android.outputs.build_id }}
+      flow_path: .maestro
+      include_tags: [quarantine]
+      exclude_tags: [web]
+      maestro_version: 2.10.0
+      retries: 0
+      record_screen: true
+      output_format: junit

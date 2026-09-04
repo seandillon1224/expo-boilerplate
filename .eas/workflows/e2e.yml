@@ -101,11 +101,15 @@ jobs:
       # The workspace directory (config.yaml + include_tags), same invocation as `bun run e2e:ios`.
       flow_path: .maestro
       include_tags: [ios]
+      # Flake budget (docs/native-e2e.md → Flake budget): quarantined flows leave the gate and run
+      # from e2e-quarantine.yml instead. Never delete assertions to make a flow pass.
+      exclude_tags: [quarantine]
       # Pinned to the version the JS gate and the local scripts use.
       maestro_version: 2.10.0
       # 4 flows → 2 shards. Experimental on EAS; drop to 1 first if a run misbehaves.
       shards: 2
-      # Re-run only the failed flows, up to twice (T4.6 turns this into a tracked flake budget).
+      # Re-run only the failed flows, up to twice: one retry for an infra hiccup, one for a real
+      # flake. 3 failures = a real failure; green-on-retry ≥ 2×/week = quarantine candidate.
       retries: 2
       retry_failed_only: true
       # Recordings + JUnit land in the "Maestro Test Results" artifact; these are the job's only
@@ -174,6 +178,7 @@ jobs:
       build_id: ${{ needs.repack_android.outputs.build_id || needs.build_android.outputs.build_id }}
       flow_path: .maestro
       include_tags: [android]
+      exclude_tags: [quarantine]
       maestro_version: 2.10.0
       shards: 2
       retries: 2
