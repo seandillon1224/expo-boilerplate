@@ -59,15 +59,17 @@ fingerprint ─┬─ get_build_ios ─────┬─ repack_ios      (hit: 
              └─ get_build_android ─┬─ repack_android
                                    └─ build_android
                                         └──────────────── maestro_android
+                                                               └── comment   (PR only, runs after everything)
 ```
 
-| Job             | Type          | Inputs                                                                                                                                                                                                                                                      | Outputs used downstream                            |
-| --------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `fingerprint`   | `fingerprint` | `environment: development`, `env.APP_VARIANT=development` (must equal the E2E build profiles, or the hash never matches)                                                                                                                                    | `ios_fingerprint_hash`, `android_fingerprint_hash` |
-| `get_build_<p>` | `get-build`   | `platform`, `profile: e2e-ios-sim \| e2e-android-apk`, `simulator: true` (ios), `fingerprint_hash`, `wait_for_in_progress`                                                                                                                                  | `build_id` (empty on a miss)                       |
-| `build_<p>`     | `build`       | `if: !get_build.build_id`; `platform`, `profile` (same E2E profile)                                                                                                                                                                                         | `build_id`                                         |
-| `repack_<p>`    | `repack`      | `if: get_build.build_id`; `build_id` of the cached base build, `profile` (same E2E profile)                                                                                                                                                                 | `build_id` (the repacked build)                    |
-| `maestro_<p>`   | `maestro`     | `after: [repack, build]`; `build_id: repack \|\| build`, `flow_path: .maestro`, `include_tags: [<p>]`, `maestro_version: 2.10.0`, `shards: 2`, `retries: 2`, `retry_failed_only: true`, `record_screen: true`, `output_format: junit`, `env.MAESTRO_APP_ID` | JUnit report + recordings in the run's artifacts   |
+| Job             | Type             | Inputs                                                                                                                                                                                                                                                      | Outputs used downstream                            |
+| --------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `fingerprint`   | `fingerprint`    | `environment: development`, `env.APP_VARIANT=development` (must equal the E2E build profiles, or the hash never matches)                                                                                                                                    | `ios_fingerprint_hash`, `android_fingerprint_hash` |
+| `get_build_<p>` | `get-build`      | `platform`, `profile: e2e-ios-sim \| e2e-android-apk`, `simulator: true` (ios), `fingerprint_hash`, `wait_for_in_progress`                                                                                                                                  | `build_id` (empty on a miss)                       |
+| `build_<p>`     | `build`          | `if: !get_build.build_id`; `platform`, `profile` (same E2E profile)                                                                                                                                                                                         | `build_id`                                         |
+| `repack_<p>`    | `repack`         | `if: get_build.build_id`; `build_id` of the cached base build, `profile` (same E2E profile)                                                                                                                                                                 | `build_id` (the repacked build)                    |
+| `maestro_<p>`   | `maestro`        | `after: [repack, build]`; `build_id: repack \|\| build`, `flow_path: .maestro`, `include_tags: [<p>]`, `maestro_version: 2.10.0`, `shards: 2`, `retries: 2`, `retry_failed_only: true`, `record_screen: true`, `output_format: junit`, `env.MAESTRO_APP_ID` | JUnit report + recordings in the run's artifacts   |
+| `comment`       | `github-comment` | `after:` every job above; `if: github.event_name == 'pull_request'`; `params.payload` (custom markdown built from `after.<job>.status` / `.outputs`)                                                                                                        | `comment_url` (unused)                             |
 
 How the cache works: `get-build` asks EAS for a finished build of the E2E profile whose
 fingerprint equals this commit's. JS-only PRs hit (fingerprint unchanged since the last native
@@ -88,6 +90,53 @@ value is spelled out in the workflow because the job cannot run `expo config`; `
 experimental on EAS — set it to `1` first if a run misbehaves. `retries: 2` re-runs only the
 failed flows; T4.6 turns that into a tracked flake budget. Recordings, screenshots and the JUnit
 report are in the **Maestro Test Results** artifact on the run page (T4.4 documents triage).
+
+### PR comment
+
+The last job, `comment` (`type: github-comment`), posts the run's outcome on the pull request
+(PLAN.md decision 12: install links are shared by the `slack` and `github-comment` jobs). It is
+wired with `after:` on every other job — `needs` would skip it as soon as anything failed, and
+half of the jobs are skipped by design (`build_<p>` xor `repack_<p>`) — so it posts whatever
+happened. `after.<job>.status` is `success | failure | skipped`, and the payload turns that into
+the ✅ / ❌ / ⏭️ per platform. The job is skipped on `workflow_dispatch` (there is no PR to post
+to; without the `if` it would fail the run).
+
+What the comment contains, and where each value comes from:
+
+| Line               | Source                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Maestro result     | `after.maestro_<p>.status`, plus `successful_flows_count / total_flows_count` and `failed_flow_names_json` from the `maestro` job outputs.                                                                                                                                                                                                                          |
+| Build              | "cached base + repack" when `get_build_<p>` returned a `build_id`, else "fresh build". The link goes to the build page of the build Maestro actually ran (`repack_<p>.build_id \|\| build_<p>.build_id`), `https://expo.dev/accounts/<account>/projects/<slug>/builds/<id>`. No context exposes the Expo account or slug, so the prefix is spelled out in the YAML. |
+| Fingerprint        | `after.fingerprint.outputs.<p>_fingerprint_hash`, shortened to 12 characters.                                                                                                                                                                                                                                                                                       |
+| Install / QR       | The build page. The Android APK is an internal-distribution build, so its page hosts the install link and QR code; neither `build` nor `get-build` exposes an install URL output. The iOS build is a simulator `.app` — no QR, download it from the page or with `bun run e2e:build --platform ios --build-id <id>`.                                                |
+| Recordings / JUnit | `${{ workflow.url }}` → the run page → **Maestro Test Results** artifact (T4.4 documents triage).                                                                                                                                                                                                                                                                   |
+| Reproduce locally  | The three-script loop from [Local reproduce](#local-reproduce).                                                                                                                                                                                                                                                                                                     |
+
+The job's `payload` mode is fully custom markdown (it cannot be combined with `message` /
+`build_ids`; the default mode renders EAS's own builds table instead). The job has no
+update-in-place option, so every run adds a new comment rather than editing the previous one.
+Posting needs the Expo GitHub App linked to the repository (prerequisite 1 below) — the comment
+is written by the app, no GitHub token is involved. Expression gotcha for anyone editing the
+payload: the evaluator resolves both branches of a `a ? b : c`, so string functions must be
+guarded (`substring(x || '', 0, 8)`), otherwise a skipped job's missing output throws and the
+comment job fails.
+
+Example (JS-only PR on iOS, native change on Android, one Android flow failed):
+
+```markdown
+## E2E (native) · `0123456`
+
+| Platform        | Maestro               | Build                                | Fingerprint    |
+| --------------- | --------------------- | ------------------------------------ | -------------- |
+| iOS (simulator) | ✅ passed (4/4 flows) | cached base + repack — [bbbbbbbb](…) | `abcdef012345` |
+| Android (APK)   | ❌ failed (3/4 flows) | fresh build — [cccccccc](…)          | `fedcba987654` |
+
+- Android failed flows: `["native/tabs"]`
+
+- **Install**: the Android build page hosts the install link + QR code (internal distribution). The iOS build is a simulator `.app` with no QR code: download it from its page or `bun run e2e:build --platform ios --build-id <id>`.
+- **Recordings / JUnit**: [workflow run](…) → artifacts → **Maestro Test Results**.
+- **Reproduce locally**: `bun run e2e:build --platform <p> && bun run e2e:repack --platform <p> && bun run e2e:<p>` (docs/native-e2e.md).
+```
 
 Run it by hand: `bun run eas workflow:run .eas/workflows/e2e.yml` (or expo.dev → project →
 Workflows → **E2E (native)** → Run). Validate after editing:
