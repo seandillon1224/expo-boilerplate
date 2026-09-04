@@ -8,6 +8,7 @@
 #                └─ get_build_android ─┬─ repack_android
 #                                      └─ build_android
 #                                           └────────────── maestro_android
+#                                                                 └── comment  (PR only, always)
 #
 # `get-build` looks for a finished build of the E2E profile (`e2e-ios-sim` / `e2e-android-apk`,
 # eas.json) whose fingerprint equals this commit's. On a hit the base build is reused and
@@ -16,6 +17,11 @@
 # build already embeds this commit's JS, so it is not repacked — that is the idiom from Expo's
 # "continuous deployment with fingerprint and repack" example, and `maestro` takes whichever id
 # exists.
+#
+# `comment` (github-comment, PLAN.md decision 12) posts one comment per run on the PR: per-platform
+# result, fingerprint, cached-or-fresh build with a link to its page (install QR for the Android
+# APK), the run link for recordings + JUnit, and the local reproduce line. It runs after every
+# other job whatever their status, and is skipped on `workflow_dispatch` (no PR to post to).
 #
 # Local twins of each job: docs/native-e2e.md (`bun run fingerprint | e2e:build | e2e:repack |
 # e2e:ios | e2e:android`).
@@ -182,3 +188,43 @@ jobs:
       retry_failed_only: true
       record_screen: true
       output_format: junit
+
+  # --- PR comment --------------------------------------------------------------------------
+
+  comment:
+    name: Comment on PR
+    type: github-comment
+    # `after`, not `needs`: the comment must post on failure too, and half of these jobs are
+    # skipped by design (build xor repack). `after.<job>.status` is success | failure | skipped.
+    after:
+      - fingerprint
+      - get_build_ios
+      - build_ios
+      - repack_ios
+      - maestro_ios
+      - get_build_android
+      - build_android
+      - repack_android
+      - maestro_android
+    # `workflow_dispatch` runs have no PR; the job would fail, not skip, without this guard.
+    if: ${{ github.event_name == 'pull_request' }}
+    params:
+      # `payload` = fully custom markdown (it excludes `message` / `build_ids`; the auto mode
+      # would render a builds table instead). No update-in-place option exists on the job, so
+      # every run adds a comment. The `expo.dev/accounts/…/projects/…` prefix is the Expo
+      # account + slug, not the GitHub owner — no context exposes it, so it is spelled out here
+      # and `bun run init` (T7.1) rewrites it with the identifiers in app.config.ts.
+      payload: |
+        ## E2E (native) · `${{ substring(github.sha, 0, 7) }}`
+
+        | Platform | Maestro | Build | Fingerprint |
+        | --- | --- | --- | --- |
+        | iOS (simulator) | ${{ after.maestro_ios.status == 'success' ? '✅ passed' : after.maestro_ios.status == 'failure' ? '❌ failed' : '⏭️ skipped' }} ${{ after.maestro_ios.outputs.total_flows_count ? '(' + after.maestro_ios.outputs.successful_flows_count + '/' + after.maestro_ios.outputs.total_flows_count + ' flows)' : '' }} | ${{ after.get_build_ios.outputs.build_id ? 'cached base + repack' : 'fresh build' }} — ${{ (after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id) ? '[' + substring(after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id || '', 0, 8) + '](https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + (after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id) + ')' : 'none (' + (after.get_build_ios.outputs.build_id ? after.repack_ios.status : after.build_ios.status) + ')' }} | `${{ substring(after.fingerprint.outputs.ios_fingerprint_hash || '', 0, 12) }}` |
+        | Android (APK) | ${{ after.maestro_android.status == 'success' ? '✅ passed' : after.maestro_android.status == 'failure' ? '❌ failed' : '⏭️ skipped' }} ${{ after.maestro_android.outputs.total_flows_count ? '(' + after.maestro_android.outputs.successful_flows_count + '/' + after.maestro_android.outputs.total_flows_count + ' flows)' : '' }} | ${{ after.get_build_android.outputs.build_id ? 'cached base + repack' : 'fresh build' }} — ${{ (after.repack_android.outputs.build_id || after.build_android.outputs.build_id) ? '[' + substring(after.repack_android.outputs.build_id || after.build_android.outputs.build_id || '', 0, 8) + '](https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + (after.repack_android.outputs.build_id || after.build_android.outputs.build_id) + ')' : 'none (' + (after.get_build_android.outputs.build_id ? after.repack_android.status : after.build_android.status) + ')' }} | `${{ substring(after.fingerprint.outputs.android_fingerprint_hash || '', 0, 12) }}` |
+
+        ${{ after.maestro_ios.outputs.failed_flows_count > 0 ? '- iOS failed flows: `' + after.maestro_ios.outputs.failed_flow_names_json + '`' : '' }}
+        ${{ after.maestro_android.outputs.failed_flows_count > 0 ? '- Android failed flows: `' + after.maestro_android.outputs.failed_flow_names_json + '`' : '' }}
+
+        - **Install**: the Android build page hosts the install link + QR code (internal distribution). The iOS build is a simulator `.app` with no QR code: download it from its page or `bun run e2e:build --platform ios --build-id <id>`.
+        - **Recordings / JUnit**: [workflow run](${{ workflow.url }}) → artifacts → **Maestro Test Results**.
+        - **Reproduce locally**: `bun run e2e:build --platform <p> && bun run e2e:repack --platform <p> && bun run e2e:<p>` (docs/native-e2e.md).
