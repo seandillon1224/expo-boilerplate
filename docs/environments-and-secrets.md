@@ -23,13 +23,65 @@ Notes:
 
 - The `e2e-*` profiles have no `channel` on purpose: the build is a native shell keyed by
   `@expo/fingerprint` and never checks for updates; the JS under test is repacked in (T4.2).
-- Channels `staging` / `uat` / `production` are created server-side by T3.3; naming them here is
-  just a string on the build.
+- Channels `staging` / `uat` / `production` exist on EAS (see
+  [Update channels & runtime version](#update-channels--runtime-version)); the profile's `channel`
+  is just a string baked into the build that tells the client which one to poll.
 - `submit.production` is intentionally minimal (`android.track: internal`; iOS empty). Apple / Play
   credentials and `ascAppId` / `appleTeamId` / service-account key are configured in T3.4 (#31) and
   T5.x, not committed here.
 - The EAS project id (`885fa7d0-…`) lives once, in `app.config.ts` (`EAS_PROJECT_ID`), feeding both
   `extra.eas.projectId` and `updates.url`. `bun run init` (T7.1) rewrites it for a new app.
+
+## Update channels & runtime version
+
+[EAS Update](https://docs.expo.dev/eas-update/how-it-works/) delivers JS/asset updates to installed
+builds. A build polls one **channel** (set by its `eas.json` profile); a channel points at a
+**branch**; a branch is an ordered list of update groups. The three channels were created with
+`bun run eas channel:create <name> --non-interactive`, each linked to a branch of the same name:
+
+| Channel      | Branch       | Fed by                                                                                     | Builds that poll it  |
+| ------------ | ------------ | ------------------------------------------------------------------------------------------ | -------------------- |
+| `staging`    | `staging`    | Every merge to `main` (`deploy-staging` workflow, T5.1) via `eas update --channel staging` | `staging` profile    |
+| `uat`        | `uat`        | Manual, approval-gated `eas update:republish --channel uat` of a staging group (T5.2)      | `uat` profile        |
+| `production` | `production` | Manual, approval-gated `eas update:republish --channel production` of the UAT group (T5.2) | `production` profile |
+
+PLAN.md decision 3: UAT and production are **republishes of the same update group**, never a fresh
+`eas update` from a different commit, so what was tested is what ships. `development*` and `e2e-*`
+builds have no channel and only ever run their embedded bundle. Publishing, promotion and rollback
+commands live in the release ladder doc (T5.7, `docs/release-ladder.md`).
+
+### Runtime version = native fingerprint
+
+`app.config.ts` sets `runtimeVersion: { policy: 'fingerprint' }`, so the runtime version of every
+build **and** every update is the [`@expo/fingerprint`](https://docs.expo.dev/versions/v57.0.0/sdk/fingerprint/)
+hash of the project's native surface: the resolved Expo config, config plugins, autolinked native
+modules under `node_modules`, native assets (icons, splash), `eas.json`, `.gitignore` and
+`package.json` `scripts`. An update is only served to builds with an identical hash, which is what
+makes it safe for `main` to auto-publish: a JS-only change reaches the installed staging build, a
+native change produces a new hash that no existing build matches, and the `deploy-staging` workflow
+notices (decision 13) and cuts new builds first.
+
+Because this is a CNG project (no committed `ios/` / `android/`), `docs/**`, `.github/**`,
+`.maestro/**`, `.claude/**`, `*.md` and everything under `src/` are simply not fingerprint sources —
+verified by touching them and re-running the script below (hash unchanged) versus adding a plugin to
+`app.config.ts` (both hashes changed). So no `.fingerprintignore` is needed today; if a future
+native-adjacent path (for example a vendored `modules/` directory with test fixtures) needs excluding,
+add a root `.fingerprintignore` with gitignore-style patterns, or `sourceSkips` /
+`ignorePaths` in a `fingerprint.config.js`. Note that changing `package.json` `scripts` does bump the
+hash by design (EAS Build lifecycle hooks such as `eas-build-pre-install` live there).
+
+Inspecting:
+
+```sh
+bun run fingerprint                 # {"ios":"<sha1>","android":"<sha1>"} — the current runtime version
+bun run fingerprint --platform ios  # one bare hash (for workflows); add --debug to list every source
+bun run eas channel:list            # channels, their branches and the latest group on each
+bun run eas branch:list
+bun run eas update:list --channel staging   # what a staging build would receive right now
+```
+
+`@expo/fingerprint` is pinned as a devDependency to the exact version `expo@57` depends on so the
+local hash matches what EAS Build and `eas update` compute; Renovate keeps the two in step.
 
 ## Environment variables
 
@@ -42,11 +94,11 @@ explicitly rather than relying on the CLI's inference (`store` → `production`,
 
 ### Environment mapping
 
-| EAS environment | Build profiles                                                           | `APP_VARIANT` (from profile `env`) | Update channel (T3.3) | Purpose                                                                              |
-| --------------- | ------------------------------------------------------------------------ | ---------------------------------- | --------------------- | ------------------------------------------------------------------------------------ |
-| `development`   | `development`, `development-simulator`, `e2e-ios-sim`, `e2e-android-apk` | `development`                      | –                     | Dev clients and the release-mode Maestro shells. Also what `bun run env:pull` pulls. |
-| `preview`       | `staging`, `uat`                                                         | `staging` / `uat`                  | `staging` / `uat`     | Internal-distribution builds and the `main` → staging → UAT OTA promotions.          |
-| `production`    | `production`                                                             | `production`                       | `production`          | Store builds and the production OTA promotion.                                       |
+| EAS environment | Build profiles                                                           | `APP_VARIANT` (from profile `env`) | Update channel    | Purpose                                                                              |
+| --------------- | ------------------------------------------------------------------------ | ---------------------------------- | ----------------- | ------------------------------------------------------------------------------------ |
+| `development`   | `development`, `development-simulator`, `e2e-ios-sim`, `e2e-android-apk` | `development`                      | –                 | Dev clients and the release-mode Maestro shells. Also what `bun run env:pull` pulls. |
+| `preview`       | `staging`, `uat`                                                         | `staging` / `uat`                  | `staging` / `uat` | Internal-distribution builds and the `main` → staging → UAT OTA promotions.          |
+| `production`    | `production`                                                             | `production`                       | `production`      | Store builds and the production OTA promotion.                                       |
 
 Workflow jobs pick an environment too: `build` jobs infer it from the profile's `environment`,
 `submit` inherits it from the build, `maestro` jobs default to `preview`, everything else (including
