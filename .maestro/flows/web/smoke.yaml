@@ -1,0 +1,7 @@
+# Web entry for the smoke steps (subflows/steps/smoke.yaml). Keep it to these two runFlow lines.
+name: web/smoke
+url: ${APP_URL}
+tags: [web]
+---
+- runFlow: ../../subflows/launch-web.yaml
+- runFlow: ../../subflows/steps/smoke.yaml

@@ -1,7 +1,7 @@
-# Smoke: the app boots to the Home screen.
-url: ${APP_URL}
-tags: [web, ios, android]
+# Native entry for the smoke steps (subflows/steps/smoke.yaml). Keep it to these two runFlow lines.
+name: native/smoke
+appId: ${APP_ID}
+tags: [ios, android]
 ---
 - runFlow: ../subflows/launch.yaml
-- assertVisible:
-    id: home-screen
+- runFlow: ../subflows/steps/smoke.yaml

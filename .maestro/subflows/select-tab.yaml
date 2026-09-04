@@ -1,0 +1,30 @@
+# Tap a tab-bar item. Env: TAB = route group name without parentheses (home | settings),
+# TAB_LABEL = the visible label (Android only, see below).
+#
+# This is the one place a flow may select by something other than a testID:
+#   iOS      NativeTabs.Trigger `testID` becomes the UITabBarItem accessibilityIdentifier
+#            (`tab-<name>` in src/app/(tabs)/_layout.tsx), so `id:` works.
+#   Android  the same `testID` is only a view tag, which Maestro does not read, and the
+#            accessibilityLabel is what TalkBack announces — so match the visible label.
+#   web      NativeTabs renders Radix tabs: <button role="tab" id="radix-<uid>-trigger-(<name>)-<nanoid>">
+#            with no testID hook, so match the generated id by regex.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: tab-${TAB}
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          text: ${TAB_LABEL}
+- runFlow:
+    when:
+      platform: Web
+    commands:
+      - tapOn:
+          id: ".*-trigger-\\(${TAB}\\)-.*"

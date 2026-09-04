@@ -1,19 +1,7 @@
-# Fetch: Home -> /fetch, wait for loading to finish, refetch button visible.
-# The data comes from jsonplaceholder (external), so the flow does not assert list content
-# and leaves the `fetch-retry` error path untested.
-url: ${APP_URL}
-tags: [web]
+# Native entry for the fetch steps (subflows/steps/fetch.yaml). Keep it to these two runFlow lines.
+name: native/fetch
+appId: ${APP_ID}
+tags: [ios, android]
 ---
 - runFlow: ../subflows/launch.yaml
-- assertVisible:
-    id: home-screen
-- tapOn:
-    id: home-fetch-link
-- assertVisible:
-    id: fetch-screen
-- extendedWaitUntil:
-    notVisible:
-      id: fetch-loading
-    timeout: 20000
-- assertVisible:
-    id: fetch-refetch
+- runFlow: ../subflows/steps/fetch.yaml

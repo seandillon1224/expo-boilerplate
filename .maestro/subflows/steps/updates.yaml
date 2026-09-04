@@ -1,0 +1,16 @@
+# Updates: Settings tab -> Updates screen shows the runtime version row.
+appId: ${APP_ID}
+---
+- runFlow:
+    file: ../select-tab.yaml
+    env:
+      TAB: settings
+      TAB_LABEL: Settings
+- assertVisible:
+    id: settings-screen
+- tapOn:
+    id: settings-updates-link
+- assertVisible:
+    id: updates-screen
+- assertVisible:
+    id: updates-row-runtimeVersion

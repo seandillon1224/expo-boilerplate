@@ -1,0 +1,19 @@
+# Tab bar: Home -> Settings -> Home.
+appId: ${APP_ID}
+---
+- assertVisible:
+    id: home-screen
+- runFlow:
+    file: ../select-tab.yaml
+    env:
+      TAB: settings
+      TAB_LABEL: Settings
+- assertVisible:
+    id: settings-screen
+- runFlow:
+    file: ../select-tab.yaml
+    env:
+      TAB: home
+      TAB_LABEL: Home
+- assertVisible:
+    id: home-screen

@@ -184,7 +184,7 @@ jobs:
           retention-days: 7
 
   maestro-web:
-    # Maestro web flows (`.maestro/flows`, tag `web`) against the static export from the
+    # Maestro web entries (`.maestro/flows/web`, tag `web`) against the static export from the
     # bundle-budget web entry (PLAN.md decisions 6, 10). `needs` on a matrix job waits for every
     # platform entry; only the web artifact is used. Maestro drives its own Chromium; JDK 17+ is
     # preinstalled on ubuntu-latest. Pinned MAESTRO_VERSION: 2.3.0 reads a 1px viewport on
