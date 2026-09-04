@@ -1,0 +1,191 @@
+# Staging rung of the delivery ladder (PLAN.md decisions 3, 9, 10, 12, 13). Every push to main:
+# fingerprint → get_build (staging profile, both platforms; miss = paid internal build) → update
+# to the `staging` channel (Sentry maps best-effort) → deploy the web export to the EAS Hosting
+# `staging` alias → Slack with install links, flagged "reinstall required" when a build was cut.
+# Same cache idiom as e2e.yml; the runbook is docs/release-ladder.md.
+#
+# Run by hand:  bun run eas workflow:run .eas/workflows/deploy-staging.yml [-F hosting=enabled]
+# Validate:     bun run eas workflow:validate .eas/workflows/deploy-staging.yml   (cap: 16 KiB)
+# Push triggers need the Expo GitHub App linked to the repo (docs/release-ladder.md → Enable).
+#
+# Two repo constants live in this file, each as a `workflow_dispatch` input whose `default`
+# equals the `|| '<literal>'` fallback on the job `if` (inputs are empty outside a dispatch):
+#   IOS_BUILDS  build_ios.if    disabled until the iOS ad hoc credentials exist (owner runbook)
+#   HOSTING     deploy_web.if   disabled until the owner's first manual `eas deploy` (dev-domain)
+# Flip = change the literal AND the input default, in one PR. Until then the job is skipped. Slack
+# needs no constant: the job skips itself while SLACK_WEBHOOK_URL is unset on EAS. So the run
+# stays green with none of the owner-owed secrets in place.
+name: Deploy staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ios_builds:
+        type: choice
+        options: [enabled, disabled]
+        default: disabled
+        required: false
+        description: enabled = cut an iOS staging build on a fingerprint miss (needs ad hoc credentials); disabled = skip it, Android + update + web still run.
+      hosting:
+        type: choice
+        options: [enabled, disabled]
+        default: disabled
+        required: false
+        description: enabled = deploy the web export to the EAS Hosting `staging` alias.
+
+concurrency:
+  # EAS never queues runs; without this two pushes publish in parallel and the OLDER one can land
+  # on `staging` last. Cancelling costs at most one partial build (the next run rebuilds it);
+  # `eas update` / `eas deploy` are atomic server-side, so a cancelled publish leaves nothing.
+  cancel_in_progress: true
+  group: ${{ workflow.filename }}-${{ github.ref }}
+
+jobs:
+  fingerprint:
+    name: Fingerprint
+    type: fingerprint
+    # Must equal the `staging` build profile (eas.json → environment + env), or the hash never
+    # matches a build and the update never reaches one (runtimeVersion = fingerprint).
+    environment: preview
+    env:
+      APP_VARIANT: staging
+
+  # --- iOS ---------------------------------------------------------------------------------
+
+  get_build_ios:
+    name: Get build (ios)
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: ios
+      profile: staging
+      distribution: internal
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      # Two runs racing on the same new fingerprint: the second waits for the first's build.
+      wait_for_in_progress: true
+
+  build_ios:
+    name: Build (ios)
+    type: build
+    needs: [get_build_ios]
+    # IOS_BUILDS — needs the ad hoc credentials from docs/environments-and-secrets.md → iOS
+    # runbook; until then every attempt fails at "Credentials are not set up".
+    if: ${{ !needs.get_build_ios.outputs.build_id && (inputs.ios_builds || 'disabled') == 'enabled' }}
+    params:
+      platform: ios
+      profile: staging
+      message: staging build for fingerprint ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+
+  # --- Android -----------------------------------------------------------------------------
+
+  get_build_android:
+    name: Get build (android)
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: android
+      profile: staging
+      distribution: internal
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  build_android:
+    name: Build (android)
+    type: build
+    needs: [get_build_android]
+    if: ${{ !needs.get_build_android.outputs.build_id }}
+    params:
+      platform: android
+      profile: staging
+      message: staging build for fingerprint ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+
+  # --- OTA update --------------------------------------------------------------------------
+
+  update:
+    name: Update (staging)
+    type: update
+    # `after`, not `needs`: a failed or skipped build must not block the OTA — the update is
+    # keyed by fingerprint, so it is harmless for a platform with no matching build and still
+    # reaches every other installed staging build. Only a failed fingerprint stops it.
+    after: [fingerprint, get_build_ios, build_ios, get_build_android, build_android]
+    if: ${{ after.fingerprint.status == 'success' }}
+    # Same environment + APP_VARIANT as the profile, so the exported runtime version (fingerprint)
+    # equals the staging builds' and EXPO_PUBLIC_* resolve to the preview values.
+    environment: preview
+    env:
+      APP_VARIANT: staging
+    params:
+      channel: staging
+      # Dispatch runs have no commit message; keep the update findable either way.
+      message: ${{ github.commit_message || 'manual staging publish of ' + (github.sha || 'HEAD') }}
+      # Sentry source maps are uploaded by the job itself, from the same export it publishes
+      # (`dist` only exists on this worker, so a separate job cannot do it). Unset = best-effort:
+      # `@sentry/react-native` is installed so it tries, and without SENTRY_AUTH_TOKEN /
+      # SENTRY_ORG / SENTRY_PROJECT on EAS it logs the error and stays green. Once the owner
+      # sets them (docs/environments-and-secrets.md → Human setup checklist) flip this to `true`
+      # so a broken upload fails the run instead of silently shipping unsymbolicated errors.
+      # upload_sentry_sourcemaps: true
+
+  # --- Web ---------------------------------------------------------------------------------
+
+  deploy_web:
+    name: Deploy web (staging)
+    type: deploy
+    # The job runs `expo export -p web` itself, then `eas deploy` — no prior export job needed.
+    needs: [update]
+    # HOSTING — the first deployment of a project claims its dev-domain (interactive, paid):
+    # docs/release-ladder.md → Enable. Runs after the update so web never leads native.
+    if: ${{ (inputs.hosting || 'disabled') == 'enabled' }}
+    environment: preview
+    env:
+      APP_VARIANT: staging
+    params:
+      # Preview deployment (never `prod`) promoted to the stable `staging` alias; T5.2 moves the
+      # `uat` / `production` aliases the same way.
+      alias: staging
+      prod: false
+
+  # --- Slack -------------------------------------------------------------------------------
+
+  slack:
+    name: Slack
+    # A custom job, not `type: slack`: eas-cli 23's validator rejects any `${{ }}` expression in
+    # that job's `webhook_url` (schema `format: uri`), so the URL would have to be a literal —
+    # and a webhook is a secret. This job reads SLACK_WEBHOOK_URL (secret, preview environment)
+    # from the VM env and skips itself while it is unset; nothing to flip once the owner sets it.
+    # `after` on everything so the post goes out on a red run too; `after.<job>.status` is
+    # success | failure | skipped.
+    after:
+      [fingerprint, get_build_ios, build_ios, get_build_android, build_android, update, deploy_web]
+    environment: preview
+    steps:
+      # Slack mrkdwn, written through a quoted heredoc so a commit message cannot reach the shell.
+      # Every ternary guards its string functions (`x || ''`): the evaluator resolves both
+      # branches, and a skipped job has no outputs. The expo.dev account/slug prefix has no
+      # context — `bun run init` (T7.1) rewrites it.
+      - name: Compose message
+        run: |
+          cat > slack.txt <<'__SLACK_MSG__'
+          *Staging* · ${{ after.update.status == 'success' ? '✅ published' : after.update.status == 'failure' ? '❌ update failed' : '⏭️ update skipped' }} · `${{ substring(github.sha || '', 0, 7) }}` ${{ github.commit_message ? '— ' + substring(github.commit_message || '', 0, 120) : '(manual run)' }}
+          ${{ (after.build_ios.status == 'success' || after.build_android.status == 'success') ? ':warning: *Reinstall required* — the native fingerprint changed, new staging builds were cut. Installed apps will NOT receive this update.' : 'JS-only change: installed staging apps pick it up on next launch.' }}
+          • *iOS*: ${{ after.build_ios.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_ios.outputs.build_id + '|new build — install page + QR>' : after.get_build_ios.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.get_build_ios.outputs.build_id + '|current build — install page + QR>' : after.build_ios.status == 'failure' ? '❌ build failed (credentials? docs/environments-and-secrets.md → iOS runbook)' : '⏭️ no build for this fingerprint (IOS_BUILDS disabled)' }}
+          • *Android*: ${{ after.build_android.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_android.outputs.build_id + '|new build — install page + QR>' : after.get_build_android.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.get_build_android.outputs.build_id + '|current build — install page + QR>' : '❌ build failed (' + after.build_android.status + ')' }}
+          • *Update*: ${{ after.update.outputs.first_update_group_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/updates/' + after.update.outputs.first_update_group_id + '|' + substring(after.update.outputs.first_update_group_id || '', 0, 8) + '> · `bun run eas update:view ' + after.update.outputs.first_update_group_id + '`' : 'none' }}
+          • *Web*: ${{ after.deploy_web.outputs.deploy_url ? '<' + after.deploy_web.outputs.deploy_url + '|' + after.deploy_web.outputs.deploy_url + '>' : after.deploy_web.status == 'failure' ? '❌ deploy failed' : '⏭️ skipped (HOSTING disabled)' }}
+          • *Fingerprint*: ios `${{ substring(after.fingerprint.outputs.ios_fingerprint_hash || '', 0, 12) }}` · android `${{ substring(after.fingerprint.outputs.android_fingerprint_hash || '', 0, 12) }}` · <${{ workflow.url }}|workflow run>
+          __SLACK_MSG__
+      - name: Post to Slack
+        # Node's fetch (no curl / jq dependency); the secret never appears in the log.
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "SLACK_WEBHOOK_URL is not set in the preview environment — skipping (docs/release-ladder.md → Enable)."
+            exit 0
+          fi
+          node -e '
+            const text = require("node:fs").readFileSync("slack.txt", "utf8").trim();
+            fetch(process.env.SLACK_WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) })
+              .then((r) => r.ok ? console.log("posted") : Promise.reject(new Error("Slack " + r.status)))
+              .catch((e) => { console.error(e.message); process.exit(1); });
+          '

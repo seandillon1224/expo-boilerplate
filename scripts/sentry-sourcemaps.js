@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Uploads the source maps from `expo export` (./dist) to Sentry after an EAS Update.
- * Used by the deploy workflows (T5.1); locally: `bun run sentry:sourcemaps`.
+ * Local twin of what the `update` job in .eas/workflows/deploy-staging.yml does itself
+ * (`upload_sentry_sourcemaps`, T5.1); run it with `bun run sentry:sourcemaps`.
  *
  * Requires build-time env (never EXPO_PUBLIC_*): SENTRY_AUTH_TOKEN, SENTRY_ORG and
  * SENTRY_PROJECT. Plain Node/JS so it needs no extra type packages.

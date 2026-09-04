@@ -13,7 +13,7 @@ install side by side. `appVersionSource: remote` means EAS owns `version` / `bui
 | ----------------------- | ------------- | ------------ | ------------ | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `development`           | `development` | `internal`   | –            | Dev client for physical devices (Metro on the laptop).                             | Engineers (`eas build --profile development`)                               |
 | `development-simulator` | `development` | `internal`   | –            | Same dev client as an iOS simulator build.                                         | Engineers                                                                   |
-| `staging`               | `staging`     | `internal`   | `staging`    | Internal-distribution build (install page + QR; iOS ad hoc). Android ships an APK. | `deploy-staging` workflow on fingerprint miss (T4.x); OTA target for `main` |
+| `staging`               | `staging`     | `internal`   | `staging`    | Internal-distribution build (install page + QR; iOS ad hoc). Android ships an APK. | `deploy-staging` workflow on fingerprint miss (T5.1); OTA target for `main` |
 | `uat`                   | `uat`         | `internal`   | `uat`        | Internal-distribution build for the UAT promotion.                                 | UAT promotion workflow                                                      |
 | `production`            | `production`  | `store`      | `production` | Store build (App Store Connect / Play). `autoIncrement: true`.                     | Store release workflow on version tag; `submit.production`                  |
 | `e2e-ios-sim`           | `development` | `internal`   | –            | Release-mode iOS **simulator** build; `repack` injects the PR's JS bundle.         | `e2e` workflow + `bun run e2e:build` (T3.6 / T4.2); Maestro                 |
@@ -81,7 +81,7 @@ bun run fingerprint                 # {"ios":"<sha1>","android":"<sha1>"} — th
 bun run fingerprint --platform ios  # one bare hash (for workflows); add --debug to list every source
 bun run eas channel:list            # channels, their branches and the latest group on each
 bun run eas branch:list
-bun run eas update:list --channel staging   # what a staging build would receive right now
+bun run eas update:list --branch staging    # what a staging build would receive right now
 ```
 
 `@expo/fingerprint` is pinned as a devDependency to the exact version `expo@57` depends on so the
@@ -120,6 +120,7 @@ must set `environment:` explicitly to stay in sync with the profile it pairs wit
 | `SENTRY_ORG`              | `plaintext` | all three                                | **Owner**                  | `@sentry/react-native/expo` config plugin (EAS Build) and `bun run sentry:sourcemaps` (EAS Update).                     |
 | `SENTRY_PROJECT`          | `plaintext` | all three                                | **Owner**                  | Same as `SENTRY_ORG`.                                                                                                   |
 | `SENTRY_AUTH_TOKEN`       | `secret`    | all three                                | **Owner**                  | Same as `SENTRY_ORG`; `secret` so it is never readable outside EAS servers and is redacted in job logs.                 |
+| `SLACK_WEBHOOK_URL`       | `secret`    | `preview`, `production`                  | **Owner** (see checklist)  | The `slack` job of `deploy-staging.yml` (T5.1) and the promotion workflow (T5.2); absent → the job logs and skips.      |
 
 All variables are `--scope project`. `APP_VARIANT` itself is deliberately **not** an EAS variable: it
 is owned by the build profile (`eas.json` → `env`), which is the only thing that distinguishes
@@ -202,6 +203,26 @@ bun run eas env:list --environment production --format long
 Then add `SENTRY_AUTH_TOKEN` and `EXPO_TOKEN` as GitHub repository secrets. To point a real backend at
 `staging` / `uat` / `production`, update `EXPO_PUBLIC_API_URL` per environment with the same
 `env:set` command (it creates or updates in place).
+
+Delivery ladder (`docs/release-ladder.md`) — everything the `deploy-staging` workflow needs that only
+the owner can provide. Until each is done the matching job skips itself and the run stays green:
+
+- [ ] **Expo GitHub App** linked to the repository (expo.dev → project → Settings → GitHub) so
+      `push` / `pull_request` triggers fire at all (`e2e.yml`, `deploy-staging.yml`).
+- [ ] **Slack incoming webhook** for the release channel (T5.6 wires the channel), stored on EAS as
+      `SLACK_WEBHOOK_URL` (command below) — never in GitHub or the repo.
+- [ ] **First EAS Hosting deployment** by hand (claims the dev-domain; interactive):
+      `bun run export:web && bun run eas deploy --environment preview --export-dir dist-web --dev-domain expo-boilerplate --alias staging`,
+      then flip `HOSTING` to `enabled` in `deploy-staging.yml`.
+- [ ] **iOS ad hoc credentials** for `staging` (iOS runbook below, steps 1–3), then flip `IOS_BUILDS`
+      to `enabled` in `deploy-staging.yml`.
+- [ ] Sentry variables above, then set `upload_sentry_sourcemaps: true` on the `update` job.
+
+```sh
+bun run eas env:set --scope project --environment preview --environment production \
+  --name SLACK_WEBHOOK_URL --value https://hooks.slack.com/services/... \
+  --visibility secret --type string --non-interactive
+```
 
 Signing / store credentials (details and exact commands in [Credentials](#credentials)):
 
