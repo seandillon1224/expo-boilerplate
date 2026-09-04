@@ -1,9 +1,9 @@
 # Smoke: the app boots to the Home screen.
 #
-# Every subflow carries an `appId: ${APP_ID}` header because Maestro 2.x refuses a flow file
+# Every subflow carries an `appId: ${MAESTRO_APP_ID}` header because Maestro 2.x refuses a flow file
 # without a config section. It is inert here: only the entry's header picks the driver and only
-# launch*.yaml launches anything, so on web `${APP_ID}` simply stays unset.
-appId: ${APP_ID}
+# launch*.yaml launches anything, so on web `${MAESTRO_APP_ID}` simply stays unset.
+appId: ${MAESTRO_APP_ID}
 ---
 - assertVisible:
     id: home-screen

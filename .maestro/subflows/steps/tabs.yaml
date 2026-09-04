@@ -1,5 +1,5 @@
 # Tab bar: Home -> Settings -> Home.
-appId: ${APP_ID}
+appId: ${MAESTRO_APP_ID}
 ---
 - assertVisible:
     id: home-screen

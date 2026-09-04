@@ -1,0 +1,184 @@
+# Native E2E lane (PLAN.md decisions 1, 2, 6, 14): every PR runs the Maestro flows on a real iOS
+# Simulator and Android Emulator build, without CI ever running Metro or a native build it can
+# avoid. Per platform:
+#
+#   fingerprint ─┬─ get_build_ios ─────┬─ repack_ios     (hit: inject this commit's JS bundle)
+#                │                     └─ build_ios      (miss: full EAS build, paid, ~15 min)
+#                │                          └────────────── maestro_ios
+#                └─ get_build_android ─┬─ repack_android
+#                                      └─ build_android
+#                                           └────────────── maestro_android
+#
+# `get-build` looks for a finished build of the E2E profile (`e2e-ios-sim` / `e2e-android-apk`,
+# eas.json) whose fingerprint equals this commit's. On a hit the base build is reused and
+# `repack` (@expo/repack-app) swaps in a fresh JS bundle; on a miss `build` produces a new base
+# for that fingerprint, which the next PR with the same native surface will then find. A fresh
+# build already embeds this commit's JS, so it is not repacked — that is the idiom from Expo's
+# "continuous deployment with fingerprint and repack" example, and `maestro` takes whichever id
+# exists.
+#
+# Local twins of each job: docs/native-e2e.md (`bun run fingerprint | e2e:build | e2e:repack |
+# e2e:ios | e2e:android`).
+#
+# Run it by hand:  bun run eas workflow:run .eas/workflows/e2e.yml
+#                  (or expo.dev → project → Workflows → "E2E (native)" → Run)
+# Validate:        bun run eas workflow:validate .eas/workflows/e2e.yml
+# PR trigger needs the Expo GitHub App linked to the repo (docs/native-e2e.md → Workflow).
+name: E2E (native)
+
+on:
+  # Every PR into main (PLAN.md decision 14). Pushes to main are covered by the staging OTA
+  # workflow (E5), which does its own fingerprint → get-build → update. Fork PRs never trigger
+  # EAS workflows (docs/js-gate.md); this template assumes same-repo branches.
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      # Placeholder for T4.5 (tiered mode). Only `full` exists today; the value is not read yet.
+      tier:
+        type: choice
+        options: [full]
+        default: full
+        required: false
+        description: Which flows to run. T4.5 adds cheaper tiers; `full` runs every native flow.
+
+concurrency:
+  # A new push to the same PR branch cancels the run in flight (a build can't be reused across
+  # commits with different JS anyway). `group` is the placeholder EAS asks for until custom
+  # groups ship.
+  cancel_in_progress: true
+  group: ${{ workflow.filename }}-${{ github.ref }}
+
+jobs:
+  fingerprint:
+    name: Fingerprint
+    type: fingerprint
+    # Must match the E2E build profiles exactly or the hash never matches a stored build:
+    # `environment: development` plus the inline APP_VARIANT the profiles set in eas.json
+    # (app.config.ts derives the bundle id / package from it, and those feed the fingerprint).
+    environment: development
+    env:
+      APP_VARIANT: development
+
+  # --- iOS ---------------------------------------------------------------------------------
+
+  get_build_ios:
+    name: Get build (ios)
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: ios
+      profile: e2e-ios-sim
+      simulator: true
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      # Two PRs with the same new fingerprint: the second waits for the first's build instead
+      # of starting its own.
+      wait_for_in_progress: true
+
+  build_ios:
+    name: Build (ios)
+    type: build
+    needs: [get_build_ios]
+    if: ${{ !needs.get_build_ios.outputs.build_id }}
+    params:
+      platform: ios
+      profile: e2e-ios-sim
+      message: e2e base build for fingerprint ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+
+  repack_ios:
+    name: Repack (ios)
+    type: repack
+    needs: [get_build_ios]
+    if: ${{ needs.get_build_ios.outputs.build_id }}
+    params:
+      build_id: ${{ needs.get_build_ios.outputs.build_id }}
+      # Same as the source build's profile (the default); spelled out because eas-cli 23's
+      # `workflow:validate` crashes on a repack job without one.
+      profile: e2e-ios-sim
+      message: e2e repack of ${{ github.sha }}
+
+  maestro_ios:
+    name: Maestro (ios)
+    type: maestro
+    # `after`, not `needs`: exactly one of the two is skipped by design. The `if` keeps this job
+    # from starting with an empty build id when the one that ran has failed.
+    after: [repack_ios, build_ios]
+    if: ${{ needs.repack_ios.outputs.build_id || needs.build_ios.outputs.build_id }}
+    environment: development
+    env:
+      # Maestro reads `MAESTRO_*` shell variables as `${MAESTRO_…}` in flows; this is the bundle
+      # id / package app.config.ts derives for APP_VARIANT=development. The pre-packaged job cannot
+      # run `expo config`, so the value is spelled out here (and below) — `bun run init` (T7.1)
+      # rewrites it together with the identifiers in app.config.ts.
+      MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev
+    params:
+      build_id: ${{ needs.repack_ios.outputs.build_id || needs.build_ios.outputs.build_id }}
+      # The workspace directory, so .maestro/config.yaml is read and `include_tags` picks the
+      # native entries (flows/*.yaml) — same invocation as `bun run e2e:ios`.
+      flow_path: .maestro
+      include_tags: [ios]
+      # Pin to the version the JS gate and the local scripts use (docs/native-e2e.md).
+      maestro_version: 2.10.0
+      # 4 flows → 2 shards. Sharding is experimental on EAS; drop to 1 first if a run misbehaves.
+      shards: 2
+      # Re-run only the failed flows, up to twice (T4.6 turns this into a tracked flake budget).
+      retries: 2
+      retry_failed_only: true
+      # Screen recordings + `junit` report land in the "Maestro Test Results" run artifact.
+      record_screen: true
+      output_format: junit
+
+  # --- Android -----------------------------------------------------------------------------
+
+  get_build_android:
+    name: Get build (android)
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: android
+      profile: e2e-android-apk
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  build_android:
+    name: Build (android)
+    type: build
+    needs: [get_build_android]
+    if: ${{ !needs.get_build_android.outputs.build_id }}
+    params:
+      platform: android
+      profile: e2e-android-apk
+      message: e2e base build for fingerprint ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+
+  repack_android:
+    name: Repack (android)
+    type: repack
+    needs: [get_build_android]
+    if: ${{ needs.get_build_android.outputs.build_id }}
+    params:
+      build_id: ${{ needs.get_build_android.outputs.build_id }}
+      # Same as the source build's profile (the default); spelled out because eas-cli 23's
+      # `workflow:validate` crashes on a repack job without one.
+      profile: e2e-android-apk
+      message: e2e repack of ${{ github.sha }}
+
+  maestro_android:
+    name: Maestro (android)
+    type: maestro
+    after: [repack_android, build_android]
+    if: ${{ needs.repack_android.outputs.build_id || needs.build_android.outputs.build_id }}
+    environment: development
+    # The emulator needs a nested-virtualization worker; `large` because record_screen is on.
+    runs_on: linux-large-nested-virtualization
+    env:
+      MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev
+    params:
+      build_id: ${{ needs.repack_android.outputs.build_id || needs.build_android.outputs.build_id }}
+      flow_path: .maestro
+      include_tags: [android]
+      maestro_version: 2.10.0
+      shards: 2
+      retries: 2
+      retry_failed_only: true
+      record_screen: true
+      output_format: junit

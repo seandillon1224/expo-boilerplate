@@ -1,6 +1,6 @@
 # Native launch, first step of every flows/<name>.yaml entry. Fresh state on each flow so
 # ordering never matters; permissions granted up front so no system dialog blocks a step.
-appId: ${APP_ID}
+appId: ${MAESTRO_APP_ID}
 ---
 - launchApp:
     clearState: true

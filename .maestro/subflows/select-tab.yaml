@@ -8,7 +8,7 @@
 #            accessibilityLabel is what TalkBack announces — so match the visible label.
 #   web      NativeTabs renders Radix tabs: <button role="tab" id="radix-<uid>-trigger-(<name>)-<nanoid>">
 #            with no testID hook, so match the generated id by regex.
-appId: ${APP_ID}
+appId: ${MAESTRO_APP_ID}
 ---
 - runFlow:
     when:

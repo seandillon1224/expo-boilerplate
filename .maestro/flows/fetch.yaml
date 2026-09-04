@@ -1,6 +1,6 @@
 # Native entry for the fetch steps (subflows/steps/fetch.yaml). Keep it to these two runFlow lines.
 name: native/fetch
-appId: ${APP_ID}
+appId: ${MAESTRO_APP_ID}
 tags: [ios, android]
 ---
 - runFlow: ../subflows/launch.yaml

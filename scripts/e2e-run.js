@@ -4,7 +4,7 @@
 // same JUnit output layout as `e2e:web` (`maestro-<platform>/`). Shuts the device down again only
 // if this script booted it.
 //
-// APP_ID is the variant's bundle id / package derived in app.config.ts for APP_VARIANT=development
+// MAESTRO_APP_ID is the variant's bundle id / package derived in app.config.ts for APP_VARIANT=development
 // (what the e2e-* build profiles use); `.maestro/config.yaml` documents the env contract.
 const fs = require('fs');
 const os = require('os');
@@ -27,7 +27,7 @@ const USAGE = `Usage: bun run e2e:ios | bun run e2e:android   (node scripts/e2e-
 
 Mirrors the native lane's maestro job: boots a device, installs
 e2e/builds/<platform>/repacked.(app|apk) (or base.(app|apk) if you skipped e2e:repack) and runs
-  maestro test .maestro --include-tags <platform> -e APP_ID=<bundle id | package>
+  maestro test .maestro --include-tags <platform> -e MAESTRO_APP_ID=<bundle id | package>
 with JUnit output in maestro-<platform>/.
 
 Device selection:
@@ -229,7 +229,7 @@ function maestroTest(maestro, id, device) {
     '--include-tags',
     platform,
     '-e',
-    `APP_ID=${id}`,
+    `MAESTRO_APP_ID=${id}`,
     '--format',
     'junit',
     '--output',
@@ -257,5 +257,5 @@ console.log(
 );
 const maestro = maestroBinary();
 const id = appId();
-console.log(`APP_ID=${id}`);
+console.log(`MAESTRO_APP_ID=${id}`);
 process.exit(platform === 'ios' ? runIos(maestro, id) : runAndroid(maestro, id));

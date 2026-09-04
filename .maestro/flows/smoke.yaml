@@ -1,6 +1,6 @@
 # Native entry for the smoke steps (subflows/steps/smoke.yaml). Keep it to these two runFlow lines.
 name: native/smoke
-appId: ${APP_ID}
+appId: ${MAESTRO_APP_ID}
 tags: [ios, android]
 ---
 - runFlow: ../subflows/launch.yaml
