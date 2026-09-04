@@ -42,11 +42,11 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#24 T2.5** — Maestro web: serve the static export, run `.maestro` web-tagged flows, JUnit report + screenshots on failure as artifacts.
 - [x] **#25 T2.6** — Reassure perf tests job with baseline compare on PR.
 - [x] **#26 T2.7** — Renovate auto-merge wiring (required checks, branch protection as code via `gh` script).
-- [~] **#27 T2.8** — Required-checks doc: which checks gate merge, how EAS checks appear on the PR.
+- [x] **#27 T2.8** — Required-checks doc: which checks gate merge, how EAS checks appear on the PR.
 
 ### E3 — EAS foundation (tracker #70)
 
-- [ ] **#28 T3.1** — `eas init`, `eas.json`: profiles `development`, `staging`, `uat`, `production`, plus `e2e-ios-sim` and `e2e-android-apk` (release-mode simulator/APK builds for Maestro). `appVersionSource: remote`.
+- [~] **#28 T3.1** — `eas init`, `eas.json`: profiles `development`, `staging`, `uat`, `production`, plus `e2e-ios-sim` and `e2e-android-apk` (release-mode simulator/APK builds for Maestro). `appVersionSource: remote`.
 - [ ] **#29 T3.2** — EAS Environment Variables for `development`/`preview`/`production`; `bun run env:pull`; document the mapping to staging/UAT/prod.
 - [ ] **#30 T3.3** — Update channels `staging`, `uat`, `production`; `runtimeVersion` policy = `fingerprint`.
 - [ ] **#31 T3.4** — Credentials: iOS + Android signing on EAS for the boilerplate's own bundle IDs.
@@ -126,3 +126,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-03 — #24 | t24-maestro-web | https://github.com/seandillon1224/expo-boilerplate/pull/97 | merged | 2026-09-03 (paused after this; local Maestro CLI needs upgrade to >=2.9; #34 note: a `url:` header always makes a flow web-only)
 - 2026-09-03 — #25 | t25-reassure | https://github.com/seandillon1224/expo-boilerplate/pull/98 | merged | 2026-09-03
 - 2026-09-03 — #26 | t26-branch-protection | https://github.com/seandillon1224/expo-boilerplate/pull/99 | merged | 2026-09-03 (protection applied via repo:settings:apply after user approval; 14 required checks, strict=false, admins not enforced)
+- 2026-09-03 — #27 | t27-required-checks-doc | https://github.com/seandillon1224/expo-boilerplate/pull/100 | merged | 2026-09-03 — E2 complete
