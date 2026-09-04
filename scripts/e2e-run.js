@@ -29,7 +29,7 @@ const USAGE = `Usage: bun run e2e:ios | bun run e2e:android   (node scripts/e2e-
 
 Mirrors the native lane's maestro job: boots a device, installs
 e2e/builds/<platform>/repacked.(app|apk) (or base.(app|apk) if you skipped e2e:repack) and runs
-  maestro test .maestro --include-tags <platform> -e MAESTRO_APP_ID=<bundle id | package>
+  maestro test .maestro --include-tags <platform> --exclude-tags quarantine -e MAESTRO_APP_ID=…
 with JUnit output in maestro-<platform>/ (report.xml, Maestro debug output in debug/, and on a
 failure the simulator log / logcat in device/ — the same set the workflow's maestro job uploads).
 
@@ -41,6 +41,7 @@ Options:
   --platform ios|android   default ios
   --device <udid|serial>   use this simulator UDID / adb serial instead of auto-selecting
   --keep                   leave the simulator / emulator running afterwards
+  --include-quarantine     run only the flows tagged \`quarantine\` (default: exclude them, like the gate)
   --help                   this text`;
 
 const { platform, flags, values } = parseArgs(process.argv, { name: NAME, usage: USAGE });
@@ -65,15 +66,24 @@ function onExit(cleanup) {
   process.on('exit', cleanup);
 }
 
+// Flake budget (docs/native-e2e.md): the gate excludes `quarantine`; `--include-quarantine`
+// flips that to run only the quarantined flows. Mirrors e2e.yml / e2e-quarantine.yml.
+const quarantine = flags.has('include-quarantine');
+const tagArgs = quarantine
+  ? ['--include-tags', 'quarantine', '--exclude-tags', 'web']
+  : ['--include-tags', platform, '--exclude-tags', 'quarantine'];
+
 // Native entries live flat in .maestro/flows (web ones in flows/web, see .maestro/config.yaml);
-// list the ones tagged for this platform so the notice below can name them.
-function flowsTagged(tag) {
+// list the ones this run selects so the notice below can name them.
+function selectedFlows() {
   if (!fs.existsSync(flowsDir)) return [];
   return fs.readdirSync(flowsDir).filter((file) => {
     if (!/\.ya?ml$/.test(file)) return false;
     const header = fs.readFileSync(path.join(flowsDir, file), 'utf8').split(/^---$/m)[0];
-    const tags = header.match(/^tags:\s*\[([^\]]*)\]/m);
-    return tags ? tags[1].split(',').some((t) => t.trim() === tag) : false;
+    const match = header.match(/^tags:\s*\[([^\]]*)\]/m);
+    const tags = match ? match[1].split(',').map((t) => t.trim()) : [];
+    const quarantined = tags.includes('quarantine');
+    return quarantine ? quarantined : tags.includes(platform) && !quarantined;
   });
 }
 
@@ -231,8 +241,7 @@ function maestroTest(maestro, id, device) {
     device,
     'test',
     '.maestro',
-    '--include-tags',
-    platform,
+    ...tagArgs,
     '-e',
     `MAESTRO_APP_ID=${id}`,
     '--format',
@@ -260,16 +269,17 @@ function maestroTest(maestro, id, device) {
   return status;
 }
 
-const flows = flowsTagged(platform);
+const flows = selectedFlows();
+const selection = quarantine ? 'quarantine' : `${platform} (minus quarantine)`;
 if (flows.length === 0) {
   console.log(
-    `${NAME}: no flow in .maestro/flows is tagged \`${platform}\`, so there is nothing to run. ` +
+    `${NAME}: no flow in .maestro/flows is tagged \`${selection}\`, so there is nothing to run. ` +
       `Build ${relative(artifact)} is ready; exiting 0.`,
   );
   process.exit(0);
 }
 console.log(
-  `Installing ${relative(artifact)}; ${flows.length} flow(s) tagged ${platform}: ${flows.join(', ')}`,
+  `Installing ${relative(artifact)}; ${flows.length} flow(s) tagged ${selection}: ${flows.join(', ')}`,
 );
 const maestro = maestroBinary();
 const id = appId();

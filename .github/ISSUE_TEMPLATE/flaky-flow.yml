@@ -1,0 +1,59 @@
+# GitHub issue form for a flaky Maestro flow (docs/native-e2e.md → Flake budget). Filing one is
+# step 1 of quarantining: the flow's `# quarantine: #<issue>` comment must point at this issue.
+name: Flaky Maestro flow
+description: A Maestro flow that fails, then passes on retry (green on retry ≥ 2× in a week).
+title: 'flaky: <flow>'
+labels: [flaky-flow, e2e]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill this in from the failing run's artifacts (**Maestro Test Results**, **Device logs**, or the `maestro-web` artifact). Policy, quarantine steps and the un-quarantine checklist: `docs/native-e2e.md` → Flake budget.
+  - type: input
+    id: flow
+    attributes:
+      label: Flow file
+      description: The entry file, not the subflow.
+      placeholder: .maestro/flows/updates.yaml
+    validations:
+      required: true
+  - type: checkboxes
+    id: platforms
+    attributes:
+      label: Platform(s)
+      options:
+        - label: iOS
+        - label: Android
+        - label: Web
+  - type: input
+    id: run
+    attributes:
+      label: Workflow run URL
+      description: The EAS workflow run (native) or the GitHub Actions run (web) where it flaked.
+      placeholder: https://expo.dev/accounts/<account>/projects/<project>/workflows/<run id>
+    validations:
+      required: true
+  - type: textarea
+    id: rate
+    attributes:
+      label: Failure rate and observations
+      description: How often, on which attempt it passed, anything that correlates (shard, time of day, first flow after boot, ...).
+      placeholder: 3 of the last 10 PR runs failed on attempt 1 and passed on attempt 2, Android only.
+    validations:
+      required: true
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Recording / artifact links
+      description: Recording, failure screenshot, `report.xml` `<failure>` text, device log excerpt. Download anything worth keeping — run artifacts are not kept forever.
+  - type: textarea
+    id: cause
+    attributes:
+      label: Suspected cause
+      placeholder: Assertion runs before the fetch resolves on a cold emulator; needs extendedWaitUntil, not a longer timeout.
+  - type: checkboxes
+    id: quarantine
+    attributes:
+      label: Quarantine
+      options:
+        - label: 'I added the `quarantine` tag (with a `# quarantine: #<this issue>` comment) in PR #…'

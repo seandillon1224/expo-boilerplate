@@ -19,7 +19,15 @@
 # Tags (`--include-tags` picks entries, never subflows):
 #   web            flows/web/*   — CI `maestro-web` job / `bun run e2e:web`
 #   ios, android   flows/*       — EAS `e2e` workflow (T4.2) / `bun run e2e:ios|android`
-#   quarantine     reserved for T4.6 (flaky flows excluded from the gate with --exclude-tags)
+#   quarantine     flaky flows, excluded from every gate with --exclude-tags quarantine
+#                  (e2e.yml, `bun run e2e:web`, `bun run e2e:ios|android`). Rules:
+#                    - add it to the entry file only (keep the platform tags), directly under a
+#                      `# quarantine: #<issue>` comment pointing at the `flaky-flow` issue
+#                    - max age 2 weeks: fix and drop the tag, or delete the flow
+#                    - never delete assertions to make a flow pass
+#                  Run them: `bun run e2e:ios|android --include-quarantine`, `bun run e2e:web`
+#                  with the tags swapped by hand, or .eas/workflows/e2e-quarantine.yml.
+#                  Full policy: docs/native-e2e.md → Flake budget.
 #
 # Selectors: testID only (CLAUDE.md) — `id:` is accessibilityIdentifier on iOS, resource-id on
 # Android, DOM id on web. One exception, kept inside subflows/select-tab.yaml: NativeTabs renders
