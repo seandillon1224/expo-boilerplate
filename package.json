@@ -73,6 +73,8 @@
     "env:pull:preview": "EAS_ENV=preview bun run env:pull",
     "env:pull:production": "EAS_ENV=production bun run env:pull",
     "fingerprint": "node scripts/fingerprint.js",
+    "devices:add": "node scripts/devices-add.js",
+    "devices:list": "eas device:list",
     "export:web": "expo export --platform web --output-dir dist-web",
     "export:ios": "expo export --platform ios --output-dir dist-ios",
     "export:android": "expo export --platform android --output-dir dist-android",
