@@ -38,6 +38,7 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
+    "@expo/fingerprint": "0.20.12",
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "^29",
@@ -71,6 +72,7 @@
     "env:pull": "eas env:pull --environment ${EAS_ENV:-development} --path .env.local --non-interactive",
     "env:pull:preview": "EAS_ENV=preview bun run env:pull",
     "env:pull:production": "EAS_ENV=production bun run env:pull",
+    "fingerprint": "node scripts/fingerprint.js",
     "export:web": "expo export --platform web --output-dir dist-web",
     "export:ios": "expo export --platform ios --output-dir dist-ios",
     "export:android": "expo export --platform android --output-dir dist-android",
