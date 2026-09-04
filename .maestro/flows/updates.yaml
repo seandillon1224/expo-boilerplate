@@ -1,6 +1,6 @@
 # Native entry for the updates steps (subflows/steps/updates.yaml). Keep it to these two runFlow lines.
 name: native/updates
-appId: ${APP_ID}
+appId: ${MAESTRO_APP_ID}
 tags: [ios, android]
 ---
 - runFlow: ../subflows/launch.yaml

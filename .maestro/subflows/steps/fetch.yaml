@@ -1,7 +1,7 @@
 # Fetch: Home -> /fetch, wait for loading to finish, refetch button visible.
 # The data comes from jsonplaceholder (external), so the flow does not assert list content
 # and leaves the `fetch-retry` error path untested.
-appId: ${APP_ID}
+appId: ${MAESTRO_APP_ID}
 ---
 - assertVisible:
     id: home-screen

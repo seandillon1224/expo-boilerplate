@@ -1,6 +1,6 @@
 # Native entry for the tabs steps (subflows/steps/tabs.yaml). Keep it to these two runFlow lines.
 name: native/tabs
-appId: ${APP_ID}
+appId: ${MAESTRO_APP_ID}
 tags: [ios, android]
 ---
 - runFlow: ../subflows/launch.yaml

@@ -71,7 +71,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `.github/workflows/pr-title.yml` lints the PR title with the same `commitlint.config.js` (the title becomes the squash commit).
 - Required checks on `main` (every CI job except `Perf (Reassure)`) and merge settings (squash-only, auto-merge on for Renovate) are managed by `scripts/repo-settings.js`; run `bun run repo:settings:apply` once after creating a repo from the template.
 - EAS Workflows = native lane (fingerprint → get-build/build → repack → maestro → update → approval → submit).
-- EAS Workflows live in `.eas/workflows/*.yml` (one file per workflow; first one: `register-device.yml`). Validate with `bun run eas workflow:validate <file>`; run with `bun run eas workflow:run <file>`.
+- EAS Workflows live in `.eas/workflows/*.yml` (one file per workflow: `register-device.yml`, `e2e.yml` = the PR native E2E check, see `docs/native-e2e.md`). Validate with `bun run eas workflow:validate <file>`; run with `bun run eas workflow:run <file>`.
 - `main` → OTA to `staging`; UAT/production are manual, approval-gated promotions of the same update group.
 - Which checks gate merge, how merging/auto-merge works, how to change the required set: `docs/js-gate.md`.
 

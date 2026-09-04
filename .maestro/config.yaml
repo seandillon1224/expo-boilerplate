@@ -4,7 +4,7 @@
 # config.yaml from the directory it is given, and its default discovery is non-recursive).
 #
 # Layout — one set of steps per feature, thin entry files per platform:
-#   flows/<name>.yaml        native entry: `appId: ${APP_ID}`, `tags: [ios, android]`
+#   flows/<name>.yaml        native entry: `appId: ${MAESTRO_APP_ID}`, `tags: [ios, android]`
 #   flows/web/<name>.yaml    web entry:    `url: ${APP_URL}`,  `tags: [web]`
 #   subflows/launch.yaml     native launchApp (clearState, permissions allowed)
 #   subflows/launch-web.yaml web launchApp (opens the entry's `url`)
@@ -30,8 +30,10 @@
 # Env (`maestro test -e KEY=value`):
 #   APP_URL  web: where the static export is served; `bun run e2e:web` defaults it to
 #            http://localhost:8081 (`bun run serve:web`).
-#   APP_ID   native: the variant's bundle id / package derived in app.config.ts (YAML cannot read
-#            APP_VARIANT, so the caller passes it), e.g. com.seandillon.expoboilerplate.dev.
+#   MAESTRO_APP_ID  native: the variant's bundle id / package derived in app.config.ts (YAML cannot
+#            read APP_VARIANT, so the caller passes it), e.g. com.seandillon.expoboilerplate.dev.
+#            The MAESTRO_ prefix is what lets the EAS `maestro` job feed it as a plain env var
+#            (Maestro exposes MAESTRO_* shell variables to flows); locally `-e` sets it directly.
 #
 # Run web locally:  bun run export:web && bun run serve:web &   then   bun run e2e:web
 # Run native:       see docs/native-e2e.md (bun run e2e:ios | e2e:android)
