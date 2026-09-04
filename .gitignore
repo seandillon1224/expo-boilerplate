@@ -8,6 +8,8 @@ node_modules/
 dist/
 dist-*/
 web-build/
+# `eas deploy --dry-run` tarball
+deploy.tar.gz
 expo-env.d.ts
 
 # Native
