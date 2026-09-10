@@ -69,7 +69,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#42 T5.3** — `release.yml`: on `v*` tag, `build` production for both platforms, `submit` to Play internal track, `testflight` internal group; refuses/skips with a clear message when the fingerprint hasn't changed since the last store release.
 - [x] **#43 T5.4** — PR preview web deploys with unique URLs in the PR comment.
 - [x] **#44 T5.5** — Fingerprint-drift check on PRs: comment when a PR changes the native fingerprint ("this needs a store release").
-- [~] **#45 T5.6** — Build-sharing surfaces: Slack channel wiring, Orbit setup doc, "how a designer installs the staging app" one-pager.
+- [ ] **#45 T5.6** — Build-sharing surfaces: Slack channel wiring, Orbit setup doc, "how a designer installs the staging app" one-pager.
 - [ ] **#46 T5.7** — Runbook: `docs/release-ladder.md` covering the full path, rollback (`eas update:republish` / `update:rollback`), and channel/branch mapping.
 
 ### E6 — Performance tooling (tracker #73)
