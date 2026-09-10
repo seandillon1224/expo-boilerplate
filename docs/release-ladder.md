@@ -1,7 +1,7 @@
 # Release ladder
 
 `main` → **staging** (automatic, this page) → **UAT** → **production** (manual, approval-gated
-republishes of the same update group, below) → stores on a version tag (T5.3). Channel / branch
+republishes of the same update group, below) → **stores** on a version tag (below). Channel / branch
 mapping and the environment variables each rung reads:
 [Environments and secrets](environments-and-secrets.md).
 
@@ -164,6 +164,86 @@ reviewer: the repo owner; deployments only from protected branches; created by
 of the same ladder: a job that declares `environment: production` — `release.yml` (T5.3) and any
 later Actions-side promotion step — waits for a reviewer before it runs. They do not apply to EAS
 workflow runs; they are created now so both halves of the ladder carry the same named rungs.
+
+## Store release (tag)
+
+**Workflows:** two files, one gate. `.github/workflows/release.yml` (`Release`, GitHub Actions) runs
+on `push` of a `v*` tag; its single `trigger` job declares `environment: production`, so it waits
+for the required reviewer (`scripts/repo-settings.js`) and then runs
+`bun run eas workflow:run .eas/workflows/release.yml -F tag=<tag>` with `EXPO_TOKEN` (fails early
+with a readable error when the secret is missing). `.eas/workflows/release.yml` (`Release`, EAS)
+is `workflow_dispatch`-only: EAS does support `on: push: tags:`, but a tag trigger there would
+bypass the GitHub reviewer, which is the whole point of the split. Production RCs land in the
+**TestFlight internal group** and the **Play internal track** (PLAN.md decision 12); nothing here
+touches App Store review or Play production.
+
+**Cutting a release** (by hand until D1, #60 — no release-please, no changelog yet):
+
+1. Bump `version` in `app.config.ts` in a PR (`chore(release): 1.2.3`), merge it.
+   `appVersionSource: remote` means EAS owns `buildNumber` / `versionCode` and auto-increments them;
+   `version` is yours.
+2. Tag the merge commit and push the tag (tags are not protected; the queue never pushes one):
+   `git fetch origin && git tag v1.2.3 origin/main && git push origin v1.2.3`.
+3. Approve the `production` environment on the GitHub run (Actions → Release → Review deployments).
+4. Follow the EAS run (expo.dev → project → Workflows, or the Slack post). Manual equivalent:
+
+```sh
+bun run eas workflow:run .eas/workflows/release.yml -F tag=v1.2.3                 # repo constants
+bun run eas workflow:run .eas/workflows/release.yml -F tag=v1.2.3 -F force=yes -F platforms=android
+bun run eas workflow:validate .eas/workflows/release.yml                          # after editing (cap: 16 KiB)
+```
+
+| Input         | Values                       | Default    | Meaning                                                                              |
+| ------------- | ---------------------------- | ---------- | ------------------------------------------------------------------------------------ |
+| `tag`         | `vX.Y.Z`                     | (required) | Must equal `v` + `app.config.ts` `version`; anything else fails `version_check`.     |
+| `platforms`   | `both` \| `ios` \| `android` | `both`     | Platforms to release.                                                                |
+| `force`       | `no` \| `yes`                | `no`       | `yes` = build + submit even when a store build with this fingerprint already exists. |
+| `ios_release` | `enabled` \| `disabled`      | `disabled` | `IOS_RELEASE` repo constant (below).                                                 |
+| `play_submit` | `enabled` \| `disabled`      | `disabled` | `PLAY_SUBMIT` repo constant (below).                                                 |
+
+```text
+version_check ── fingerprint ─┬─ check_ios ─────┐
+                              └─ check_android ─┴─ gate ─┬─ build_ios (IOS_RELEASE) ── submit_ios (TestFlight)
+                                                         └─ build_android ─────────── submit_android (PLAY_SUBMIT)
+                                                                                          └───── notify (Slack)
+```
+
+| Job             | Type          | What it does                                                                                                                                                                                                                                     |
+| --------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `version_check` | custom steps  | Refuses a tag that is not `vX.Y.Z` or does not equal `v` + `expo config` `version` (`APP_VARIANT=production`), with the fix printed (bump + retag, or delete the tag). Outputs `version`.                                                        |
+| `fingerprint`   | `fingerprint` | `environment: production`, `APP_VARIANT=production` — must equal the `production` build profile.                                                                                                                                                 |
+| `check_<p>`     | `get-build`   | Newest finished **store** build of the `production` profile with this fingerprint (`wait_for_in_progress`, so a release already building counts). Skipped for an unselected platform.                                                            |
+| `gate`          | custom steps  | Per selected platform: hit + `force=no` → **skip** with `fingerprint unchanged since last store build <id>; nothing to release — bump native deps or use force=yes`, **exit 0** (the run stays green); miss or `force=yes` → `release_<p>=true`. |
+| `build_<p>`     | `build`       | `production` profile (`distribution: store`, `channel: production`, `autoIncrement`). Message `release <tag> (<version>)`. iOS also needs `IOS_RELEASE`.                                                                                         |
+| `submit_<p>`    | `submit`      | `submit.production` in `eas.json`: iOS upload with no App Store release = TestFlight, internal group (automatic distribution); Android `track: internal`. Android needs `PLAY_SUBMIT`.                                                           |
+| `notify`        | custom steps  | Same Slack job as staging: verdict, build links, where each platform landed (TestFlight internal group / Play internal track), run URL. Exits 0 while `SLACK_WEBHOOK_URL` is unset (`production` environment).                                   |
+
+**Unchanged-fingerprint rule.** A store build is only worth cutting when the native surface
+changed: the OTA lane already carries every JS-only change to installed production apps
+(`promote.yml`). So a tag whose fingerprint already has a store build (per platform) is a **skip**,
+not a failure — the run is green, the Slack post says `⏭️ skipped`, and nothing is built or
+submitted. To ship a store build anyway (store listing changes, a re-submit, a rejected binary),
+re-run with `force=yes`. This is the mirror of the production promotion rule: `promote.yml`
+refuses a group whose fingerprint has no store build; `release.yml` is how that build comes to
+exist. After a release with a new fingerprint, promote the staging group again — it now hits.
+
+**Where things land.** iOS: App Store Connect → TestFlight → the build appears under the internal
+group(s) with automatic distribution (`groups:` on the `submit` job, or the `testflight` job, can
+target named groups later). Android: Play Console → Testing → Internal testing. Neither is a store
+release; promotion to review / production tracks stays manual in the consoles for now (D1).
+Builds: expo.dev → project → Builds, message `release <tag> (<version>)`.
+
+**Repo constants (flip in one PR: the `|| '<literal>'` on the job `if` and the matching
+`workflow_dispatch` input default).**
+
+| Constant      | Default    | Job              | Enable when                                                                                                                                                                                                                       |
+| ------------- | ---------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IOS_RELEASE` | `disabled` | `build_ios`      | App Store credentials for `production` and the App Store Connect API key are on EAS and `ascAppId` is in `submit.production.ios` ([iOS runbook](environments-and-secrets.md#ios-runbook-owner), steps 4–5). `submit_ios` follows. |
+| `PLAY_SUBMIT` | `disabled` | `submit_android` | The first AAB was uploaded to Play by hand and the service-account key is on EAS ([Google Play runbook](environments-and-secrets.md#google-play-runbook-owner)). Android builds run either way.                                   |
+
+Also owed: `EXPO_TOKEN` as a GitHub repository secret (the trigger job fails early without it) and
+the GitHub `production` environment (`bun run repo:settings:apply`). All on the
+[human setup checklist](environments-and-secrets.md#human-setup-checklist-owner).
 
 ## Rollback
 
