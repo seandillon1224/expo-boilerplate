@@ -39,6 +39,44 @@ collides.
 `deploy_web.if` + the `workflow_dispatch` input default): enable it in **both** files in the same
 PR, once the owner has claimed the dev-domain by hand (table under Staging → Repo constants).
 
+## Fingerprint drift on PRs (informational)
+
+**Workflow:** `.github/workflows/ci.yml` → `Fingerprint drift` job (GitHub Actions, not EAS: the
+repo-pinned `@expo/fingerprint` runs in a few seconds, needs no Metro, no EAS credits and no
+`EXPO_TOKEN`). **Trigger:** every PR into `main` (PR-only — a push to `main` has no base to
+compare against). It computes the **production**-variant hash (`APP_VARIANT=production`, the
+profile `release.yml` and the `promote.yml` production gate key on) for the PR base and for the
+merge commit, with a fresh `bun install` on the base because autolinked native modules are
+fingerprint sources.
+
+| Outcome                             | Comment                                                                                                                                                                                                     | Label               |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| Hashes equal, no earlier drift      | none — a clean PR collects no noise                                                                                                                                                                         | –                   |
+| iOS and/or Android hash differs     | **one** comment, upserted by the `<!-- fingerprint-drift -->` marker (updated in place on every push): which platforms changed, base vs PR hashes, what merging implies (below), how to inspect the sources | `fingerprint-drift` |
+| A later push brings the hashes back | the same comment flips to **✅ resolved**                                                                                                                                                                   | removed             |
+
+The job is **never red on drift** and is **not** in `REQUIRED_CHECKS` ([JS gate](js-gate.md)):
+a native change is legitimate, the point is that nobody merges one without knowing the
+consequences. Those consequences are the rest of this page:
+
+- **Merge → new staging builds.** `deploy-staging.yml` misses its build cache on the new hash and
+  cuts fresh staging builds (paid; iOS only with `IOS_BUILDS`); installed staging apps must be
+  reinstalled because the OTA cannot reach them ([Reinstall-required rule](#staging-automatic)).
+- **Promotion to production is refused** until a store build carries the new hash
+  ([Fingerprint gate](#uat-and-production-manual), PLAN.md decision 13).
+- **A store release is required:** bump `version` in `app.config.ts`, push `vX.Y.Z` →
+  `.github/workflows/release.yml` → `.eas/workflows/release.yml` ([Store release](#store-release-tag)),
+  then promote the staging group again.
+
+Drift you did not intend (a dependency bump that pulled a native module, a `package.json` `scripts`
+edit, a changed icon) shows up the same way; `APP_VARIANT=production bun run fingerprint --debug`
+on both branches lists every source that fed the hash ([environments and
+secrets](environments-and-secrets.md#runtime-version--native-fingerprint)). The comparison is
+relative, so build-time env such as `SENTRY_ORG` (unset in Actions, set on EAS) does not matter:
+both sides are computed the same way. Fork PRs get a read-only token, so there the verdict lands
+only in the job summary. The `fingerprint-drift` label was created by hand (`gh label create`);
+#55 folds it into the repo-settings script.
+
 ## Staging (automatic)
 
 **Workflow:** `.eas/workflows/deploy-staging.yml` (`Deploy staging`). **Trigger:** every push to
