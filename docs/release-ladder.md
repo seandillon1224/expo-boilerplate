@@ -1,9 +1,43 @@
 # Release ladder
 
-`main` → **staging** (automatic, this page) → **UAT** → **production** (manual, approval-gated
-republishes of the same update group, below) → **stores** on a version tag (below). Channel / branch
-mapping and the environment variables each rung reads:
-[Environments and secrets](environments-and-secrets.md).
+**PR preview** (web only, automatic, below) → `main` → **staging** (automatic, this page) →
+**UAT** → **production** (manual, approval-gated republishes of the same update group, below) →
+**stores** on a version tag (below). Channel / branch mapping and the environment variables each
+rung reads: [Environments and secrets](environments-and-secrets.md).
+
+## PR previews (web, automatic)
+
+**Workflow:** `.eas/workflows/preview-web.yml` (`Preview web`). **Trigger:** every PR into `main`
+(opened / reopened / synchronize — the same trigger as `e2e.yml`; fork PRs never trigger EAS
+workflows), plus `workflow_dispatch`:
+
+```sh
+bun run eas workflow:run .eas/workflows/preview-web.yml -F hosting=enabled   # alias `pr-manual`
+bun run eas workflow:validate .eas/workflows/preview-web.yml                 # after editing (cap: 16 KiB)
+```
+
+```text
+deploy_web (HOSTING enabled) ── comment
+```
+
+| Job          | Type             | What it does                                                                                                                                                                                                                               | Outputs used downstream                                             |
+| ------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| `deploy_web` | `deploy`         | Exports web itself (`environment: development`, `APP_VARIANT=development` — the PR is the development variant, as in `e2e.yml` and the JS gate) and deploys it as a preview to the `pr-<number>` alias. Skipped until `HOSTING` is enabled | `deploy_alias_url`, `deploy_deployment_url`, `deploy_dashboard_url` |
+| `comment`    | `github-comment` | `after: [deploy_web]`, so it posts on a failed deploy too; skipped with the deploy (no "skipped" noise on PRs) and on dispatch runs (no PR). Custom markdown: alias URL, per-commit URL, dashboard, run link                               | –                                                                   |
+
+**Two URLs per PR.** `https://<dev-domain>--pr-<number>.expo.app` is the **alias**: aliases are
+unique per project and re-assigned on every deploy, so the link a reviewer bookmarked always shows
+the newest push. `https://<dev-domain>--<id>.expo.app` is the **deployment**: immutable, unique
+per commit, useful to compare two pushes side by side. Every push adds a new comment (the
+`github-comment` job has no update-in-place), exactly like the native E2E comment. Nothing on the
+ladder moves: `staging` / `uat` / production aliases only change from `main` (below). Closed PRs
+leave their `pr-<number>` alias behind pointing at the last deployment; EAS Hosting has no alias
+delete, and a stale alias costs nothing — reuse of the number is impossible, so nothing ever
+collides.
+
+**Repo constant.** The same `HOSTING` constant as `deploy-staging.yml` (`|| 'disabled'` on
+`deploy_web.if` + the `workflow_dispatch` input default): enable it in **both** files in the same
+PR, once the owner has claimed the dev-domain by hand (table under Staging → Repo constants).
 
 ## Staging (automatic)
 
@@ -64,10 +98,10 @@ retries it.
 **Repo constants (flip in one PR: the `|| '<literal>'` on the job `if` and the matching
 `workflow_dispatch` input default).**
 
-| Constant     | Default    | Job          | Enable when                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------ | ---------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `IOS_BUILDS` | `disabled` | `build_ios`  | The iOS ad hoc credentials for `staging` exist ([iOS runbook](environments-and-secrets.md#ios-runbook-owner), steps 1–3). Until then every iOS build fails at `Credentials are not set up`.                                                                                                                                                                                                                  |
-| `HOSTING`    | `disabled` | `deploy_web` | The owner has made the project's first deployment by hand — it claims the dev-domain and is interactive: `bun run export:web && bun run eas deploy --environment preview --export-dir dist-web --dev-domain expo-boilerplate --alias staging`. Prove the export is deployable without spending anything with `--dry-run` (writes `deploy.tar.gz`, gitignored). `bun run init` (T7.1) renames the dev-domain. |
+| Constant     | Default    | Job          | Enable when                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------ | ---------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IOS_BUILDS` | `disabled` | `build_ios`  | The iOS ad hoc credentials for `staging` exist ([iOS runbook](environments-and-secrets.md#ios-runbook-owner), steps 1–3). Until then every iOS build fails at `Credentials are not set up`.                                                                                                                                                                                                                                                                                       |
+| `HOSTING`    | `disabled` | `deploy_web` | The owner has made the project's first deployment by hand — it claims the dev-domain and is interactive: `bun run export:web && bun run eas deploy --environment preview --export-dir dist-web --dev-domain expo-boilerplate --alias staging`. Prove the export is deployable without spending anything with `--dry-run` (writes `deploy.tar.gz`, gitignored). Flip it here and in `preview-web.yml` (PR previews, above) together. `bun run init` (T7.1) renames the dev-domain. |
 
 Slack has no constant: create the incoming webhook (T5.6 wires the channel) and store it as
 `SLACK_WEBHOOK_URL` on EAS (`secret`, `preview` environment — the job reads it from there, never
