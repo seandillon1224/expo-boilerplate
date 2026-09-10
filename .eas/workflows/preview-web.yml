@@ -1,0 +1,74 @@
+# PR web previews (PLAN.md decisions 1, 10, 14). Every PR into main: export web on EAS → `eas deploy`
+# to the EAS Hosting `pr-<number>` alias → one PR comment with the URLs. The alias is stable for
+# the life of the PR (re-assigned on every push), the deployment URL is unique per push. Native
+# E2E stays in e2e.yml (near the 16 KiB cap); the staging rung is deploy-staging.yml, whose
+# `deploy_web` job this mirrors. Runbook: docs/release-ladder.md → PR previews.
+#
+# Run by hand:  bun run eas workflow:run .eas/workflows/preview-web.yml -F hosting=enabled
+# Validate:     bun run eas workflow:validate .eas/workflows/preview-web.yml   (cap: 16 KiB)
+# PR triggers need the Expo GitHub App linked to the repo (docs/release-ladder.md → Enable).
+#
+# One repo constant, as a `workflow_dispatch` input whose `default` equals the `|| '<literal>'`
+# fallback on the job `if` (inputs are empty outside a dispatch):
+#   HOSTING   deploy_web.if   disabled until the owner's first manual `eas deploy` (dev-domain)
+# Flip = change the literal AND the input default, in one PR — the same flip as deploy-staging.yml.
+# Until then both jobs are skipped and the run stays green with nothing posted to the PR.
+name: Preview web
+
+on:
+  # Same trigger as e2e.yml; default types = opened, reopened, synchronize. Fork PRs never
+  # trigger EAS workflows (docs/js-gate.md).
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      hosting:
+        type: choice
+        options: [enabled, disabled]
+        default: disabled
+        required: false
+        description: enabled = deploy the web export to the EAS Hosting `pr-<number>` alias (`pr-manual` on a dispatch).
+
+concurrency:
+  # A new push to the same branch cancels the run in flight; `eas deploy` is atomic server-side.
+  cancel_in_progress: true
+  group: ${{ workflow.filename }}-${{ github.ref }}
+
+jobs:
+  deploy_web:
+    name: Deploy web (PR preview)
+    type: deploy
+    # HOSTING — the first deployment of a project claims its dev-domain (interactive, paid):
+    # docs/release-ladder.md → Enable. The job runs `expo export -p web` itself, then `eas deploy`.
+    if: ${{ (inputs.hosting || 'disabled') == 'enabled' }}
+    # A PR is the development variant, like e2e.yml and the JS gate: EXPO_PUBLIC_* resolve to
+    # the `development` values, never staging's.
+    environment: development
+    env:
+      APP_VARIANT: development
+    params:
+      # Aliases are unique per project and re-assigned on every deploy, so the URL a reviewer
+      # bookmarked always shows the newest push. Dispatch runs have no PR number.
+      alias: pr-${{ github.event.pull_request.number || 'manual' }}
+      # Preview deployment, never production — that is promote.yml's job.
+      prod: false
+
+  comment:
+    name: Comment on PR
+    type: github-comment
+    # `after`, not `needs`: the comment must post on a failed deploy too. Skipped together with
+    # the deploy (HOSTING disabled) so a PR never collects "skipped" comments, and on dispatch /
+    # push runs, which have no PR to comment on. `after.<job>.status` is success | failure | skipped.
+    after: [deploy_web]
+    if: ${{ (github.event_name == 'pull_request' || github.event.pull_request.number) && after.deploy_web.status != 'skipped' }}
+    params:
+      # Fully custom markdown; every run adds a comment (no update-in-place), same as e2e.yml.
+      # Every ternary guards its string functions (`x || ''`): the evaluator resolves both
+      # branches, and a failed job has no outputs.
+      payload: |
+        ## Web preview · `${{ substring(github.sha || '', 0, 7) }}`
+
+        ${{ after.deploy_web.status == 'success' ? '✅ **Deployed** — [' + after.deploy_web.outputs.deploy_alias_url + '](' + after.deploy_web.outputs.deploy_alias_url + ') (`pr-' + github.event.pull_request.number + '` alias, follows every push)' : '❌ **Deploy failed** — see the [workflow run](' + workflow.url + ')' }}
+        ${{ after.deploy_web.outputs.deploy_deployment_url ? '- **This push**: [' + after.deploy_web.outputs.deploy_deployment_url + '](' + after.deploy_web.outputs.deploy_deployment_url + ') (immutable, unique per commit)' : '' }}
+        ${{ after.deploy_web.outputs.deploy_dashboard_url ? '- **Dashboard**: [EAS Hosting deployments](' + after.deploy_web.outputs.deploy_dashboard_url + ') · [workflow run](' + workflow.url + ')' : '' }}
+        - Exported with the `development` environment (`APP_VARIANT=development`); staging / uat / production aliases only move from `main` (docs/release-ladder.md).

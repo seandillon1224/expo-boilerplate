@@ -208,12 +208,13 @@ Delivery ladder (`docs/release-ladder.md`) — everything the `deploy-staging` w
 the owner can provide. Until each is done the matching job skips itself and the run stays green:
 
 - [ ] **Expo GitHub App** linked to the repository (expo.dev → project → Settings → GitHub) so
-      `push` / `pull_request` triggers fire at all (`e2e.yml`, `deploy-staging.yml`).
+      `push` / `pull_request` triggers fire at all (`e2e.yml`, `preview-web.yml`, `deploy-staging.yml`).
 - [ ] **Slack incoming webhook** for the release channel (T5.6 wires the channel), stored on EAS as
       `SLACK_WEBHOOK_URL` (command below) — never in GitHub or the repo.
 - [ ] **First EAS Hosting deployment** by hand (claims the dev-domain; interactive):
       `bun run export:web && bun run eas deploy --environment preview --export-dir dist-web --dev-domain expo-boilerplate --alias staging`,
-      then flip `HOSTING` to `enabled` in `deploy-staging.yml`.
+      then flip `HOSTING` to `enabled` in `deploy-staging.yml` **and** `preview-web.yml` (T5.4, PR
+      previews on the `pr-<number>` alias) in one PR.
 - [ ] **iOS ad hoc credentials** for `staging` (iOS runbook below, steps 1–3), then flip `IOS_BUILDS`
       to `enabled` in `deploy-staging.yml`.
 - [ ] Sentry variables above, then set `upload_sentry_sourcemaps: true` on the `update` job.
