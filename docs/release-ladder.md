@@ -276,6 +276,11 @@ a byte-identical export. To move an existing deployment instead:
 builds only ever come from `release.yml`. Web: `https://<dev-domain>--uat.expo.app`, or the
 production URL of the dev-domain.
 
+**Startup-TTI check before approving.** The approver can hold the group to the EAS Observe
+budget: after a staging soak, `bun run observe:check --days <soak> --update-id <group>` (or the
+`Observe check` workflow) must be green — the recipe, thresholds and how to turn it into a job in
+this workflow are in [EAS Observe](observe.md#gating-on-tti-staging-soak--check--promote).
+
 **Approval gates, side by side.** `promote.yml` runs on EAS, so its human gate is the
 `require-approval` job on expo.dev. GitHub Environments `uat` and `production` (required
 reviewer: the repo owner; deployments only from protected branches; created by

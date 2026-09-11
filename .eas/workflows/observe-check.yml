@@ -1,0 +1,71 @@
+# EAS Observe startup-TTI check (PLAN.md decision 7; docs/observe.md). Runs `bun run observe:check`
+# against the project's Observe data and fails when a version row is over `observe-budget.json`.
+# Informational: nothing on the ladder depends on this run. Observe samples arrive only after a
+# sampled install has launched the update AND backgrounded (events are buffered on-device), so a
+# check right after `deploy-staging.yml` publishes would always see the previous group. Run it
+# after the staging soak instead — by hand before promoting, or on the cron below.
+#
+# Run:       bun run eas workflow:run .eas/workflows/observe-check.yml [-F platform=ios] [-F days=3]
+#            bun run eas workflow:run .eas/workflows/observe-check.yml -F version=1.2.0 -F strict=on
+# Validate:  bun run eas workflow:validate .eas/workflows/observe-check.yml   (cap: 16 KiB)
+# Cron:      off until Observe has data (owner checklist, docs/observe.md → Troubleshooting);
+#            uncomment `schedule` once the first staging build reports.
+#
+# The VM is not logged in, so the job exports EXPO_TOKEN from the run's own robot token
+# (`${ eas.job.secrets.robotAccessToken }`, single-brace = steps-runtime interpolation) — the same
+# idiom as promote.yml. No repo secrets are involved.
+name: Observe check
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        type: choice
+        options: [both, ios, android]
+        default: both
+        required: false
+        description: Which platform rows to evaluate.
+      days:
+        type: string
+        default: '7'
+        required: false
+        description: Window in days (metrics-summary --days). Match the staging soak length.
+      version:
+        type: string
+        required: false
+        description: Only this app version (empty = every version seen in the window).
+      strict:
+        type: choice
+        options: ['off', 'on']
+        default: 'off'
+        required: false
+        description: on = no data / no session fails the run instead of skipping (gate mode).
+  # schedule:
+  #   # Weekdays 07:00 GMT — after the previous day's staging soak, before the day's promotions.
+  #   cron: '0 7 * * 1-5'
+
+concurrency:
+  cancel_in_progress: true
+  group: ${{ workflow.filename }}-${{ github.ref }}
+
+jobs:
+  observe:
+    name: Observe TTI budget
+    # `preview` only for parity with the staging rung; the script reads no EXPO_PUBLIC_* values.
+    environment: preview
+    env:
+      PLATFORM: ${{ inputs.platform || 'both' }}
+      DAYS: ${{ inputs.days || '7' }}
+      VERSION: ${{ inputs.version || '' }}
+      STRICT: ${{ inputs.strict || 'off' }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: bun run observe:check
+        run: |
+          export EXPO_TOKEN="${ eas.job.secrets.robotAccessToken }"
+          set -- --days "$DAYS"
+          [ "$PLATFORM" = both ] || set -- "$@" --platform "$PLATFORM"
+          [ -z "$VERSION" ] || set -- "$@" --version "$VERSION"
+          if [ "$STRICT" = on ]; then set -- "$@" --strict; fi
+          bun run observe:check "$@"

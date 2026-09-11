@@ -23,5 +23,6 @@ bun run ios    # or android / web
 - [Build sharing](docs/build-sharing.md) — where install links come from (install page, Slack `slack` jobs, PR comments, TestFlight / Play internal), `SLACK_WEBHOOK_URL` wiring, Expo Orbit for engineers.
 - [Rozenite DevTools](docs/rozenite.md) — React Native DevTools plugins in dev builds (TanStack Query, network activity, performance monitor), how to open them, and adding a project-local plugin.
 - [Render-perf tests (Reassure)](docs/perf-tests.md) — writing `*.perf-test.tsx`, `measureRenders` / `measureFunction`, baseline vs compare locally, what `perf:gate` fails on, reading `.reassure/output.md`.
+- [EAS Observe and the TTI check](docs/observe.md) — what `expo-observe` reports from real installs, querying it (`bun run eas observe:*`), the `markInteractive` contract, `observe-budget.json`, `bun run observe:check`, and gating a promotion on startup TTI after a staging soak.
 - [Expo Atlas](docs/atlas.md) — bundle composition per platform (which module pulls what): `bun run atlas` against the dev server, `bun run atlas:export` for a release export; budget = the gate, Atlas = the diagnosis.
 - [Installing the staging app](docs/install-staging-app.md) — the no-CLI one-pager for designers / PMs / testers: iOS and Android install, and why "reinstall required" happens.
