@@ -83,8 +83,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 ### E7 — Template init script (tracker #74)
 
 - [x] **#52 T7.1** — `bun run init`: prompts for name, slug, bundle ID, package, EAS project ID, scheme; rewrites `app.config.ts`, `eas.json`, `.maestro/config.yaml` + flow envs, workflow YAML, README badges, `package.json` name.
-- [~] **#53 T7.2** — Toolchain check: Bun version, EAS CLI login, Maestro, Xcode, Android SDK, Java; prints fix hints.
-- [ ] **#54 T7.3** — Resets `.claude/execution-queue.md`, clears CHANGELOG, fresh git history option, self-deletes.
+- [x] **#53 T7.2** — Toolchain check: Bun version, EAS CLI login, Maestro, Xcode, Android SDK, Java; prints fix hints.
+- [~] **#54 T7.3** — Resets `.claude/execution-queue.md`, clears CHANGELOG, fresh git history option, self-deletes.
 - [ ] **#55 T7.4** — Template-repo settings script (`gh`): branch protection, required checks, environments, labels.
 - [ ] **#56 T7.5** — End-to-end test: spawn a throwaway project from the template in CI and run the JS gate on it.
 
@@ -152,3 +152,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-11 — #50 | t50-observe-check | https://github.com/seandillon1224/expo-boilerplate/pull/123 | merged | 2026-09-11 (observe:check informational; budget keyed median/p80/p90; human owes first real run + re-base observe-budget.json after ~1 week, cron in observe-check.yml still commented)
 - 2026-09-11 — #51 | t51-performance-doc | https://github.com/seandillon1224/expo-boilerplate/pull/124 | merged | 2026-09-11 (docs-only; docs/performance.md is the perf entry point)
 - 2026-09-11 — #52 | t52-init-script | https://github.com/seandillon1224/expo-boilerplate/pull/125 | merged | 2026-09-11 (manifest-driven scripts/init.js + drift-guard test; empty EAS id must be passed as --eas-project-id=; #54 owns self-delete; Perf job flaked on base → fix PR #126)
+- 2026-09-11 — #53 | t53-doctor | https://github.com/seandillon1224/expo-boilerplate/pull/127 | merged | 2026-09-11 (bun run doctor; first init step, --skip-doctor/--strict/--json; xcodeMin 16 / gitMin 2.28 are judgment calls)
