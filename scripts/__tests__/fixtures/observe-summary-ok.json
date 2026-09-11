@@ -1,0 +1,61 @@
+{
+  "versions": [
+    {
+      "appVersion": "1.0.0",
+      "platform": "IOS",
+      "buildNumbers": ["12"],
+      "updateIds": ["11111111-aaaa-4bbb-8ccc-000000000001"],
+      "metrics": {
+        "expo.app_startup.tti": {
+          "min": 0.61,
+          "median": 1.42,
+          "max": 4.8,
+          "average": 1.6,
+          "p80": 2.1,
+          "p90": 2.6,
+          "p99": 4.1,
+          "eventCount": 184
+        }
+      }
+    },
+    {
+      "appVersion": "1.0.0",
+      "platform": "ANDROID",
+      "buildNumbers": ["12"],
+      "updateIds": ["11111111-aaaa-4bbb-8ccc-000000000001"],
+      "metrics": {
+        "expo.app_startup.tti": {
+          "min": 0.9,
+          "median": 1.95,
+          "max": 6.2,
+          "average": 2.2,
+          "p80": 2.8,
+          "p90": 3.3,
+          "p99": 5.5,
+          "eventCount": 96
+        }
+      }
+    },
+    {
+      "appVersion": "0.9.0",
+      "platform": "IOS",
+      "buildNumbers": ["11"],
+      "updateIds": [],
+      "metrics": {
+        "expo.app_startup.tti": {
+          "min": 1.2,
+          "median": 3.9,
+          "max": 3.9,
+          "average": 3.9,
+          "p80": 3.9,
+          "p90": 3.9,
+          "p99": 3.9,
+          "eventCount": 4
+        }
+      }
+    }
+  ],
+  "totalEventCounts": {
+    "expo.app_startup.tti": { "IOS": 188, "ANDROID": 96 }
+  }
+}

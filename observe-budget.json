@@ -1,0 +1,8 @@
+{
+  "$comment": "EAS Observe startup TTI budget (PLAN.md decision 7, docs/observe.md). Thresholds are MILLISECONDS per platform, keyed by the statistic names `eas observe:metrics-summary` returns (median | average | p80 | p90 | p99 | max). A version row with fewer than `minSamples` TTI events is reported as insufficient data and never fails the check. Checked by scripts/observe-check.js (`bun run observe:check`); raise a limit only with a justification in the PR.",
+  "unit": "ms",
+  "metric": "tti",
+  "minSamples": 30,
+  "ios": { "median": 2000, "p90": 3000 },
+  "android": { "median": 2500, "p90": 3500 }
+}

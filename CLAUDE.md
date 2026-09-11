@@ -18,6 +18,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run test` — Jest; `test:coverage` for coverage
 - `bun run knip` — dead code / unused deps
 - `bun run perf:baseline` then `bun run perf` — Reassure render-perf compare (`.reassure/output.md`); `perf:gate` fails on significant regressions, `perf:check` measures machine stability
+- `bun run observe:check` — EAS Observe startup-TTI check against `observe-budget.json` (`--platform`, `--days`, `--version`, `--update-id`, `--strict`; `--input <json>` offline); skips with a notice while Observe has no data / session (see `docs/observe.md`)
 - `bun run export:web` (or `export:ios` / `export:android`) then `bun run budget` — JS-only export + gzip bundle-budget check (`bundle-budget.json`)
 - `bun run atlas` — dev server with Expo Atlas at `http://localhost:8081/_expo/atlas`; `bun run atlas:export` (or `atlas:export:web|ios|android`) — release export with Atlas on, then serve `.expo/atlas.jsonl` (`atlas:serve` re-opens it). Atlas is `EXPO_ATLAS=true`-gated and never set in CI / EAS (`docs/atlas.md`)
 - `bun run e2e:web` — Maestro web flows (`.maestro/flows`, tag `web`) against the static export; needs `bun run export:web` and `bun run serve:web` running first
@@ -51,7 +52,9 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
   The EAS project id lives once, as `EAS_PROJECT_ID` in `app.config.ts` (see `docs/environments-and-secrets.md`).
 - EAS Observe (`src/lib/observe.ts`) owns prod perf telemetry and dispatches only when
   `extra.eas.projectId` is set. Every screen that loads data marks interactivity via `markInteractive`
-  from `expo-observe` (`useObserve()`) once content is usable — never while loading.
+  from `expo-observe` (`useObserve()`) once content is usable — never while loading. Startup TTI is
+  budgeted in `observe-budget.json` and checked by `bun run observe:check` (informational in
+  `deploy-staging.yml`, on demand in `observe-check.yml`; gating recipe in `docs/observe.md`).
 - Sentry (`src/lib/sentry.ts`) is a no-op without `EXPO_PUBLIC_SENTRY_DSN`; tracing stays off.
   Build-time `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` drive source-map uploads
   (`bun run sentry:sourcemaps` after `expo export` / `eas update`); never `EXPO_PUBLIC_`.

@@ -128,6 +128,25 @@ jobs:
       # so a broken upload fails the run instead of silently shipping unsymbolicated errors.
       # upload_sentry_sourcemaps: true
 
+  # --- Observe (informational) --------------------------------------------------------------
+
+  observe:
+    name: Observe TTI (last 7 days)
+    # Prints the startup-TTI state of what staging has been running against observe-budget.json
+    # (docs/observe.md). Observe samples arrive after installs launch AND background, so this
+    # reads the soak of the PREVIOUS group(s), never the update just published — the on-demand
+    # / cron check is .eas/workflows/observe-check.yml. Never fails the run: a breach is logged
+    # (and the exit code swallowed) so the staging rung stays green; the gate lives in promote.
+    needs: [update]
+    environment: preview
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: bun run observe:check
+        run: |
+          export EXPO_TOKEN="${ eas.job.secrets.robotAccessToken }"
+          bun run observe:check --days 7 || echo "observe-check: over budget — informational here; see docs/observe.md → Gating on TTI."
+
   # --- Web ---------------------------------------------------------------------------------
 
   deploy_web:
