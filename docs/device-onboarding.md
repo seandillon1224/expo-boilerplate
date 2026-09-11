@@ -1,8 +1,8 @@
 # Getting the staging app on your iPhone
 
 For testers, designers, PMs — anyone who is not an engineer. Android users can skip to
-[Android](#android). How to actually _install_ the app once your phone is set up (Expo Orbit, the
-install page, Slack links) is a separate one-pager: T5.6 / #45.
+[Android](#android). How to actually _install_ the app once your phone is set up (the install page, Slack links) is a
+separate one-pager: [Installing the staging app](install-staging-app.md).
 
 ## Why there is a setup step at all
 
@@ -36,8 +36,8 @@ expired, ask for a new one.
 
 Say "done" (or, if they used the expo.dev workflow, they will see your phone appear and approve
 it). Your phone is now on the list, but **you cannot install the app until the next staging build
-has been made** — that is on the engineer, see below. They will tell you when it is ready and how
-to install it (T5.6).
+has been made** — that is on the engineer, see below. They will tell you when it is ready; then
+follow [Installing the staging app](install-staging-app.md).
 
 ## Android
 
@@ -97,4 +97,5 @@ An OTA update (`eas update`) is _not_ enough — the profile lives in the native
 | CLI wrapper                      | `scripts/devices-add.js` (`bun run devices:add`) |
 | Workflow                         | `.eas/workflows/register-device.yml`             |
 | Credentials status / iOS runbook | `docs/environments-and-secrets.md` → Credentials |
-| Install one-pager, Slack, Orbit  | T5.6 / #45 (not written yet)                     |
+| Install one-pager                | `docs/install-staging-app.md`                    |
+| Slack channel, Expo Orbit        | `docs/build-sharing.md`                          |
