@@ -1,16 +1,23 @@
 #!/usr/bin/env node
 /**
  * GitHub repo settings as code: `main` branch protection (required checks), the merge settings
- * Renovate `platformAutomerge` needs, and the `uat` / `production` deployment environments with
- * required reviewers. Plain Node/JS, shells out to `gh api`.
+ * Renovate `platformAutomerge` needs, the `uat` / `production` deployment environments with
+ * required reviewers, and the labels the automation relies on. Plain Node/JS, shells out to
+ * `gh api`.
  *
  * Usage (needs `gh auth login` with admin on the repo):
  *   bun run repo:settings          # --dry-run (default): print the gh api calls + payloads, no writes
  *   bun run repo:settings:apply    # --apply: PUT branch protection + PATCH repo + PUT environments
+ *                                  #          + POST/PATCH labels
  *   bun run repo:settings:check    # --check: GET current state, diff against DESIRED, exit 1 on drift
+ *   ... --only labels,repo         # any mode: run a subset of protection | repo | environments | labels
  *
- * Run `:apply` once after creating a repo from this template, and again whenever DESIRED changes.
- * There is no CI drift guard: the Actions `GITHUB_TOKEN` cannot read branch protection.
+ * Run `:apply` once after creating a repo from this template (`bun run init --apply-repo-settings`
+ * does it for you), and again whenever DESIRED changes. There is no CI drift guard: the Actions
+ * `GITHUB_TOKEN` cannot read branch protection.
+ *
+ * The repo is whatever `gh repo view` resolves: the `origin` remote of the current checkout, or
+ * `GH_REPO=owner/name` to override. `gh auth status` must pass before anything runs.
  *
  * Why classic protection (not rulesets) and no required reviews / enforce_admins: the queue pushes
  * `chore(queue): ...` commits straight to `main` and squash-merges PRs as soon as CI is green.
@@ -22,7 +29,12 @@
  * is gated by its own `require-approval` job on expo.dev; environments do not apply to it.
  * Reviewers are given by login and resolved to ids with `gh api users/<login>` at apply time.
  *
- * T2.7 (#26) owns `protection` + `repo`; T5.2 (#41) `environments`. #55 adds labels.
+ * Labels (T7.4, #55): `--apply` upserts every label in `DESIRED.labels` (POST when missing,
+ * PATCH when the color or description differs) and never deletes labels it does not know about,
+ * so GitHub's defaults and anything added by hand survive. `--check` reports missing labels and
+ * color / description drift.
+ *
+ * T2.7 (#26) owns `protection` + `repo`; T5.2 (#41) `environments`; T7.4 (#55) `labels`.
  */
 const { spawnSync } = require('node:child_process');
 
@@ -47,7 +59,64 @@ const REQUIRED_CHECKS = [
   'PR title',
 ];
 
-/** Desired state. One object so later tickets can add sections (environments, labels, ...). */
+// Every label the automation adds, filters on or opens issues with. Where each one is used:
+//   epic:*            `/ship-next` (`gh pr create --label epic:<E>`), the queue ledger, PLAN.md epics
+//   in-progress       `/ship-next` marks the ticket being worked
+//   needs-human       `/ship-next` blockers that need a decision
+//   deep-dive         deferred research tickets (PLAN.md E9)
+//   flaky-flow, e2e   `.github/ISSUE_TEMPLATE/flaky-flow.yml` (docs/native-e2e.md → Flake budget)
+//   e2e:ios           `.eas/workflows/e2e.yml` (`IOS_MODE=label` runs the iOS lane on labelled PRs)
+//   fingerprint-drift `.github/workflows/ci.yml` (`Fingerprint drift` job; docs/release-ladder.md)
+//   dependencies      `.github/renovate.json5` (`labels`)
+// Colors are 6-hex without `#`, as the API expects.
+const EPIC_COLOR = '1d76db';
+const LABELS = [
+  { name: 'epic:E0', color: EPIC_COLOR, description: 'Repo bootstrap and tooling baseline' },
+  { name: 'epic:E1', color: EPIC_COLOR, description: 'Demo app and app-layer infra' },
+  { name: 'epic:E2', color: EPIC_COLOR, description: 'JS gate (GitHub Actions)' },
+  { name: 'epic:E3', color: EPIC_COLOR, description: 'EAS foundation' },
+  { name: 'epic:E4', color: EPIC_COLOR, description: 'Native E2E lane (EAS Workflows)' },
+  { name: 'epic:E5', color: EPIC_COLOR, description: 'Delivery ladder' },
+  { name: 'epic:E6', color: EPIC_COLOR, description: 'Performance tooling' },
+  { name: 'epic:E7', color: EPIC_COLOR, description: 'Template init script' },
+  { name: 'epic:E8', color: EPIC_COLOR, description: 'Docs' },
+  { name: 'epic:E9', color: EPIC_COLOR, description: 'Deferred deep-dive research tickets' },
+  {
+    name: 'in-progress',
+    color: '0e8a16',
+    description: 'Being worked on by /ship-next (one ticket at a time)',
+  },
+  {
+    name: 'needs-human',
+    color: 'fbca04',
+    description: 'Blocked on a decision or action only a human can take',
+  },
+  {
+    name: 'deep-dive',
+    color: '5319e7',
+    description: 'Research ticket: investigate and write up, no code expected',
+  },
+  {
+    name: 'flaky-flow',
+    color: 'fbca04',
+    description: 'A Maestro flow that passes on retry; quarantine candidate (docs/native-e2e.md)',
+  },
+  { name: 'e2e', color: '0e8a16', description: 'Maestro E2E lanes (native + web)' },
+  { name: 'e2e:ios', color: '5319e7', description: 'Run the iOS Maestro lane on this PR' },
+  {
+    name: 'fingerprint-drift',
+    color: 'e99695',
+    description:
+      'PR changes the native fingerprint; merging needs a store release (docs/release-ladder.md)',
+  },
+  {
+    name: 'dependencies',
+    color: '0366d6',
+    description: 'Renovate dependency update (.github/renovate.json5)',
+  },
+];
+
+/** Desired state. One object per section; `--only` picks a subset of `SECTIONS`. */
 const DESIRED = {
   // PUT /repos/{owner}/{repo}/branches/main/protection
   protection: {
@@ -79,6 +148,9 @@ const DESIRED = {
   // are resolved to `{ type, id }` for the API. `deployment_branch_policy` limits deployments to
   // protected branches (= `main`); tags are not protected branches, so a tag-triggered
   // release.yml job must deploy from `main` (checkout the tag inside the job) — T5.3 decides.
+  // `bun run init` rewrites the login to the GitHub repo owner. If that owner is an organization
+  // (organizations cannot review), change it to a member's login or a `Team` (`org/team-slug`);
+  // apply fails with that hint otherwise.
   environments: {
     uat: {
       wait_timer: 0,
@@ -93,23 +165,47 @@ const DESIRED = {
       deployment_branch_policy: { protected_branches: true, custom_branch_policies: false },
     },
   },
+  // POST /repos/{owner}/{repo}/labels (missing) or PATCH /repos/{owner}/{repo}/labels/{name}
+  // (color / description differs). Keyed by name; unknown labels are left alone.
+  labels: Object.fromEntries(
+    LABELS.map(({ name, color, description }) => [name, { color, description }]),
+  ),
 };
 
-module.exports = { DESIRED, REQUIRED_CHECKS };
+const SECTIONS = Object.keys(DESIRED);
 
-function gh(args, { input } = {}) {
-  const result = spawnSync('gh', args, { encoding: 'utf8', input });
-  if (result.error) {
-    console.error(
-      `repo:settings: failed to run gh (${result.error.message}); install https://cli.github.com`,
-    );
-    process.exit(2);
+/** Recoverable failure: `main` prints the message and exits with `code` (2 = usage / env, 1 = drift). */
+class RepoSettingsError extends Error {
+  constructor(message, code = 2) {
+    super(message);
+    this.code = code;
   }
-  return result;
 }
 
-function ghJson(args, opts) {
-  const result = gh(args, opts);
+/* ------------------------------------------------------------------------------------------ */
+/* gh plumbing — `ctx.gh(args, { input })` is the only side effect; tests inject a fake         */
+/* ------------------------------------------------------------------------------------------ */
+
+function defaultGh(args, { input } = {}) {
+  const result = spawnSync('gh', args, { encoding: 'utf8', input });
+  if (result.error) {
+    throw new RepoSettingsError(
+      `repo:settings: failed to run gh (${result.error.message}); install https://cli.github.com`,
+    );
+  }
+  return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+}
+
+function safeJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function ghJson(ctx, args, opts) {
+  const result = ctx.gh(args, opts);
   if (result.status !== 0) {
     return {
       ok: false,
@@ -121,56 +217,116 @@ function ghJson(args, opts) {
   return { ok: true, status: 0, body: safeJson(result.stdout) };
 }
 
-function safeJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
+function requireAuth(ctx) {
+  const result = ctx.gh(['auth', 'status']);
+  if (result.status !== 0) {
+    throw new RepoSettingsError(
+      `repo:settings: gh is not authenticated (${result.stderr.trim() || 'gh auth status failed'}); run \`gh auth login\` with an account that has admin on the repo`,
+    );
   }
 }
 
-function repoSlug() {
-  const result = ghJson(['repo', 'view', '--json', 'nameWithOwner']);
+/** `owner/name` of the checkout's `origin` (or `GH_REPO`), via `gh repo view`. */
+function repoSlug(ctx) {
+  const result = ghJson(ctx, ['repo', 'view', '--json', 'nameWithOwner']);
   if (!result.ok || !result.body?.nameWithOwner) {
-    console.error(
-      `repo:settings: could not resolve repo (${result.stderr?.trim() || 'gh repo view failed'})`,
+    throw new RepoSettingsError(
+      `repo:settings: could not resolve the repo (${result.stderr?.trim() || 'gh repo view failed'}); run from a checkout whose \`origin\` is on GitHub, or set GH_REPO=owner/name`,
     );
-    process.exit(2);
   }
   return result.body.nameWithOwner;
 }
 
-/** `{ type, login }` → `{ type, id }`: the environments API takes numeric ids only. */
-function resolveReviewer({ type, login }) {
+/**
+ * `{ type, login }` → `{ type, id }`: the environments API takes numeric ids only. A `User` login
+ * that turns out to be an organization is rejected with a hint: organizations cannot review.
+ */
+function resolveReviewer(ctx, { type, login }) {
   const path =
     type === 'Team' ? `orgs/${login.split('/')[0]}/teams/${login.split('/')[1]}` : `users/${login}`;
-  const result = ghJson(['api', path]);
+  const result = ghJson(ctx, ['api', path]);
   if (!result.ok || typeof result.body?.id !== 'number') {
-    console.error(`repo:settings: could not resolve reviewer ${type} "${login}" (${path})`);
-    process.exit(2);
+    throw new RepoSettingsError(
+      `repo:settings: could not resolve reviewer ${type} "${login}" (${path})`,
+    );
+  }
+  if (type === 'User' && result.body.type === 'Organization') {
+    throw new RepoSettingsError(
+      `repo:settings: reviewer "${login}" is an organization, and organizations cannot review deployments; set DESIRED.environments reviewers in scripts/repo-settings.js to a member login ({ type: 'User', login }) or a team ({ type: 'Team', login: '${login}/<team-slug>' })`,
+    );
   }
   return { type, id: result.body.id };
 }
 
-function environmentBody(env) {
-  return { ...env, reviewers: env.reviewers.map(resolveReviewer) };
+function environmentBody(ctx, env) {
+  return { ...env, reviewers: env.reviewers.map((r) => resolveReviewer(ctx, r)) };
 }
 
-function endpoints(slug) {
-  const calls = {
-    protection: {
+/** Current labels, keyed by name → `{ color, description }` (paginated; the API caps at 100/page). */
+function currentLabels(ctx, slug) {
+  const result = ghJson(ctx, ['api', '--paginate', '--slurp', `repos/${slug}/labels?per_page=100`]);
+  if (!result.ok) {
+    throw new RepoSettingsError(`repo:settings: GET labels failed\n${result.stderr}`);
+  }
+  // `--slurp` wraps each page in an array; an old gh without it returns the pages concatenated.
+  const pages = Array.isArray(result.body) ? result.body : [];
+  const items = pages.flatMap((page) => (Array.isArray(page) ? page : [page]));
+  return Object.fromEntries(
+    items.map(({ name, color, description }) => [
+      name,
+      { color: (color ?? '').toLowerCase(), description: description ?? '' },
+    ]),
+  );
+}
+
+function labelDrifted(want, got) {
+  return got.color !== want.color.toLowerCase() || got.description !== want.description;
+}
+
+/**
+ * The `gh api` calls that reconcile `only` sections, keyed for logging. Labels need a GET first
+ * (upsert: POST when missing, PATCH when different, nothing when equal); the other sections are
+ * idempotent PUT/PATCH of the full desired body.
+ */
+function endpoints(ctx, slug, only = SECTIONS) {
+  const calls = {};
+  if (only.includes('protection')) {
+    calls.protection = {
       method: 'PUT',
       path: `repos/${slug}/branches/${BRANCH}/protection`,
       body: DESIRED.protection,
-    },
-    repo: { method: 'PATCH', path: `repos/${slug}`, body: DESIRED.repo },
-  };
-  for (const [name, env] of Object.entries(DESIRED.environments)) {
-    calls[`environment:${name}`] = {
-      method: 'PUT',
-      path: `repos/${slug}/environments/${name}`,
-      body: environmentBody(env),
     };
+  }
+  if (only.includes('repo')) {
+    calls.repo = { method: 'PATCH', path: `repos/${slug}`, body: DESIRED.repo };
+  }
+  if (only.includes('environments')) {
+    for (const [name, env] of Object.entries(DESIRED.environments)) {
+      calls[`environment:${name}`] = {
+        method: 'PUT',
+        path: `repos/${slug}/environments/${name}`,
+        body: environmentBody(ctx, env),
+      };
+    }
+  }
+  if (only.includes('labels')) {
+    const current = currentLabels(ctx, slug);
+    for (const [name, want] of Object.entries(DESIRED.labels)) {
+      const got = current[name];
+      if (!got) {
+        calls[`label:${name}`] = {
+          method: 'POST',
+          path: `repos/${slug}/labels`,
+          body: { name, ...want },
+        };
+      } else if (labelDrifted(want, got)) {
+        calls[`label:${name}`] = {
+          method: 'PATCH',
+          path: `repos/${slug}/labels/${encodeURIComponent(name)}`,
+          body: { new_name: name, ...want },
+        };
+      }
+    }
   }
   return calls;
 }
@@ -188,33 +344,45 @@ function apiArgs({ method, path }) {
   ];
 }
 
-function dryRun(slug) {
-  console.log(`repo:settings: dry run for ${slug} (no writes)\n`);
-  for (const call of Object.values(endpoints(slug))) {
-    console.log(`gh ${apiArgs(call).join(' ')} <<'JSON'`);
-    console.log(JSON.stringify(call.body, null, 2));
-    console.log('JSON\n');
+function dryRun(ctx, slug, only) {
+  const calls = endpoints(ctx, slug, only);
+  ctx.log(`repo:settings: dry run for ${slug} (no writes; sections: ${only.join(', ')})\n`);
+  for (const call of Object.values(calls)) {
+    ctx.log(`gh ${apiArgs(call).join(' ')} <<'JSON'`);
+    ctx.log(JSON.stringify(call.body, null, 2));
+    ctx.log('JSON\n');
+  }
+  if (only.includes('labels') && !Object.keys(calls).some((k) => k.startsWith('label:'))) {
+    ctx.log('labels: all present and up to date, nothing to write\n');
   }
 }
 
-function apply(slug) {
-  for (const [name, call] of Object.entries(endpoints(slug))) {
-    const result = ghJson(apiArgs(call), { input: JSON.stringify(call.body) });
+function apply(ctx, slug, only) {
+  const calls = endpoints(ctx, slug, only);
+  for (const [name, call] of Object.entries(calls)) {
+    const result = ghJson(ctx, apiArgs(call), { input: JSON.stringify(call.body) });
     if (!result.ok) {
-      console.error(`repo:settings: ${call.method} ${call.path} failed\n${result.stderr}`);
-      process.exit(1);
+      throw new RepoSettingsError(
+        `repo:settings: ${call.method} ${call.path} failed\n${result.stderr}`,
+        1,
+      );
     }
-    console.log(`repo:settings: applied ${name} (${call.method} ${call.path})`);
+    ctx.log(`repo:settings: applied ${name} (${call.method} ${call.path})`);
+  }
+  if (only.includes('labels') && !Object.keys(calls).some((k) => k.startsWith('label:'))) {
+    ctx.log('repo:settings: labels already up to date');
   }
 }
 
-/** Project the GET responses onto DESIRED's shape so they can be compared field by field. */
-function currentProtection(slug) {
-  const result = ghJson(['api', `repos/${slug}/branches/${BRANCH}/protection`]);
+/* ------------------------------------------------------------------------------------------ */
+/* --check: project the GET responses onto DESIRED's shape and compare field by field          */
+/* ------------------------------------------------------------------------------------------ */
+
+function currentProtection(ctx, slug) {
+  const result = ghJson(ctx, ['api', `repos/${slug}/branches/${BRANCH}/protection`]);
   if (!result.ok) {
     if (result.body?.message === 'Branch not protected') return null;
-    console.error(`repo:settings: GET branch protection failed\n${result.stderr}`);
-    process.exit(2);
+    throw new RepoSettingsError(`repo:settings: GET branch protection failed\n${result.stderr}`);
   }
   const p = result.body;
   const enabled = (key) => Boolean(p[key]?.enabled);
@@ -234,22 +402,20 @@ function currentProtection(slug) {
   };
 }
 
-function currentRepo(slug) {
-  const result = ghJson(['api', `repos/${slug}`]);
+function currentRepo(ctx, slug) {
+  const result = ghJson(ctx, ['api', `repos/${slug}`]);
   if (!result.ok) {
-    console.error(`repo:settings: GET repo failed\n${result.stderr}`);
-    process.exit(2);
+    throw new RepoSettingsError(`repo:settings: GET repo failed\n${result.stderr}`);
   }
   return Object.fromEntries(Object.keys(DESIRED.repo).map((key) => [key, result.body[key]]));
 }
 
 /** GET returns `protection_rules` (typed rules) + `deployment_branch_policy`; fold back to DESIRED's shape. */
-function currentEnvironment(slug, name) {
-  const result = ghJson(['api', `repos/${slug}/environments/${name}`]);
+function currentEnvironment(ctx, slug, name) {
+  const result = ghJson(ctx, ['api', `repos/${slug}/environments/${name}`]);
   if (!result.ok) {
     if (result.body?.message === 'Not Found') return null;
-    console.error(`repo:settings: GET environment ${name} failed\n${result.stderr}`);
-    process.exit(2);
+    throw new RepoSettingsError(`repo:settings: GET environment ${name} failed\n${result.stderr}`);
   }
   const rules = result.body.protection_rules ?? [];
   const reviewersRule = rules.find((rule) => rule.type === 'required_reviewers');
@@ -292,42 +458,137 @@ function diff(desired, actual, prefix = '') {
   return drift;
 }
 
-function check(slug) {
+/** Drift lines for `only` sections (empty = in sync). Pure apart from the GETs through `ctx.gh`. */
+function collectDrift(ctx, slug, only = SECTIONS) {
   const drift = [];
-  const protection = currentProtection(slug);
-  if (protection === null) {
-    drift.push(`protection: branch "${BRANCH}" is not protected`);
-  } else {
-    drift.push(...diff(DESIRED.protection, protection, 'protection.'));
-  }
-  drift.push(...diff(DESIRED.repo, currentRepo(slug), 'repo.'));
-  for (const [name, env] of Object.entries(DESIRED.environments)) {
-    const current = currentEnvironment(slug, name);
-    if (current === null) {
-      drift.push(`environments.${name}: missing`);
+  if (only.includes('protection')) {
+    const protection = currentProtection(ctx, slug);
+    if (protection === null) {
+      drift.push(`protection: branch "${BRANCH}" is not protected`);
     } else {
-      drift.push(...diff(env, current, `environments.${name}.`));
+      drift.push(...diff(DESIRED.protection, protection, 'protection.'));
     }
   }
-
-  if (drift.length) {
-    console.error(`repo:settings: ${slug} has drifted from scripts/repo-settings.js:`);
-    for (const line of drift) console.error(`  - ${line}`);
-    console.error('\nRun `bun run repo:settings:apply` to reconcile.');
-    process.exit(1);
+  if (only.includes('repo')) {
+    drift.push(...diff(DESIRED.repo, currentRepo(ctx, slug), 'repo.'));
   }
-  console.log(`repo:settings: ${slug} matches desired state`);
+  if (only.includes('environments')) {
+    for (const [name, env] of Object.entries(DESIRED.environments)) {
+      const current = currentEnvironment(ctx, slug, name);
+      if (current === null) {
+        drift.push(`environments.${name}: missing`);
+      } else {
+        drift.push(...diff(env, current, `environments.${name}.`));
+      }
+    }
+  }
+  if (only.includes('labels')) {
+    const current = currentLabels(ctx, slug);
+    for (const [name, want] of Object.entries(DESIRED.labels)) {
+      const got = current[name];
+      if (!got) {
+        drift.push(`labels.${name}: missing`);
+      } else {
+        drift.push(
+          ...diff(
+            { color: want.color.toLowerCase(), description: want.description },
+            got,
+            `labels.${name}.`,
+          ),
+        );
+      }
+    }
+  }
+  return drift;
 }
 
-if (require.main === module) {
-  const modes = { '--dry-run': dryRun, '--apply': apply, '--check': check };
-  const flag = process.argv[2] ?? '--dry-run';
-  const run = modes[flag];
-  if (!run) {
-    console.error(
-      `repo:settings: unknown flag ${flag}; expected one of ${Object.keys(modes).join(', ')}`,
+function check(ctx, slug, only) {
+  const drift = collectDrift(ctx, slug, only);
+  if (drift.length) {
+    throw new RepoSettingsError(
+      [
+        `repo:settings: ${slug} has drifted from scripts/repo-settings.js:`,
+        ...drift.map((line) => `  - ${line}`),
+        '',
+        'Run `bun run repo:settings:apply` to reconcile.',
+      ].join('\n'),
+      1,
     );
-    process.exit(2);
   }
-  run(repoSlug());
+  ctx.log(`repo:settings: ${slug} matches desired state (sections: ${only.join(', ')})`);
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* CLI                                                                                         */
+/* ------------------------------------------------------------------------------------------ */
+
+const MODES = { '--dry-run': dryRun, '--apply': apply, '--check': check };
+
+/** `--dry-run | --apply | --check` (default dry run) plus `--only a,b` / `--only=a,b` (repeatable). */
+function parseArgs(argv) {
+  let mode = '--dry-run';
+  let only = null;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (MODES[arg]) {
+      mode = arg;
+      continue;
+    }
+    if (arg === '--only' || arg.startsWith('--only=')) {
+      const value = arg === '--only' ? argv[(i += 1)] : arg.slice('--only='.length);
+      if (!value) throw new RepoSettingsError('repo:settings: --only needs a value');
+      const names = value
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const unknown = names.filter((s) => !SECTIONS.includes(s));
+      if (unknown.length) {
+        throw new RepoSettingsError(
+          `repo:settings: unknown section ${unknown.join(', ')} in --only; expected a comma-separated subset of ${SECTIONS.join(', ')}`,
+        );
+      }
+      only = [...(only ?? []), ...names];
+      continue;
+    }
+    throw new RepoSettingsError(
+      `repo:settings: unknown flag ${arg}; expected one of ${Object.keys(MODES).join(', ')} and optionally --only <${SECTIONS.join('|')}>`,
+    );
+  }
+  // Keep DESIRED's order regardless of how --only was spelled.
+  return { mode, only: only ? SECTIONS.filter((s) => only.includes(s)) : SECTIONS };
+}
+
+function main(argv, ctx = { gh: defaultGh, log: (line) => console.log(line) }) {
+  try {
+    const { mode, only } = parseArgs(argv);
+    requireAuth(ctx);
+    MODES[mode](ctx, repoSlug(ctx), only);
+    return 0;
+  } catch (error) {
+    if (error instanceof RepoSettingsError) {
+      console.error(error.message);
+      return error.code;
+    }
+    throw error;
+  }
+}
+
+module.exports = {
+  DESIRED,
+  LABELS,
+  REQUIRED_CHECKS,
+  RepoSettingsError,
+  SECTIONS,
+  apiArgs,
+  collectDrift,
+  endpoints,
+  main,
+  parseArgs,
+  repoSlug,
+  requireAuth,
+  resolveReviewer,
+};
+
+if (require.main === module) {
+  process.exit(main(process.argv.slice(2)));
 }

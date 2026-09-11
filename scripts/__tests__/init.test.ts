@@ -277,7 +277,7 @@ describe('diffLines / scanLeftovers', () => {
     ]);
   });
 
-  it('orders the steps: rewrites, ledger / plan / changelog, self-delete, fresh git last', () => {
+  it('orders the steps: rewrites, ledger / plan / changelog, self-delete, fresh git, repo settings last', () => {
     expect(steps.map((s: { id: string }) => s.id)).toEqual([
       'doctor',
       'rewrite',
@@ -287,6 +287,7 @@ describe('diffLines / scanLeftovers', () => {
       'changelog',
       'self-delete',
       'fresh-git',
+      'repo-settings',
     ]);
   });
 
@@ -301,6 +302,8 @@ describe('diffLines / scanLeftovers', () => {
     expect(on('self-delete', { 'keep-init': true })).toBe(false);
     expect(on('fresh-git', {})).toBe(false);
     expect(on('fresh-git', { 'fresh-git': true })).toBe(true);
+    expect(on('repo-settings', {})).toBe(false);
+    expect(on('repo-settings', { 'apply-repo-settings': true })).toBe(true);
     expect(on('ledger', {})).toBe(true);
     expect(on('changelog', {})).toBe(true);
   });
@@ -470,6 +473,9 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
     expect(result.stdout).toContain('No CHANGELOG.md, skipped.');
     expect(result.stdout).toContain('Would remove scripts/init.js');
     expect(result.stdout).toContain('Would rm -rf .git');
+    // Opt-in, so not run here; the closing hint points at the manual command instead.
+    expect(result.stdout).not.toContain('▶ Apply GitHub repo settings');
+    expect(result.stdout).toContain('Then push to GitHub, then run: bun run repo:settings:apply');
     expect(result.stdout).toContain('Would do:');
     expect(fs.readFileSync(path.join(ROOT, 'app.config.ts'), 'utf8')).toBe(before);
     expect(fs.readFileSync(path.join(ROOT, LEDGER_PATH), 'utf8')).toBe(ledgerBefore);

@@ -16,6 +16,8 @@
  *   bun run init --fresh-git ...       # rm -rf .git, one initial commit (prompted otherwise; default No)
  *   bun run init --keep-init ...       # keep this script, its test and doc (default: self-delete)
  *   bun run init --keep-plan ...       # keep PLAN.md as is (default: stub pointing at the upstream plan)
+ *   bun run init --apply-repo-settings # run `bun run repo:settings:apply` at the end (prompted otherwise;
+ *                                      #   default No; needs `gh auth` + an `origin` remote)
  *
  * Design:
  *   - `MANIFEST` lists every (file, pattern) init touches. A pattern that matches fewer times than
@@ -26,7 +28,8 @@
  *   - `steps` is the ordered list of what init does: the toolchain check (#53, `scripts/doctor.js`),
  *     rewrite + scan, then (#54) reset the queue ledger, stub PLAN.md, clear the changelog,
  *     self-delete, and — last, so the initial commit holds the final tree — fresh git history.
- *     A step's optional `when({ args })` can opt it out. #55 appends repo settings.
+ *     A step's optional `when({ args })` can opt it out. The last step (#55) applies the GitHub
+ *     repo settings (`scripts/repo-settings.js`) when asked to.
  *   - `REMOVAL` is the self-delete manifest: the files and lines that only make sense in the
  *     template. Like `MANIFEST`, every entry must match on main (same drift guard).
  *
@@ -127,6 +130,7 @@ const BOOLEAN_FLAGS = [
   'fresh-git',
   'keep-init',
   'keep-plan',
+  'apply-repo-settings',
   'help',
 ];
 const FLAGS = new Set([...FIELDS.map((f) => f.flag), ...BOOLEAN_FLAGS]);
@@ -630,7 +634,7 @@ function writeOrPlan(root, file, content, dryRun) {
 /**
  * Ordered steps; each gets `{ root, identity, dryRun, log, results, args }` and may declare
  * `when({ args })` to opt out. Every step returns `{ summary }` (plus whatever later steps need)
- * for the closing table. #55 appends repo settings.
+ * for the closing table.
  */
 const steps = [
   // Fails init (nothing written) when Bun / Node / git are missing; `--skip-doctor` skips it.
@@ -814,7 +818,52 @@ const steps = [
       return { summary: `1 commit, hooks ${hooks.status === 0 ? 'installed' : 'pending'}` };
     },
   },
+  {
+    // Opt-in and last: branch protection, merge settings, environments and labels need the repo
+    // to exist on GitHub. Skipped (with the manual command) when `gh` is not logged in or there
+    // is no `origin` — which is always the case right after `--fresh-git`.
+    id: 'repo-settings',
+    title: 'Apply GitHub repo settings',
+    when: ({ args }) => Boolean(args['apply-repo-settings']),
+    run({ root, dryRun, log }) {
+      const skip = repoSettingsBlocker(root);
+      if (skip) {
+        log(`  Skipped: ${skip}.\n  ${REPO_SETTINGS_HINT}`);
+        return { summary: `skipped (${skip})` };
+      }
+      if (dryRun) {
+        log(
+          '  Would run: bun run repo:settings:apply (branch protection, merge settings, environments, labels).',
+        );
+        return { summary: 'would apply' };
+      }
+      const r = spawnSync(process.execPath, ['scripts/repo-settings.js', '--apply'], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+      const out = `${r.stdout || ''}${r.stderr || ''}`.trim();
+      if (out) log(out.replace(/^/gm, '  '));
+      if (r.status !== 0) {
+        throw new Error(
+          `init: repo:settings:apply failed (exit ${r.status}); ${REPO_SETTINGS_HINT}`,
+        );
+      }
+      return { summary: 'applied' };
+    },
+  },
 ];
+
+const REPO_SETTINGS_HINT =
+  'push to GitHub, then run: bun run repo:settings:apply (docs/js-gate.md)';
+
+/** Why `repo:settings:apply` cannot run right now (null = it can): needs `gh auth` and `origin`. */
+function repoSettingsBlocker(root) {
+  const auth = spawnSync('gh', ['auth', 'status'], { cwd: root, encoding: 'utf8' });
+  if (auth.error) return 'gh is not installed';
+  if (auth.status !== 0) return 'gh is not logged in (gh auth login)';
+  if (!git(root, ['remote', 'get-url', 'origin']).ok) return 'no `origin` remote';
+  return null;
+}
 
 /* ------------------------------------------------------------------------------------------ */
 /* CLI                                                                                         */
@@ -823,7 +872,7 @@ const steps = [
 function usage() {
   const flags = FIELDS.map((f) => `  --${f.flag.padEnd(16)} ${f.label}`).join('\n');
   return [
-    'Usage: bun run init [--yes] [--dry-run] [--skip-doctor] [--fresh-git] [--keep-init] [--keep-plan] [flags]',
+    'Usage: bun run init [--yes] [--dry-run] [--skip-doctor] [--fresh-git] [--keep-init] [--keep-plan] [--apply-repo-settings] [flags]',
     '',
     flags,
     '  --yes              no prompts: flags + derived defaults',
@@ -832,6 +881,7 @@ function usage() {
     '  --fresh-git        rm -rf .git and make one initial commit (asked interactively; default No)',
     '  --keep-init        keep scripts/init.js, its test and doc (default: self-delete)',
     '  --keep-plan        keep PLAN.md as is (default: stub with the inherited decisions)',
+    '  --apply-repo-settings  run bun run repo:settings:apply at the end (asked interactively; default No)',
     '',
     'See docs/template-init.md.',
   ].join('\n');
@@ -892,13 +942,21 @@ async function main(argv) {
   }
 
   const dryRun = Boolean(args['dry-run']);
-  if (interactive && !args['fresh-git'] && !dryRun) {
+  if (interactive && !dryRun) {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const yes = async (question) => /^y(es)?$/i.test((await rl.question(question)).trim());
     try {
-      const answer = await rl.question(
-        'Start a fresh git history (rm -rf .git, one initial commit)?\n  [y/N] > ',
-      );
-      if (/^y(es)?$/i.test(answer.trim())) args['fresh-git'] = true;
+      if (!args['fresh-git']) {
+        args['fresh-git'] = await yes(
+          'Start a fresh git history (rm -rf .git, one initial commit)?\n  [y/N] > ',
+        );
+      }
+      // A fresh history drops `origin`, so the settings step would only skip itself.
+      if (!args['apply-repo-settings'] && !args['fresh-git']) {
+        args['apply-repo-settings'] = await yes(
+          'Apply the GitHub repo settings now (branch protection, merge settings, environments, labels via gh)?\n  [y/N] > ',
+        );
+      }
     } finally {
       rl.close();
     }
@@ -937,7 +995,7 @@ async function main(argv) {
   }
   log(
     `\nNext: bun install && bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check` +
-      `\nThen: bun run repo:settings:apply (#55)` +
+      (results['repo-settings']?.summary === 'applied' ? '' : `\nThen ${REPO_SETTINGS_HINT}`) +
       (args['fresh-git']
         ? ''
         : `, then commit: git add -A && git commit -m "${initialCommitMessage(identity)}"`) +

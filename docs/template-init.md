@@ -32,16 +32,17 @@ when a required tool is missing; `--skip-doctor` skips it.
 `scripts/init.js` exports `steps`, the ordered list of what init does; every step is dry-run
 aware and reported in the closing summary.
 
-| Step          | What it does                                                                                                                                                                                                                   | Opt out                                                         |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| `doctor`      | [Toolchain check](doctor.md); a `MISSING` required tool aborts before anything is written                                                                                                                                      | `--skip-doctor`                                                 |
-| `rewrite`     | Rewrites the identifiers listed under [What it rewrites](#what-it-rewrites), then runs prettier on the touched files                                                                                                           | —                                                               |
-| `scan`        | Scans every tracked file for leftover template identifiers and prints them (warnings, never failures)                                                                                                                          | —                                                               |
-| `ledger`      | Replaces `.claude/execution-queue.md` with an empty ledger: same legend and rule, tracker = your GitHub repo, empty `OPEN QUEUE`, a run log with the init line — so `/ship-next` works from day one                            | —                                                               |
-| `plan`        | Replaces `PLAN.md` with a stub: the template's **Locked decisions** table kept verbatim (`CLAUDE.md` and `docs/` cite "PLAN.md decision N" by number) plus a link to the upstream plan for the rest                            | `--keep-plan`                                                   |
-| `changelog`   | Replaces `CHANGELOG.md` with a fresh header when the template ships one (it does not yet; release-please is #60), otherwise notes "no CHANGELOG.md, skipped"                                                                   | —                                                               |
-| `self-delete` | Removes init: see [What it deletes](#what-it-deletes)                                                                                                                                                                          | `--keep-init`                                                   |
-| `fresh-git`   | `rm -rf .git`, `git init -b main`, one commit `chore: initialize <slug> from expo-boilerplate` of the final tree, then `bunx lefthook install` (the hooks went with the old `.git`); prints the `git remote add origin …` hint | on only with `--fresh-git` (interactive prompt, default **No**) |
+| Step            | What it does                                                                                                                                                                                                                                                                                                                                                   | Opt out                                                                                            |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `doctor`        | [Toolchain check](doctor.md); a `MISSING` required tool aborts before anything is written                                                                                                                                                                                                                                                                      | `--skip-doctor`                                                                                    |
+| `rewrite`       | Rewrites the identifiers listed under [What it rewrites](#what-it-rewrites), then runs prettier on the touched files                                                                                                                                                                                                                                           | —                                                                                                  |
+| `scan`          | Scans every tracked file for leftover template identifiers and prints them (warnings, never failures)                                                                                                                                                                                                                                                          | —                                                                                                  |
+| `ledger`        | Replaces `.claude/execution-queue.md` with an empty ledger: same legend and rule, tracker = your GitHub repo, empty `OPEN QUEUE`, a run log with the init line — so `/ship-next` works from day one                                                                                                                                                            | —                                                                                                  |
+| `plan`          | Replaces `PLAN.md` with a stub: the template's **Locked decisions** table kept verbatim (`CLAUDE.md` and `docs/` cite "PLAN.md decision N" by number) plus a link to the upstream plan for the rest                                                                                                                                                            | `--keep-plan`                                                                                      |
+| `changelog`     | Replaces `CHANGELOG.md` with a fresh header when the template ships one (it does not yet; release-please is #60), otherwise notes "no CHANGELOG.md, skipped"                                                                                                                                                                                                   | —                                                                                                  |
+| `self-delete`   | Removes init: see [What it deletes](#what-it-deletes)                                                                                                                                                                                                                                                                                                          | `--keep-init`                                                                                      |
+| `fresh-git`     | `rm -rf .git`, `git init -b main`, one commit `chore: initialize <slug> from expo-boilerplate` of the final tree, then `bunx lefthook install` (the hooks went with the old `.git`); prints the `git remote add origin …` hint                                                                                                                                 | on only with `--fresh-git` (interactive prompt, default **No**)                                    |
+| `repo-settings` | Runs `bun run repo:settings:apply` ([JS gate](js-gate.md#changing-the-required-set)): `main` branch protection, squash-only merge settings, the `uat` / `production` environments and the automation's labels, via `gh`. Skipped with the manual command when `gh` is not logged in or there is no `origin` remote (always the case right after `--fresh-git`) | on only with `--apply-repo-settings` (interactive prompt, default **No**; never under `--dry-run`) |
 
 `.claude/skills/ship-next` and `.claude/settings.json` are kept as they are. Without
 `--fresh-git` the old history stays and init prints the recommended first commit
@@ -70,19 +71,20 @@ the generated project — `scripts/__tests__/init.test.ts` proves it on a temp c
 
 ## Flags
 
-| Flag               | What it sets                                                                                                  | Validation                                |
-| ------------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `--name`           | Display name (`app.config.ts` `BASE.name`; variants append ` (Dev)` / ` (Staging)` / ` (UAT)`), README title  | non-empty, no quotes                      |
-| `--slug`           | Expo slug, `package.json` name, EAS Hosting dev-domain, query-cache key, gitleaks title                       | `^[a-z0-9]+(-[a-z0-9]+)*$`                |
-| `--scheme`         | URL scheme (variants append `-dev` / `-staging` / `-uat`)                                                     | lowercase, starts with a letter           |
-| `--bundle-id`      | iOS bundle identifier (production; variants append `.dev` / `.staging` / `.uat`)                              | reverse-DNS                               |
-| `--package`        | Android application id (usually equal to the bundle id; Android forbids dashes)                               | reverse-DNS, segments start with a letter |
-| `--owner`          | Expo account: `expo.dev/accounts/<owner>/projects/<slug>` links in workflow Slack / PR messages and docs      | letters, digits, dashes                   |
-| `--github-repo`    | `owner/name`: README badge URLs, docs, and the `uat` / `production` environment reviewer in `repo-settings`   | `owner/name`                              |
-| `--eas-project-id` | `EAS_PROJECT_ID` in `app.config.ts` (`extra.eas.projectId` + `updates.url`)                                   | UUID, or empty (see below)                |
-| `--fresh-git`      | Replace the git history with one initial commit (prompted interactively, default No; never under `--dry-run`) | refuses a dirty working tree              |
-| `--keep-init`      | Keep `scripts/init.js`, its test and this doc (default: self-delete)                                          | —                                         |
-| `--keep-plan`      | Keep `PLAN.md` untouched (default: stub with the inherited decisions)                                         | —                                         |
+| Flag                    | What it sets                                                                                                       | Validation                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| `--name`                | Display name (`app.config.ts` `BASE.name`; variants append ` (Dev)` / ` (Staging)` / ` (UAT)`), README title       | non-empty, no quotes                             |
+| `--slug`                | Expo slug, `package.json` name, EAS Hosting dev-domain, query-cache key, gitleaks title                            | `^[a-z0-9]+(-[a-z0-9]+)*$`                       |
+| `--scheme`              | URL scheme (variants append `-dev` / `-staging` / `-uat`)                                                          | lowercase, starts with a letter                  |
+| `--bundle-id`           | iOS bundle identifier (production; variants append `.dev` / `.staging` / `.uat`)                                   | reverse-DNS                                      |
+| `--package`             | Android application id (usually equal to the bundle id; Android forbids dashes)                                    | reverse-DNS, segments start with a letter        |
+| `--owner`               | Expo account: `expo.dev/accounts/<owner>/projects/<slug>` links in workflow Slack / PR messages and docs           | letters, digits, dashes                          |
+| `--github-repo`         | `owner/name`: README badge URLs, docs, and the `uat` / `production` environment reviewer in `repo-settings`        | `owner/name`                                     |
+| `--eas-project-id`      | `EAS_PROJECT_ID` in `app.config.ts` (`extra.eas.projectId` + `updates.url`)                                        | UUID, or empty (see below)                       |
+| `--fresh-git`           | Replace the git history with one initial commit (prompted interactively, default No; never under `--dry-run`)      | refuses a dirty working tree                     |
+| `--keep-init`           | Keep `scripts/init.js`, its test and this doc (default: self-delete)                                               | —                                                |
+| `--keep-plan`           | Keep `PLAN.md` untouched (default: stub with the inherited decisions)                                              | —                                                |
+| `--apply-repo-settings` | Run `bun run repo:settings:apply` as the last step (prompted interactively, default No; skipped under `--dry-run`) | needs `gh auth status` ok and an `origin` remote |
 
 **No EAS project yet?** Pass `--eas-project-id=` (the `=` form: `bun run` drops an empty `""`
 argument) or accept the empty prompt default.
@@ -124,9 +126,15 @@ bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18
 bunx expo config --type public   # sanity-check the rebranded app config
 ```
 
+Once the repo is on GitHub, `bun run repo:settings:apply` (or `bun run init --apply-repo-settings`
+when `origin` already points there) pushes branch protection, merge settings, environments and
+labels; `bun run repo:settings:check` shows drift afterwards. If the GitHub owner is an
+organization, first change the `uat` / `production` reviewer in `scripts/repo-settings.js` to a
+member login or a team (`{ type: 'Team', login: 'org/team-slug' }`) — organizations cannot review
+deployments, and apply says so.
+
 ## Left for the sibling tickets
 
 The next tickets append to `steps` rather than growing the rewrite step:
 
-- **#55** `bun run repo:settings:apply` + labels — until then run it by hand after pushing.
 - **#56** CI end-to-end test of the template: headless init on a fresh copy, then the JS gate.
