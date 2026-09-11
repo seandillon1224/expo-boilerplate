@@ -18,7 +18,7 @@ bun run ios    # or android / web
 - [JS gate: required checks](docs/js-gate.md) — what gates merge, how merging works, running the gate locally.
 - [Environments and secrets](docs/environments-and-secrets.md) — EAS build profiles (`eas.json`) and, from T3.2, environment variables.
 - [Native E2E (iOS / Android)](docs/native-e2e.md) — reproducing the EAS Workflows native lane locally: `bun run e2e:build`, `e2e:repack`, `e2e:ios` / `e2e:android`.
-- [Release ladder](docs/release-ladder.md) — `main` → staging automatically (`deploy-staging.yml`: cached builds, OTA update, web deploy, Slack); UAT / production promotion and rollback to follow.
+- [Release ladder](docs/release-ladder.md) — the runbook: PR previews → `main` → staging (automatic) → UAT → production (approval-gated promotions) → store release on a `vX.Y.Z` tag; channel / branch / variant mapping, rollback per channel (`eas update:rollback` / `update:republish` / roll-back-to-embedded), hotfix path.
 - [Getting the staging app on your iPhone](docs/device-onboarding.md) — device registration for testers (plain language) and the engineer side (`bun run devices:add`, the `Register test device` workflow, rebuild after).
 - [Build sharing](docs/build-sharing.md) — where install links come from (install page, Slack `slack` jobs, PR comments, TestFlight / Play internal), `SLACK_WEBHOOK_URL` wiring, Expo Orbit for engineers.
 - [Installing the staging app](docs/install-staging-app.md) — the no-CLI one-pager for designers / PMs / testers: iOS and Android install, and why "reinstall required" happens.

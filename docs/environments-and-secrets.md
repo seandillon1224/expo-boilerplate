@@ -52,7 +52,8 @@ builds. A build polls one **channel** (set by its `eas.json` profile); a channel
 PLAN.md decision 3: UAT and production are **republishes of the same update group**, never a fresh
 `eas update` from a different commit, so what was tested is what ships. `development*` and `e2e-*`
 builds have no channel and only ever run their embedded bundle. Publishing, promotion and rollback
-commands live in the release ladder doc (T5.7, `docs/release-ladder.md`).
+commands live in the [release ladder](release-ladder.md) (mapping table:
+[Channel, branch, variant and profile mapping](release-ladder.md#channel-branch-variant-and-profile-mapping)).
 
 ### Runtime version = native fingerprint
 
