@@ -532,11 +532,24 @@ function buildChangelog(identity) {
  * guard runs them against the real files, like `buildManifest`.
  */
 const REMOVAL = Object.freeze({
-  files: ['scripts/init.js', 'scripts/__tests__/init.test.ts', 'docs/template-init.md'],
+  files: [
+    'scripts/init.js',
+    'scripts/__tests__/init.test.ts',
+    'docs/template-init.md',
+    // The template end-to-end test (#56) only makes sense on the template itself.
+    'scripts/template-e2e.js',
+  ],
   edits: [
     {
       file: 'package.json',
-      rules: [rule('init script', /^ {4}"init": "node scripts\/init\.js",\n/gm, () => '')],
+      rules: [
+        rule('init script', /^ {4}"init": "node scripts\/init\.js",\n/gm, () => ''),
+        rule(
+          'template:e2e script',
+          /^ {4}"template:e2e": "node scripts\/template-e2e\.js",\n/gm,
+          () => '',
+        ),
+      ],
     },
     {
       file: 'README.md',
@@ -553,11 +566,38 @@ const REMOVAL = Object.freeze({
       file: 'CLAUDE.md',
       rules: [
         rule('init command bullet', /^- `bun run init` — [^\n]*\n/gm, () => ''),
+        rule('template:e2e command bullet', /^- `bun run template:e2e` — [^\n]*\n/gm, () => ''),
         rule(
           'doctor bullet: init step',
           / Also the first `init` step \(`--skip-doctor`\)\./g,
           () => '',
         ),
+        rule('ci bullet: template init job', /, template init(?=\))/g, () => ''),
+      ],
+    },
+    {
+      // The `Template init` job (and its required check) exist only on the template. The job is
+      // the last one in the file: the rule takes the blank line before it and everything indented
+      // under it, so the file still ends with a single newline.
+      file: '.github/workflows/ci.yml',
+      rules: [
+        rule('template-init job', /^\n {2}template-init:\n(?:(?: {4}[^\n]*)?\n)*/m, () => ''),
+      ],
+    },
+    {
+      file: 'scripts/repo-settings.js',
+      rules: [rule('Template init required check', /^ {2}'Template init',\n/gm, () => '')],
+    },
+    {
+      file: 'docs/js-gate.md',
+      rules: [
+        rule('checks table row', /^\| `Template init` +\|[^\n]*\n/gm, () => ''),
+        rule(
+          'slowest-job paragraph',
+          /^`Template init` is the slowest job[^\n]*\n(?:[^\n]+\n)*\n/m,
+          () => '',
+        ),
+        rule('local table row', /^\| Template init +\|[^\n]*\n/gm, () => ''),
       ],
     },
     {

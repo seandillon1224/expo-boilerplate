@@ -74,6 +74,7 @@
     "preinstall": "node scripts/preinstall-guard.js",
     "init": "node scripts/init.js",
     "doctor": "node scripts/doctor.js",
+    "template:e2e": "node scripts/template-e2e.js",
     "start": "WITH_ROZENITE=${WITH_ROZENITE:-true} expo start",
     "ios": "WITH_ROZENITE=${WITH_ROZENITE:-true} expo start --ios",
     "android": "WITH_ROZENITE=${WITH_ROZENITE:-true} expo start --android",

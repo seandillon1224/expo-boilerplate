@@ -30,6 +30,7 @@ release ([release ladder](release-ladder.md#store-release-tag)). Durations are f
 | `Bundle budget (ios)`     | `CI` / `bundle-budget`     | `bun run export:ios && bun run budget:ios`                                                                                                   | PR, push to main | yes      | `bundle-sizes-ios`                | ~55 s                                      |
 | `Bundle budget (android)` | `CI` / `bundle-budget`     | `bun run export:android && bun run budget:android`                                                                                           | PR, push to main | yes      | `bundle-sizes-android`            | ~45 s                                      |
 | `Maestro web`             | `CI` / `maestro-web`       | `bun run serve:web` + `bun run e2e:web` against the `web-export` artifact                                                                    | PR, push to main | yes      | `maestro-web`                     | ~80 s, after all three `Bundle budget (*)` |
+| `Template init`           | `CI` / `template-init`     | `bun run template:e2e`: headless `bun run init --fresh-git` on a copy of the checkout, then the gate on the generated project                | PR, push to main | yes      | –                                 | ~2 min                                     |
 | `Perf (Reassure)`         | `CI` / `perf`              | `bun run perf:baseline` (base) → `bun run perf` (head) → `bun run perf:gate`                                                                 | PR only          | **no**   | `reassure`, report in job summary | ~50 s                                      |
 | `Fingerprint drift`       | `CI` / `fingerprint-drift` | `node scripts/fingerprint.js` (`APP_VARIANT=production`) on base and head, then one upserted PR comment + `fingerprint-drift` label on drift | PR only          | **no**   | report in job summary             | ~45 s                                      |
 | `PR title`                | `PR title` / `pr-title`    | `bunx commitlint` on the PR title                                                                                                            | PR only          | yes      | –                                 | ~20 s                                      |
@@ -43,6 +44,13 @@ before production promotion ([release ladder](release-ladder.md#fingerprint-drif
 `CI` uses `concurrency: cancel-in-progress`, so pushing again cancels the
 previous run for the same ref.
 
+`Template init` is the slowest job and runs in parallel with everything else, so it sets the time to
+a fully green PR: it installs into a copy of the checkout, runs the documented headless
+`bun run init --fresh-git` there (no EAS project id, no `EXPO_TOKEN`), then runs the same gate
+(lint, typecheck, test, knip, i18n, format, env) on the generated project's first commit and fails
+on any leftover template identifier outside `KEEP` — PLAN.md decision 4's definition of done
+([template init](template-init.md#end-to-end-test)). It is removed by `bun run init`.
+
 ## How merging works
 
 | Setting                                | Value                              | Why                                                                                                                                                                                                                |
@@ -50,7 +58,7 @@ previous run for the same ref.
 | Merge method                           | squash only                        | Linear history on `main`; one ticket = one PR = one commit.                                                                                                                                                        |
 | Squash commit subject                  | PR title                           | `squash_merge_commit_title: PR_TITLE`; the `PR title` check runs commitlint on it, and `Commitlint` lints every commit on the branch, so both the branch and the resulting `main` commit are Conventional Commits. |
 | Squash commit body                     | PR body                            | `squash_merge_commit_message: PR_BODY`; keep `Closes #n` in the PR body so the issue closes on merge.                                                                                                              |
-| Required status checks                 | the 14 rows marked "yes" above     | `Perf (Reassure)` and `Fingerprint drift` are excluded on purpose.                                                                                                                                                 |
+| Required status checks                 | every row marked "yes" above       | `Perf (Reassure)` and `Fingerprint drift` are excluded on purpose.                                                                                                                                                 |
 | `strict` (up to date)                  | `false`                            | The queue pushes `chore(queue): ...` ledger commits straight to `main`; requiring branches to be up to date would force a rebase + full re-run on every PR after every ledger commit.                              |
 | Required reviews                       | none                               | The automated queue merges as soon as CI is green; the required checks are the gate.                                                                                                                               |
 | `enforce_admins`                       | `false`                            | Lets the repo owner push the ledger commits (which skip the PR flow) and unblock a stuck merge.                                                                                                                    |
@@ -160,6 +168,7 @@ Then the slower ones as needed:
 | Maestro web       | `bun run serve:web` in one shell, `bun run e2e:web` in another                                                   | Needs Maestro ≥ 2.9 (`curl -Ls https://get.maestro.mobile.dev \| bash`) and a JDK; report in `maestro-web/`. |
 | Perf (Reassure)   | `bun run perf:baseline` on `main`, then `bun run perf` on your branch, then `bun run perf:gate`                  | Report in `.reassure/output.md`.                                                                             |
 | Fingerprint drift | `APP_VARIANT=production bun run fingerprint` on `main` and on your branch; compare                               | `--debug` lists the sources behind a changed hash.                                                           |
+| Template init     | `bun run template:e2e`                                                                                           | Copy in a temp dir, removed on success; `--keep` keeps it, `--dir <path>` picks where.                       |
 | PR title          | `printf '%s\n' "your title" \| bunx commitlint`                                                                  | Same config as the commit hook.                                                                              |
 
 Lefthook already runs eslint/prettier on staged files at `pre-commit` and `typecheck` + `knip` at

@@ -12,7 +12,7 @@
  *   bun run repo:settings:check    # --check: GET current state, diff against DESIRED, exit 1 on drift
  *   ... --only labels,repo         # any mode: run a subset of protection | repo | environments | labels
  *
- * Run `:apply` once after creating a repo from this template (`bun run init --apply-repo-settings`
+ * Run `:apply` once after creating a repo from this template (the init script's `--apply-repo-settings`
  * does it for you), and again whenever DESIRED changes. There is no CI drift guard: the Actions
  * `GITHUB_TOKEN` cannot read branch protection.
  *
@@ -56,6 +56,7 @@ const REQUIRED_CHECKS = [
   'Bundle budget (ios)',
   'Bundle budget (android)',
   'Maestro web',
+  'Template init',
   'PR title',
 ];
 
@@ -148,7 +149,7 @@ const DESIRED = {
   // are resolved to `{ type, id }` for the API. `deployment_branch_policy` limits deployments to
   // protected branches (= `main`); tags are not protected branches, so a tag-triggered
   // release.yml job must deploy from `main` (checkout the tag inside the job) — T5.3 decides.
-  // `bun run init` rewrites the login to the GitHub repo owner. If that owner is an organization
+  // The init script rewrites the login to the GitHub repo owner. If that owner is an organization
   // (organizations cannot review), change it to a member's login or a `Team` (`org/team-slug`);
   // apply fails with that hint otherwise.
   environments: {
