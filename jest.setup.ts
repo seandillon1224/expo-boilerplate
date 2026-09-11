@@ -16,6 +16,10 @@ jest.mock('expo-localization', () => ({
   getLocales: () => [{ languageCode: 'fr', languageTag: 'fr-FR', regionCode: 'FR' }],
 }));
 
+// Rozenite plugins are ESM dev-only packages that expect a DevTools connection;
+// the layout hook is inert under Jest.
+jest.mock('@/lib/devtools', () => ({ useDevTools: jest.fn() }));
+
 // Sentry needs native modules; the app only ever calls this small surface.
 jest.mock('@sentry/react-native', () => ({
   init: jest.fn(),

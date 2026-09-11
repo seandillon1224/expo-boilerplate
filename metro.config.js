@@ -1,4 +1,5 @@
 // https://docs.expo.dev/guides/customizing-metro/
+const { withRozenite } = require('@rozenite/metro');
 const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativewind } = require('nativewind/metro');
@@ -15,11 +16,21 @@ const config = getSentryExpoConfig(__dirname, {
   includeWebReplay: false,
 });
 
-module.exports = withNativewind(config, {
+const appConfig = withNativewind(config, {
   // Keep CSS variables as runtime references so light/dark tokens in global.css
   // resolve reactively on native (inlining also breaks PlatformColor in variables).
   inlineVariables: false,
   // className is wired explicitly through the wrappers in src/tw instead of
   // patching every react-native primitive.
   globalClassNamePolyfill: false,
+});
+
+/**
+ * Rozenite (docs/rozenite.md) adds the React Native DevTools plugin host as dev-server
+ * middleware. It is outermost so it sees the final config, and explicitly gated:
+ * `bun run start|ios|android` set WITH_ROZENITE=true; `expo export` / EAS Build never do,
+ * so the config is returned untouched for every bundle that ships.
+ */
+module.exports = withRozenite(appConfig, {
+  enabled: process.env.WITH_ROZENITE === 'true',
 });

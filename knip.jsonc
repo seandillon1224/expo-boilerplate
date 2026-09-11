@@ -9,6 +9,8 @@
     "src/__perf__/**/*.perf-test.tsx",
     // Styling primitives are a public surface for future screens; do not report unused exports.
     "src/tw/index.tsx",
+    // Reached only through the `__DEV__` require in src/lib/devtools.ts (kept out of prod bundles).
+    "src/lib/devtools-plugins.ts",
   ],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{js,ts}", "*.{js,ts}"],
   // Maestro CLI is installed outside package.json (~/.maestro/bin locally, curl installer in CI).
