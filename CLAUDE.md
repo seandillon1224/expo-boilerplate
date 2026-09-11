@@ -13,6 +13,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 
 - `bun run doctor` — toolchain check (Bun / Node / git required; EAS CLI + login, gh, Maestro, Xcode, Android SDK, Java per lane) with versions and fix hints; exit 1 only on a missing required tool, `--strict` fails warnings, `--json` for machines. Also the first `init` step (`--skip-doctor`). Expected versions: `EXPECTED` in `scripts/doctor.js` (`docs/doctor.md`)
 - `bun run init` — rebrand a fresh copy of the template (name / slug / scheme / bundle id / package / EAS project id / owner / GitHub repo), reset the queue ledger + stub `PLAN.md`, self-delete (`--keep-init`), optional fresh git history (`--fresh-git`, prompted), optional `repo:settings:apply` (`--apply-repo-settings`, prompted); `--yes` + flags for headless, `--dry-run` to preview. Rewrite + removal manifests and their drift guard in `scripts/init.js` / `scripts/__tests__/init.test.ts` (`docs/template-init.md`)
+- `bun run template:e2e` — template end-to-end test: copies this checkout to a temp dir, runs the headless `bun run init --fresh-git` there (no EAS project id, no `EXPO_TOKEN`) and the JS gate on the generated project's first commit; the `Template init` CI job. `--keep` leaves the copy behind, `--dir <path>` picks where (`docs/template-init.md`)
 - `bun run ios` / `android` / `web` — dev server (dev client / web)
 - `bun run lint` — ESLint (expo config + a11y + import sort + unused imports)
 - `bun run format` / `format:check` — Prettier
@@ -77,7 +78,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 
 ## CI/CD shape (see PLAN.md decisions 1–3, 12–13)
 
-- GitHub Actions (`.github/workflows/ci.yml`) = JS gate only (lint, typecheck, unit, knip, format, commitlint on the commit range, secret scan, bundle budget, Maestro web).
+- GitHub Actions (`.github/workflows/ci.yml`) = JS gate only (lint, typecheck, unit, knip, format, commitlint on the commit range, secret scan, bundle budget, Maestro web, template init).
 - `Fingerprint drift` (`ci.yml`, informational, not required) compares the production-variant `@expo/fingerprint` hash of base vs PR and upserts one PR comment + `fingerprint-drift` label on drift: merging means a staging build, and a store release (`vX.Y.Z` tag) before production promotion (`docs/release-ladder.md` → Fingerprint drift on PRs).
 - `.github/workflows/pr-title.yml` lints the PR title with the same `commitlint.config.js` (the title becomes the squash commit).
 - Required checks on `main` (every CI job except `Perf (Reassure)`), merge settings (squash-only, auto-merge on for Renovate), environments and labels are managed by `scripts/repo-settings.js`; run `bun run repo:settings:apply` once after creating a repo from the template (the init script offers to).

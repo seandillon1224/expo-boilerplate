@@ -33,12 +33,9 @@ const HEALTHY: Record<string, Result> = {
   'node --version': ok('v22.13.1\n'),
   'git --version': ok('git version 2.37.1\n'),
   'bun run eas --version': ok('eas-cli/23.2.0 darwin-arm64 node-v22.13.1\n', '$ eas --version\n'),
-  'bun run eas whoami --non-interactive': ok('seandillon1224@gmail.com\n'),
+  'bun run eas whoami --non-interactive': ok('dev@example.com\n'),
   'gh --version': ok('gh version 2.88.1 (2026-08-01)\n'),
-  'gh auth status': ok(
-    '',
-    'github.com\n  ✓ Logged in to github.com account seandillon1224 (keyring)\n',
-  ),
+  'gh auth status': ok('', 'github.com\n  ✓ Logged in to github.com account octocat (keyring)\n'),
   'maestro --version': ok(
     '2.10.0\n',
     'WARNING: A restricted method in java.lang.System has been called\n',
@@ -133,8 +130,8 @@ describe('runChecks (fake run, nothing real executed)', () => {
     expect(r.node.expected).toBe('22.x (.node-version)');
     expect(r.eas.found).toBe('23.2.0');
     expect(r.eas.expected).toBe('23.x (package.json eas-cli ^23)');
-    expect(r['eas-login'].found).toBe('seandillon1224@gmail.com');
-    expect(r['gh-auth'].found).toBe('logged in as seandillon1224');
+    expect(r['eas-login'].found).toBe('dev@example.com');
+    expect(r['gh-auth'].found).toBe('logged in as octocat');
     expect(r.maestro.found).toBe('2.10.0');
     expect(r.xcode.found).toBe('26.6, 2 simulators');
     expect(r.android.found).toBe('adb 1.0.41, emulator 37.1.11');

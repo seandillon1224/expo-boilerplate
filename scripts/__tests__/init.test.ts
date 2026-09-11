@@ -366,14 +366,21 @@ describe('planRemoval (fixture strings)', () => {
         'scripts/init.js': '',
         'scripts/__tests__/init.test.ts': '',
         'docs/template-init.md': '',
+        'scripts/template-e2e.js': '',
         'package.json':
-          '{\n  "scripts": {\n    "init": "node scripts/init.js",\n    "doctor": "node scripts/doctor.js",\n  }\n}',
+          '{\n  "scripts": {\n    "init": "node scripts/init.js",\n    "doctor": "node scripts/doctor.js",\n    "template:e2e": "node scripts/template-e2e.js",\n  }\n}',
         'README.md':
           'bun run doctor # check\nbun run init   # new app (docs/template-init.md)\nbun run ios\n\n- [Template init](docs/template-init.md) — x.\n- [JS gate](docs/js-gate.md) — y.\n',
         'CLAUDE.md':
-          '- `bun run doctor` — toolchain check. Also the first `init` step (`--skip-doctor`). Expected versions: x\n- `bun run init` — rebrand.\n- `bun run ios`\n',
+          '- `bun run doctor` — toolchain check. Also the first `init` step (`--skip-doctor`). Expected versions: x\n- `bun run init` — rebrand.\n- `bun run template:e2e` — e2e.\n- `bun run ios`\n- GitHub Actions = JS gate only (lint, Maestro web, template init).\n',
         'docs/doctor.md':
           'exact install command. It is also the first `init`\nstep (`--skip-doctor` to skip). No network access.\n',
+        '.github/workflows/ci.yml':
+          "jobs:\n  lint:\n    name: Lint\n\n  template-init:\n    # comment\n    name: Template init\n    steps:\n      - run: bun run template:e2e\n        env:\n          EXPO_TOKEN: ''\n",
+        'scripts/repo-settings.js':
+          "const REQUIRED_CHECKS = [\n  'Maestro web',\n  'Template init',\n  'PR title',\n];\n",
+        'docs/js-gate.md':
+          '| `Maestro web`   | `CI` / `maestro-web`   | x |\n| `Template init` | `CI` / `template-init` | y |\n| `Perf (Reassure)` | `CI` / `perf` | z |\n\n`Template init` is the slowest job and\nspans two lines.\n\nNext paragraph.\n\n| Fingerprint drift | a | b |\n| Template init     | `bun run template:e2e` | c |\n| PR title          | d | e |\n',
       })[file] ?? null;
     const after = Object.fromEntries(
       planRemoval(read).map((c: { file: string; after: string }) => [c.file, c.after]),
@@ -385,9 +392,16 @@ describe('planRemoval (fixture strings)', () => {
       'bun run doctor # check\nbun run ios\n\n- [JS gate](docs/js-gate.md) — y.\n',
     );
     expect(after['CLAUDE.md']).toBe(
-      '- `bun run doctor` — toolchain check. Expected versions: x\n- `bun run ios`\n',
+      '- `bun run doctor` — toolchain check. Expected versions: x\n- `bun run ios`\n- GitHub Actions = JS gate only (lint, Maestro web).\n',
     );
     expect(after['docs/doctor.md']).toBe('exact install command. No network access.\n');
+    expect(after['.github/workflows/ci.yml']).toBe('jobs:\n  lint:\n    name: Lint\n');
+    expect(after['scripts/repo-settings.js']).toBe(
+      "const REQUIRED_CHECKS = [\n  'Maestro web',\n  'PR title',\n];\n",
+    );
+    expect(after['docs/js-gate.md']).toBe(
+      '| `Maestro web`   | `CI` / `maestro-web`   | x |\n| `Perf (Reassure)` | `CI` / `perf` | z |\n\nNext paragraph.\n\n| Fingerprint drift | a | b |\n| PR title          | d | e |\n',
+    );
   });
 
   it('fails loudly when a file or line is missing', () => {
@@ -434,7 +448,9 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
   it('every self-delete manifest entry matches the checked-in files', () => {
     for (const change of planRemoval(read)) {
       expect(change.after).not.toBe(change.before);
-      expect(change.after).not.toMatch(/bun run init|template-init|scripts\/init\.js/);
+      expect(change.after).not.toMatch(
+        /bun run init|template-init|scripts\/init\.js|template:e2e|'Template init'|`Template init`|template init\)/,
+      );
     }
     for (const file of REMOVAL.files) expect(read(file)).not.toBeNull();
   });
@@ -556,12 +572,16 @@ describeTemplate('integration (headless init on a temp copy)', () => {
 
     for (const file of REMOVAL.files) expect(exists(dir, file)).toBe(false);
     expect(exists(dir, 'scripts/doctor.js')).toBe(true);
+    expect(readIn(dir, '.github/workflows/ci.yml')).not.toMatch(/template-init|Template init/);
+    expect(readIn(dir, 'scripts/repo-settings.js')).not.toContain("'Template init'");
+    expect(readIn(dir, 'docs/js-gate.md')).not.toMatch(/Template init|template:e2e/);
     expect(exists(dir, 'scripts/__tests__/doctor.test.ts')).toBe(true);
     expect(exists(dir, 'docs/doctor.md')).toBe(true);
 
     const pkg = JSON.parse(readIn(dir, 'package.json'));
     expect(pkg.name).toBe('acme-mobile');
     expect(pkg.scripts.init).toBeUndefined();
+    expect(pkg.scripts['template:e2e']).toBeUndefined();
     expect(pkg.scripts.doctor).toBe('node scripts/doctor.js');
     expect(readIn(dir, 'README.md')).not.toMatch(/bun run init|template-init/);
     expect(readIn(dir, 'CLAUDE.md')).not.toMatch(

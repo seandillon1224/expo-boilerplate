@@ -11,14 +11,14 @@ bun run doctor          # toolchain check: Bun / Node / git / EAS / gh / Maestro
 bun run init            # interactive; defaults derived from the folder name
 ```
 
-Headless (what the CI end-to-end test, #56, runs):
+Headless (exactly what the [end-to-end test](#end-to-end-test) runs, with no EAS project yet):
 
 ```sh
-bun run init --yes --fresh-git \
+bun run init --yes --skip-doctor --fresh-git \
   --name "Acme Mobile" --slug acme-mobile --scheme acme \
   --bundle-id com.acme.mobile --package com.acme.mobile \
   --owner acme-team --github-repo acme-inc/acme-mobile \
-  --eas-project-id 11111111-2222-4333-8444-555555555555
+  --eas-project-id=
 ```
 
 Add `--dry-run` to print the per-file diff and the step summary without writing (or deleting)
@@ -133,8 +133,35 @@ organization, first change the `uat` / `production` reviewer in `scripts/repo-se
 member login or a team (`{ type: 'Team', login: 'org/team-slug' }`) — organizations cannot review
 deployments, and apply says so.
 
-## Left for the sibling tickets
+## End-to-end test
 
-The next tickets append to `steps` rather than growing the rewrite step:
+`bun run template:e2e` (`scripts/template-e2e.js`) is the proof of PLAN.md decision 4's definition
+of done — "`bun run init` on a fresh copy produces a project whose JS gate passes on its first
+commit" — and the `Template init` job in `.github/workflows/ci.yml` runs it on every PR and push
+to `main` (required check, [JS gate](js-gate.md)). It never touches this checkout; everything
+happens in a throwaway copy:
 
-- **#56** CI end-to-end test of the template: headless init on a fresh copy, then the JS gate.
+1. Copies the working tree (tracked and untracked files, nothing ignored) to a temp dir and makes
+   one snapshot commit, so `--fresh-git` sees a clean tree.
+2. `bun install --frozen-lockfile` there (the rewrite step runs prettier).
+3. Runs the headless command above with no `EXPO_TOKEN` in the environment: init must not need
+   EAS, and nothing may touch the network.
+4. Asserts `bun.lock` is byte-identical to the template's, the history is exactly one commit on
+   `main` with the `chore: initialize acme-mobile from expo-boilerplate` subject (checked with
+   `bunx commitlint --last`), the tree is clean, every `REMOVAL` entry is gone, and
+   `bun install --frozen-lockfile` is still a no-op against the rewritten `package.json`.
+5. Runs the gate in the copy: `lint`, `typecheck`, `test`, `knip`, `i18n:check`, `format:check`,
+   `env:check`.
+6. `bunx expo config --type public` with `APP_VARIANT=production` resolves the new name, slug,
+   scheme, bundle id and package, with no `extra.eas` / `updates.url` (empty project id).
+7. Scans every tracked file with the same `scanLeftovers` init uses and **fails** on any template
+   identifier outside `KEEP` (init itself only warns). `bun.lock` keeps its `"name":
+"expo-boilerplate"` root entry (Bun never rewrites it and it is not consulted by
+   `--frozen-lockfile`), which is why the scan skips the lockfile.
+8. Checks `git status --porcelain` of this checkout is exactly what it was before.
+
+The copy is removed on success and kept (path printed) on failure; `--keep` always keeps it and
+`--dir <path>` chooses where. About 30 s locally and a couple of minutes in CI (two installs plus the full gate
+on the copy); no native toolchain, no EAS credits. The script is in the self-delete manifest, as
+are the `template:e2e` package script, the `Template init` job, its `REQUIRED_CHECKS` entry and
+the `docs/js-gate.md` rows: none of them make sense once the project is no longer the template.
