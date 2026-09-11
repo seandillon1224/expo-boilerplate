@@ -3,7 +3,7 @@
 # dependencies
 node_modules/
 
-# Expo
+# Expo (`.expo/` also holds the `bun run atlas:export` output, .expo/atlas.jsonl)
 .expo/
 dist/
 dist-*/

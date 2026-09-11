@@ -19,6 +19,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run knip` — dead code / unused deps
 - `bun run perf:baseline` then `bun run perf` — Reassure render-perf compare (`.reassure/output.md`); `perf:gate` fails on significant regressions, `perf:check` measures machine stability
 - `bun run export:web` (or `export:ios` / `export:android`) then `bun run budget` — JS-only export + gzip bundle-budget check (`bundle-budget.json`)
+- `bun run atlas` — dev server with Expo Atlas at `http://localhost:8081/_expo/atlas`; `bun run atlas:export` (or `atlas:export:web|ios|android`) — release export with Atlas on, then serve `.expo/atlas.jsonl` (`atlas:serve` re-opens it). Atlas is `EXPO_ATLAS=true`-gated and never set in CI / EAS (`docs/atlas.md`)
 - `bun run e2e:web` — Maestro web flows (`.maestro/flows`, tag `web`) against the static export; needs `bun run export:web` and `bun run serve:web` running first
 - `bun run e2e:build` → `e2e:repack` → `e2e:ios` / `e2e:android` — native lane on a laptop (fingerprint-matched EAS build → JS repack → Maestro on simulator/emulator); mirrors `.eas/workflows` jobs, see `docs/native-e2e.md`
 - `bun run fingerprint` — native fingerprint hashes (= EAS Update runtime version) for iOS/Android; `--platform ios|android`, `--debug` (see `docs/environments-and-secrets.md`)
