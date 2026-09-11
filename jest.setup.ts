@@ -4,6 +4,13 @@ import '@testing-library/react-native';
 // Screens call useTranslation() and expect the catalog to be registered.
 import '@/i18n';
 
+// `bun run perf` (Reassure) runs Jest with this same setup and marks its child process with
+// REASSURE_OUTPUT_FILE; only then load the perf configuration so unit runs never import reassure.
+if (process.env.REASSURE_OUTPUT_FILE) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('./reassure.setup');
+}
+
 // AsyncStorage has no native module under Jest; use the in-memory mock it ships.
 jest.mock('@react-native-async-storage/async-storage', () =>
   // eslint-disable-next-line @typescript-eslint/no-require-imports
