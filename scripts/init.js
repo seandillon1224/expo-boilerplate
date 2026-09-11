@@ -12,6 +12,7 @@
  *     --package com.acme.app --scheme acme --eas-project-id <uuid> --github-repo acme/acme-app
  *   bun run init --dry-run ...         # print the diff and the summary table, write nothing
  *   bun run init --yes --eas-project-id= ...   # no EAS project yet (`=` form: bun drops an empty "")
+ *   bun run init --skip-doctor ...     # skip the toolchain check (`bun run doctor`) that runs first
  *
  * Design:
  *   - `MANIFEST` lists every (file, pattern) init touches. A pattern that matches fewer times than
@@ -19,8 +20,9 @@
  *     breaks `scripts/__tests__/init.test.ts` (the drift guard) instead of silently leaving it behind.
  *   - After rewriting, tracked files are scanned for leftover template identifiers; hits are
  *     reported as warnings (never failures) and `KEEP` lists the ones that are intentional.
- *   - `steps` is the ordered list of what init does. #54 appends "reset queue ledger", "clear
- *     changelog", "fresh git history" and "self-delete" steps; #53 prepends the toolchain check.
+ *   - `steps` is the ordered list of what init does: the toolchain check (#53, `scripts/doctor.js`)
+ *     first, then rewrite + scan. #54 appends "reset queue ledger", "clear changelog", "fresh git
+ *     history" and "self-delete" steps. A step's optional `when({ args })` can opt it out.
  *
  * Plain Node/JS (no @types/node in tsconfig `types`), same as the other scripts; runs under Bun.
  */
@@ -29,6 +31,7 @@ const os = require('node:os');
 const path = require('node:path');
 const readline = require('node:readline/promises');
 const { spawnSync } = require('node:child_process');
+const { doctorStep } = require('./doctor');
 
 /** The template's own identity: the values every pattern below matches on. */
 const TEMPLATE = Object.freeze({
@@ -111,7 +114,7 @@ const FIELDS = [
   },
 ];
 
-const FLAGS = new Set([...FIELDS.map((f) => f.flag), 'yes', 'dry-run', 'help']);
+const FLAGS = new Set([...FIELDS.map((f) => f.flag), 'yes', 'dry-run', 'skip-doctor', 'help']);
 
 /** Derive sensible defaults from the working-directory name and the OS user. */
 function deriveDefaults(folderName, username = os.userInfo().username) {
@@ -155,7 +158,7 @@ function parseArgs(argv) {
     const eq = arg.indexOf('=');
     const flag = eq === -1 ? arg.slice(2) : arg.slice(2, eq);
     if (!FLAGS.has(flag)) throw new Error(`init: unknown argument --${flag}`);
-    if (flag === 'yes' || flag === 'dry-run' || flag === 'help') {
+    if (flag === 'yes' || flag === 'dry-run' || flag === 'skip-doctor' || flag === 'help') {
       out[flag] = true;
       continue;
     }
@@ -426,11 +429,13 @@ function scanLeftovers(files, template = TEMPLATE) {
 /* ------------------------------------------------------------------------------------------ */
 
 /**
- * Ordered steps; each gets `{ root, identity, dryRun, log }`. Later tickets append to this list:
- *   #53 toolchain check (prepend), #54 reset ledger / clear changelog / fresh git history /
- *   self-delete (append), #55 repo settings.
+ * Ordered steps; each gets `{ root, identity, dryRun, log, results }` and may declare
+ * `when({ args })` to opt out. Later tickets append to this list: #54 reset ledger / clear
+ * changelog / fresh git history / self-delete, #55 repo settings.
  */
 const steps = [
+  // Fails init (nothing written) when Bun / Node / git are missing; `--skip-doctor` skips it.
+  doctorStep,
   {
     id: 'rewrite',
     title: 'Rewrite template identifiers',
@@ -519,7 +524,7 @@ const steps = [
 
 function usage() {
   const flags = FIELDS.map((f) => `  --${f.flag.padEnd(16)} ${f.label}`).join('\n');
-  return `Usage: bun run init [--yes] [--dry-run] [flags]\n\n${flags}\n  --yes              no prompts: flags + derived defaults\n  --dry-run          print the diff and summary, write nothing\n\nSee docs/template-init.md.`;
+  return `Usage: bun run init [--yes] [--dry-run] [--skip-doctor] [flags]\n\n${flags}\n  --yes              no prompts: flags + derived defaults\n  --dry-run          print the diff and summary, write nothing\n  --skip-doctor      skip the toolchain check (bun run doctor)\n\nSee docs/template-init.md.`;
 }
 
 async function collectIdentity(args, { interactive, root, log }) {
@@ -581,6 +586,7 @@ async function main(argv) {
   );
   const results = {};
   for (const step of steps) {
+    if (step.when && !step.when({ args })) continue;
     log(`\n▶ ${step.title}`);
     results[step.id] = await step.run({
       root,

@@ -32,6 +32,8 @@ bun run e2e:ios                      # add --keep to leave the simulator running
 
 ### Prerequisites
 
+`bun run doctor` checks all of these (versions + install hints, `docs/template-init.md` → Toolchain check).
+
 | Tool                                  | Needed by                     | Notes                                                                                                                                                                                                                                                           |
 | ------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | EAS login (`bun run eas login`)       | `e2e:build`                   | Repo-pinned `eas-cli`; `EXPO_TOKEN` works too. `eas build:download` caches the artifact in its own directory; the script copies it under `e2e/builds/`.                                                                                                         |
