@@ -141,7 +141,7 @@ retries it.
 | `IOS_BUILDS` | `disabled` | `build_ios`  | The iOS ad hoc credentials for `staging` exist ([iOS runbook](environments-and-secrets.md#ios-runbook-owner), steps 1–3). Until then every iOS build fails at `Credentials are not set up`.                                                                                                                                                                                                                                                                                       |
 | `HOSTING`    | `disabled` | `deploy_web` | The owner has made the project's first deployment by hand — it claims the dev-domain and is interactive: `bun run export:web && bun run eas deploy --environment preview --export-dir dist-web --dev-domain expo-boilerplate --alias staging`. Prove the export is deployable without spending anything with `--dry-run` (writes `deploy.tar.gz`, gitignored). Flip it here and in `preview-web.yml` (PR previews, above) together. `bun run init` (T7.1) renames the dev-domain. |
 
-Slack has no constant: create the incoming webhook (T5.6 wires the channel) and store it as
+Slack has no constant: create the incoming webhook ([Build sharing → Slack channel](build-sharing.md#slack-channel)) and store it as
 `SLACK_WEBHOOK_URL` on EAS (`secret`, `preview` environment — the job reads it from there, never
 from GitHub); the next run posts. All three prerequisites and the Expo GitHub App link (required for
 the `push` trigger) are on the
