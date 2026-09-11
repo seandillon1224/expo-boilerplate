@@ -12,7 +12,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 ## Commands
 
 - `bun run doctor` — toolchain check (Bun / Node / git required; EAS CLI + login, gh, Maestro, Xcode, Android SDK, Java per lane) with versions and fix hints; exit 1 only on a missing required tool, `--strict` fails warnings, `--json` for machines. Also the first `init` step (`--skip-doctor`). Expected versions: `EXPECTED` in `scripts/doctor.js` (`docs/doctor.md`)
-- `bun run init` — rebrand a fresh copy of the template (name / slug / scheme / bundle id / package / EAS project id / owner / GitHub repo), reset the queue ledger + stub `PLAN.md`, self-delete (`--keep-init`), optional fresh git history (`--fresh-git`, prompted); `--yes` + flags for headless, `--dry-run` to preview. Rewrite + removal manifests and their drift guard in `scripts/init.js` / `scripts/__tests__/init.test.ts` (`docs/template-init.md`)
+- `bun run init` — rebrand a fresh copy of the template (name / slug / scheme / bundle id / package / EAS project id / owner / GitHub repo), reset the queue ledger + stub `PLAN.md`, self-delete (`--keep-init`), optional fresh git history (`--fresh-git`, prompted), optional `repo:settings:apply` (`--apply-repo-settings`, prompted); `--yes` + flags for headless, `--dry-run` to preview. Rewrite + removal manifests and their drift guard in `scripts/init.js` / `scripts/__tests__/init.test.ts` (`docs/template-init.md`)
 - `bun run ios` / `android` / `web` — dev server (dev client / web)
 - `bun run lint` — ESLint (expo config + a11y + import sort + unused imports)
 - `bun run format` / `format:check` — Prettier
@@ -30,7 +30,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run env:check` — validate `EXPO_PUBLIC_*` against the Zod schema (also runs at app startup)
 - `bun run env:pull` — pull EAS environment variables into `.env.local` (`EAS_ENV=preview|production` or `env:pull:preview` / `env:pull:production`); uses the repo-pinned `eas-cli`
 - `bun run i18n:extract` / `i18n:check` — sync `src/i18n/locales/*/common.json` with `t()` keys in code / fail if out of sync
-- `bun run repo:settings:apply` / `repo:settings:check` — push / diff `main` branch protection + merge settings (`scripts/repo-settings.js`; plain `repo:settings` is a dry run)
+- `bun run repo:settings:apply` / `repo:settings:check` — push / diff `main` branch protection + merge settings + `uat`/`production` environments + the automation's labels (`scripts/repo-settings.js`; plain `repo:settings` is a dry run; `--only protection|repo|environments|labels` for a subset). New labels used by workflows or skills go into `LABELS` there.
 - Full local gate before a PR: `bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check`
 
 ## Conventions
@@ -80,7 +80,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - GitHub Actions (`.github/workflows/ci.yml`) = JS gate only (lint, typecheck, unit, knip, format, commitlint on the commit range, secret scan, bundle budget, Maestro web).
 - `Fingerprint drift` (`ci.yml`, informational, not required) compares the production-variant `@expo/fingerprint` hash of base vs PR and upserts one PR comment + `fingerprint-drift` label on drift: merging means a staging build, and a store release (`vX.Y.Z` tag) before production promotion (`docs/release-ladder.md` → Fingerprint drift on PRs).
 - `.github/workflows/pr-title.yml` lints the PR title with the same `commitlint.config.js` (the title becomes the squash commit).
-- Required checks on `main` (every CI job except `Perf (Reassure)`) and merge settings (squash-only, auto-merge on for Renovate) are managed by `scripts/repo-settings.js`; run `bun run repo:settings:apply` once after creating a repo from the template.
+- Required checks on `main` (every CI job except `Perf (Reassure)`), merge settings (squash-only, auto-merge on for Renovate), environments and labels are managed by `scripts/repo-settings.js`; run `bun run repo:settings:apply` once after creating a repo from the template (the init script offers to).
 - EAS Workflows = native lane (fingerprint → get-build/build → repack → maestro → update → approval → submit).
   Both Maestro platforms run on every PR; iOS can be tiered down via the `IOS_MODE` constant / `ios_mode` input in `.eas/workflows/e2e.yml` (`always` | `main-only` | `label`, see `docs/native-e2e.md`).
 - EAS Workflows live in `.eas/workflows/*.yml` (one file per workflow: `register-device.yml`, `e2e.yml` = the PR native E2E check, see `docs/native-e2e.md`; `preview-web.yml` = PR web preview to the EAS Hosting `pr-<number>` alias + PR comment (behind `HOSTING`); `deploy-staging.yml` = push-to-main staging rung, `promote.yml` = manual, approval-gated uat / production republish of a staging update group, `release.yml` = tag-triggered store release, dispatched by `.github/workflows/release.yml` behind the `production` GitHub Environment; see `docs/release-ladder.md`). Validate with `bun run eas workflow:validate <file>`; run with `bun run eas workflow:run <file>`.

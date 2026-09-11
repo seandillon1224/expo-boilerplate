@@ -120,8 +120,8 @@ on both branches lists every source that fed the hash ([environments and
 secrets](environments-and-secrets.md#runtime-version--native-fingerprint)). The comparison is
 relative, so build-time env such as `SENTRY_ORG` (unset in Actions, set on EAS) does not matter:
 both sides are computed the same way. Fork PRs get a read-only token, so there the verdict lands
-only in the job summary. The `fingerprint-drift` label was created by hand (`gh label create`);
-#55 folds it into the repo-settings script.
+only in the job summary. The `fingerprint-drift` label is managed by `scripts/repo-settings.js`
+(`bun run repo:settings:apply --only labels`, see [JS gate](js-gate.md#changing-the-required-set)).
 
 ## Staging (automatic)
 

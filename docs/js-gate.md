@@ -71,9 +71,24 @@ The required checks live in code, not in the GitHub UI:
 
 1. Edit `REQUIRED_CHECKS` (or the rest of `DESIRED`) in `scripts/repo-settings.js`.
 2. `bun run repo:settings` to preview the `gh api` calls (dry run, default).
-3. `bun run repo:settings:apply` to `PUT` branch protection and `PATCH` repo settings (needs
-   `gh auth login` with admin on the repo).
-4. `bun run repo:settings:check` to diff live state against `DESIRED`; it exits 1 on drift.
+3. `bun run repo:settings:apply` to `PUT` branch protection, `PATCH` repo settings, `PUT` the
+   `uat` / `production` environments and upsert the labels (needs `gh auth login` with admin on
+   the repo; the script refuses to start otherwise).
+4. `bun run repo:settings:check` to diff live state against `DESIRED`; it exits 1 on drift and
+   lists every drifted field (`labels.needs-human.description: want ..., got ...`).
+
+Every mode takes `--only <section>[,<section>]` to work on a subset of `protection`, `repo`,
+`environments`, `labels` — e.g. `bun run repo:settings:check --only labels` after adding a label,
+or `--only protection` after renaming a job. The repo is whatever `gh repo view` resolves from the
+`origin` remote (`GH_REPO=owner/name` overrides).
+
+`DESIRED.labels` holds every label the automation adds or filters on — `epic:E*`, `in-progress`
+and `needs-human` (`/ship-next`), `deep-dive`, `flaky-flow` + `e2e` (the flaky-flow issue
+template), `e2e:ios` (`.eas/workflows/e2e.yml`), `fingerprint-drift` (the `Fingerprint drift`
+job) and `dependencies` (Renovate) — with a color and description each. Apply creates missing
+labels and patches a changed color or description; it never deletes a label it does not know
+about, so GitHub's defaults and hand-made labels survive. New automation that adds a label goes
+into `LABELS` first, then `bun run repo:settings:apply --only labels`.
 
 Adding a job to `ci.yml` does not gate merge until its `name:` is in `REQUIRED_CHECKS` and the
 script is re-applied. The reverse is the trap: **renaming a job's `name:` silently un-gates it**.
