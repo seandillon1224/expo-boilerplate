@@ -97,7 +97,10 @@ Deliberately not in the template (PLAN.md decision 5: no auth, backend or forms)
 
 - [Template init](docs/template-init.md) — `bun run init`: what it rewrites (app config, workflow envs, badges, docs), the steps (ledger + `PLAN.md` reset, self-delete, optional fresh git history), the flags, the headless form, and `bun run template:e2e`.
 - [Toolchain check](docs/doctor.md) — `bun run doctor`: every tool the lanes need, the expected versions and why, install hints, `--strict` / `--json`.
+- [CI overview](docs/ci-overview.md) — the map of both CI systems: every GitHub Actions job and EAS workflow, triggers, gates, repo constants (`HOSTING` / `IOS_MODE` / `IOS_BUILDS` / `IOS_RELEASE` / `PLAY_SUBMIT`), what each needs, and the "when something is red" triage table.
 - [JS gate: required checks](docs/js-gate.md) — what gates merge, how merging works, running the gate locally.
+- [Testing](docs/testing.md) — the pyramid as built: Jest + RNTL (async v14 rules, what `jest.setup.ts` mocks, mocking env / i18n / query), script tests, Reassure, Maestro web and native lanes, the template e2e, what runs locally vs CI, how to write one more of each.
+- [Conventions](docs/conventions.md) — the house rules for humans: Bun-only, Conventional Commits and hooks, source layout and naming, `testID` / `t()` / `@/lib/env` / CNG / `APP_VARIANT` / `useUpdatePolicy` / states and error boundaries, docs conventions, how to change a locked decision.
 - [Environments and secrets](docs/environments-and-secrets.md) — EAS build profiles (`eas.json`), EAS environment variables as the source of truth, `env:pull`, the Zod env schema, runtime version = fingerprint.
 - [Native E2E (iOS / Android)](docs/native-e2e.md) — reproducing the EAS Workflows native lane locally: `bun run e2e:build`, `e2e:repack`, `e2e:ios` / `e2e:android`.
 - [Release ladder](docs/release-ladder.md) — the runbook: PR previews → `main` → staging (automatic) → UAT → production (approval-gated promotions) → store release on a `vX.Y.Z` tag; channel / branch / variant mapping, rollback per channel (`eas update:rollback` / `update:republish` / roll-back-to-embedded), hotfix path.
