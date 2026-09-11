@@ -36,6 +36,8 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 
 ## Conventions
 
+The human-readable version of these rules, with the reasoning, is `docs/conventions.md`; this list stays the agent brief.
+
 - **Conventional Commits** are enforced by commitlint (commit-msg hook) and the PR-title check.
   Subject must be lowercase; PR titles become the squash commit message.
 - Lefthook runs eslint/prettier on staged files (pre-commit) and typecheck + knip + env/i18n checks (pre-push).
@@ -87,6 +89,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - EAS Workflows live in `.eas/workflows/*.yml` (one file per workflow: `register-device.yml`, `e2e.yml` = the PR native E2E check, see `docs/native-e2e.md`; `preview-web.yml` = PR web preview to the EAS Hosting `pr-<number>` alias + PR comment (behind `HOSTING`); `deploy-staging.yml` = push-to-main staging rung, `promote.yml` = manual, approval-gated uat / production republish of a staging update group, `release.yml` = tag-triggered store release, dispatched by `.github/workflows/release.yml` behind the `production` GitHub Environment; see `docs/release-ladder.md`). Validate with `bun run eas workflow:validate <file>`; run with `bun run eas workflow:run <file>`.
 - `main` → OTA to `staging` (`.eas/workflows/deploy-staging.yml`, see `docs/release-ladder.md`); UAT/production are manual, approval-gated promotions of the same update group. Store builds: push `vX.Y.Z` → `.github/workflows/release.yml` (reviewer) → `.eas/workflows/release.yml` (build + TestFlight / Play internal, skipped when the fingerprint is unchanged).
 - Which checks gate merge, how merging/auto-merge works, how to change the required set: `docs/js-gate.md`.
+- Entry point for anything that runs in CI (every GitHub Actions job and EAS workflow, triggers, repo constants, what each needs, red-check triage): `docs/ci-overview.md`. Test layers and how to write each kind: `docs/testing.md`.
 - Build sharing (PLAN.md decision 12): install page + QR per internal build, links posted by the `slack` jobs (`SLACK_WEBHOOK_URL`, EAS secret) and `github-comment`; engineers use Expo Orbit: `docs/build-sharing.md`. Designer / tester one-pager: `docs/install-staging-app.md`.
 
 ## Queue process

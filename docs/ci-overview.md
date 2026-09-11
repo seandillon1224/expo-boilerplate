@@ -1,0 +1,140 @@
+# CI overview
+
+Two systems run the pipeline (PLAN.md decision 1). **GitHub Actions** is the JS gate: everything
+that needs no simulator, native toolchain or EAS credits, wired as required checks on `main`.
+**EAS Workflows** is the native lane and the delivery ladder: fingerprint-keyed builds, Maestro on
+iOS and Android, OTA updates, web hosting, approvals and store submission. This page is the map of
+both — every workflow, what triggers it, what it guards, what it needs — and where to go when one
+of them is red. The README's pipeline diagram is the picture; this is the legend.
+
+```text
+pull request ──► GitHub Actions  CI (required checks)  ─┐
+             ──► GitHub Actions  PR title (required)    ├─► squash-merge to main
+             ──► EAS  E2E (native)   (Maestro iOS + Android, PR comment) ─┘
+             ──► EAS  Preview web    (pr-<n> alias + PR comment, behind HOSTING)
+
+push to main ──► EAS  Deploy staging (build on fingerprint miss → OTA staging → web staging alias → Slack)
+manual       ──► EAS  Promote        (approval → fingerprint gate → republish to uat | production → web alias)
+vX.Y.Z tag   ──► GitHub Actions  Release (production Environment reviewer) ──► EAS  Release (store builds → TestFlight / Play internal)
+```
+
+## GitHub Actions (`.github/workflows/`)
+
+Jobs are named exactly as branch protection matches them (`REQUIRED_CHECKS` in
+`scripts/repo-settings.js`); the full per-check table with durations and artifacts is
+[JS gate → Checks](js-gate.md#checks).
+
+| Workflow / job                                 | Trigger                          | Required | Guards                                                                                                                                | Config lives in                                                       |
+| ---------------------------------------------- | -------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `CI` / `Lint`                                  | PR, push to `main`               | yes      | ESLint: expo config, import sort, unused imports, RN a11y, the local `require-testid` rule                                            | `eslint.config.js`, `eslint/rules/`                                   |
+| `CI` / `Typecheck`                             | PR, push to `main`               | yes      | `tsc --noEmit` (TypeScript strict, typed routes)                                                                                      | `tsconfig.json`, `scripts/ensure-expo-env.js`                         |
+| `CI` / `Format`                                | PR, push to `main`               | yes      | Prettier on everything not in `.prettierignore` (markdown included)                                                                   | `.prettierrc`, `.prettierignore`                                      |
+| `CI` / `Knip`                                  | PR, push to `main`               | yes      | Dead code, unused exports and dependencies                                                                                            | `knip.jsonc`                                                          |
+| `CI` / `Env check`                             | PR, push to `main`               | yes      | `EXPO_PUBLIC_*` against the Zod schema                                                                                                | `src/lib/env.schema.ts`, `scripts/env-check.ts`, `.env.example`       |
+| `CI` / `i18n check`                            | PR, push to `main`               | yes      | `t()` keys in code ↔ `src/i18n/locales/*/common.json`                                                                                 | `i18next-parser.config.js`                                            |
+| `CI` / `Unit tests`                            | PR, push to `main`               | yes      | Jest + `jest-expo` + RNTL with coverage; JUnit + lcov artifacts                                                                       | `jest.config.js`, `jest.setup.ts` ([Testing](testing.md))             |
+| `CI` / `Commitlint`                            | PR, push to `main`               | yes      | Every commit in the range is a Conventional Commit                                                                                    | `commitlint.config.js`                                                |
+| `CI` / `Secret scan`                           | PR, push to `main`               | yes      | gitleaks over the commit range                                                                                                        | `.gitleaks.toml`                                                      |
+| `CI` / `Bundle budget (web \| ios \| android)` | PR, push to `main`               | yes      | JS-only `expo export` per platform, gzip size under budget; the web export feeds `Maestro web`                                        | `bundle-budget.json`, `scripts/bundle-budget.js`                      |
+| `CI` / `Maestro web`                           | PR, push to `main`               | yes      | Maestro `web`-tagged flows against the served static export                                                                           | `.maestro/` (`flows/web/*`), `scripts/serve-web.js`                   |
+| `CI` / `Template init`                         | PR, push to `main`               | yes      | `bun run template:e2e`: headless `bun run init` on a copy, then the gate on the generated project ([Template init](template-init.md)) | `scripts/template-e2e.js`, `scripts/init.js`                          |
+| `CI` / `Perf (Reassure)`                       | PR only                          | **no**   | Render-time compare of PR base vs head on the same runner; red on a significant slowdown ([Render-perf tests](perf-tests.md))         | `reassure.setup.ts`, `scripts/reassure-gate.js`, `src/__perf__/`      |
+| `CI` / `Fingerprint drift`                     | PR only                          | **no**   | Production-variant `@expo/fingerprint` of base vs head; one upserted PR comment + `fingerprint-drift` label on drift, never red       | `scripts/fingerprint.js` ([Release ladder](release-ladder.md))        |
+| `PR title` / `PR title`                        | PR opened / edited / synchronize | yes      | The PR title (= squash commit subject) passes commitlint                                                                              | `commitlint.config.js`                                                |
+| `Release` / `Trigger EAS release`              | push of a `v*` tag               | n/a      | Waits for the `production` GitHub Environment reviewer, then dispatches `.eas/workflows/release.yml` with `tag=<tag>`                 | `scripts/repo-settings.js` (environments), `EXPO_TOKEN` (repo secret) |
+
+All `CI` jobs share `.github/actions/setup` (Bun from `.bun-version`, install cache,
+`bun install --frozen-lockfile`) and start in parallel except `Maestro web`, which waits for the
+three `Bundle budget` entries. `CI` cancels the previous run on a new push to the same ref.
+Permissions are `contents: read` everywhere except `Fingerprint drift` (`pull-requests: write`
+for its comment and label).
+
+What the gate needs from outside the repo: nothing but `GITHUB_TOKEN`, except `Release`, which
+needs the `EXPO_TOKEN` repository secret and a reviewer on the `production` Environment
+([Environments and secrets → Human setup checklist](environments-and-secrets.md#human-setup-checklist-owner)).
+
+## EAS Workflows (`.eas/workflows/`)
+
+One file per workflow, validated with `bun run eas workflow:validate <file>` (16 KiB cap per
+file) and run by hand with `bun run eas workflow:run <file> [-F input=value]`. `pull_request` /
+`push` triggers only fire once the Expo GitHub App is linked to the repository, and never for PRs
+from forks ([JS gate → How EAS checks appear on the PR](js-gate.md#how-eas-checks-appear-on-the-pr-wired-in-e4)).
+
+| File                  | Name                   | Trigger                                                                                                              | Jobs                                                                                                                                                         | Gates and approvals                                                                                                                                                                            | Constants                    | Runbook                                                                              |
+| --------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------ |
+| `e2e.yml`             | `E2E (native)`         | PR to `main`; PR labelled `e2e:ios`; `workflow_dispatch` (`push` off by default)                                     | `fingerprint` → per platform `get_build` → `build` (miss) \| `repack` (hit) → `maestro` → `comment` (PR comment)                                             | Reports as a PR check once the GitHub App is linked; not in `REQUIRED_CHECKS` until its context string is copied there                                                                         | `IOS_MODE`                   | [Native E2E → Workflow](native-e2e.md#workflow-easworkflowse2eyml)                   |
+| `e2e-quarantine.yml`  | `E2E (quarantine)`     | `workflow_dispatch` (weekly `schedule` commented out until a flow is tagged)                                         | Same shape as `e2e.yml` with `include_tags: [quarantine]`, `retries: 0`, no comment                                                                          | Non-blocking                                                                                                                                                                                   | —                            | [Native E2E → Flake budget](native-e2e.md#flake-budget)                              |
+| `preview-web.yml`     | `Preview web`          | PR to `main`; `workflow_dispatch`                                                                                    | `deploy_web` (export + `eas deploy` to the `pr-<number>` alias) → `comment`                                                                                  | Both jobs skipped while `HOSTING` is disabled                                                                                                                                                  | `HOSTING`                    | [Release ladder → PR previews](release-ladder.md#pr-previews-web-automatic)          |
+| `deploy-staging.yml`  | `Deploy staging`       | push to `main`; `workflow_dispatch`                                                                                  | `fingerprint` → `get_build` / `build` (staging, both platforms) → `update` (`staging` channel) → `observe` (informational) → `deploy_web` → `slack`          | `update` runs whenever the fingerprint job succeeded, even if a build failed; `build_ios` behind `IOS_BUILDS`, `deploy_web` behind `HOSTING`, `slack` skips itself without `SLACK_WEBHOOK_URL` | `IOS_BUILDS`, `HOSTING`      | [Release ladder → Staging](release-ladder.md#staging-automatic)                      |
+| `promote.yml`         | `Promote`              | `workflow_dispatch` (`target=uat \| production`, optional `update_group_id`)                                         | `resolve` → `approve` (`require-approval`) → `fingerprint_<target>` + `get_build` → `gate` → uat `build` on a miss → `republish` → `promote_web_*` → `slack` | expo.dev approval; the fingerprint gate cuts a `uat` build on a miss and **refuses** production on a miss (go through the store release)                                                       | `IOS_BUILDS`, `HOSTING`      | [Release ladder → UAT and production](release-ladder.md#uat-and-production-manual)   |
+| `release.yml`         | `Release`              | `workflow_dispatch` only — dispatched by `.github/workflows/release.yml` after the `production` Environment reviewer | `version_check` (tag = `app.config.ts` version) → `fingerprint` → `check_<p>` (store build with this fingerprint?) → `gate` → `build` → `submit` → `notify`  | Skipped green when the fingerprint is unchanged since the last store build (`force=yes` overrides); iOS build + TestFlight behind `IOS_RELEASE`, Play submit behind `PLAY_SUBMIT`              | `IOS_RELEASE`, `PLAY_SUBMIT` | [Release ladder → Store release](release-ladder.md#store-release-tag)                |
+| `observe-check.yml`   | `Observe check`        | `workflow_dispatch` (`platform`, `days`, `version`, `strict`); cron commented out                                    | `observe` (`bun run observe:check`)                                                                                                                          | Informational unless `strict=on`; meant to run after a staging soak, before a promotion                                                                                                        | —                            | [EAS Observe → Gating on TTI](observe.md#gating-on-tti-staging-soak--check--promote) |
+| `register-device.yml` | `Register test device` | `workflow_dispatch` (`apple_team_id`, `note`)                                                                        | `register` (`apple-device-registration-request`: QR code on the run page, then a team member approves)                                                       | Needs the App Store Connect API key on EAS                                                                                                                                                     | —                            | [Device onboarding](device-onboarding.md)                                            |
+
+### Repo constants
+
+EAS workflows have no top-level `env`, and `inputs.*` are empty on any run that is not a
+`workflow_dispatch`, so each owner-dependent job is guarded by a literal in the YAML — a repo-level
+constant — mirrored by a dispatch input whose `default` equals it. Flipping one means changing
+the literal **and** the input default in the same PR (grep the constant's name; the comment above
+each `if:` names it). Until flipped, the job is skipped and the run stays green with none of the
+owner-owed secrets in place.
+
+| Constant      | Files                                                  | Default    | Enable after                                                                                                                                                                |
+| ------------- | ------------------------------------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IOS_MODE`    | `e2e.yml`                                              | `always`   | Nothing to enable — it tiers iOS down (`main-only` \| `label`); see [Tiered mode](native-e2e.md#tiered-mode)                                                                |
+| `HOSTING`     | `preview-web.yml`, `deploy-staging.yml`, `promote.yml` | `disabled` | The first manual `eas deploy` claims the project's dev-domain ([Environments and secrets → Human setup checklist](environments-and-secrets.md#human-setup-checklist-owner)) |
+| `IOS_BUILDS`  | `deploy-staging.yml`, `promote.yml`                    | `disabled` | iOS ad hoc credentials for `staging` / `uat` exist ([iOS runbook](environments-and-secrets.md#ios-runbook-owner))                                                           |
+| `IOS_RELEASE` | `release.yml`                                          | `disabled` | App Store credentials, the App Store Connect API key and `submit.production.ios.ascAppId` exist ([iOS runbook](environments-and-secrets.md#ios-runbook-owner))              |
+| `PLAY_SUBMIT` | `release.yml`                                          | `disabled` | The Play service-account key is on EAS ([Google Play runbook](environments-and-secrets.md#google-play-runbook-owner))                                                       |
+
+### What each EAS workflow needs
+
+| Need                                                                              | Used by                                                                                               | Where it lives                                                                                                                    |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Expo GitHub App linked to the repo                                                | Every `pull_request` / `push` trigger, the `github-comment` jobs, PR check status                     | expo.dev → project → GitHub settings ([Native E2E → Human prerequisites](native-e2e.md#human-prerequisites-once))                 |
+| `EXPO_PUBLIC_*` values per environment (`development` / `preview` / `production`) | Every job with `environment:`; fingerprint jobs must use the same one as the build profile they match | EAS environment variables ([Environments and secrets → Environment variables](environments-and-secrets.md#environment-variables)) |
+| Signing credentials (Android keystores, iOS certificates / profiles / ASC key)    | `build`, `submit`, `register-device`                                                                  | EAS credentials, never the repo ([Environments and secrets → Credentials](environments-and-secrets.md#credentials))               |
+| `SLACK_WEBHOOK_URL`                                                               | `slack` / `notify` jobs (skip themselves while unset)                                                 | EAS secret in `preview` / `production` ([Build sharing → Slack channel](build-sharing.md#slack-channel))                          |
+| `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN`                             | `update` job source-map upload (best-effort until set)                                                | EAS environment variables ([Human setup checklist](environments-and-secrets.md#human-setup-checklist-owner))                      |
+| Robot access token                                                                | Custom jobs that call `eas` themselves (`promote`, `observe`, `release`)                              | `${ eas.job.secrets.robotAccessToken }`, provided by the run; no stored secret                                                    |
+| `EXPO_TOKEN`                                                                      | Only the GitHub side: `.github/workflows/release.yml` dispatching the EAS release                     | GitHub repository secret                                                                                                          |
+
+## From PR to merge
+
+1. Open a PR from a same-repo branch with a Conventional Commit title. `CI` and `PR title` start;
+   `E2E (native)` and `Preview web` start on EAS once the GitHub App is linked.
+2. Branch protection on `main` requires every `CI` job except `Perf (Reassure)` and
+   `Fingerprint drift`, plus `PR title`. The EAS check joins the required set only when its
+   context string is added to `REQUIRED_CHECKS` and `bun run repo:settings:apply` is re-run.
+3. Merge is squash-only; the PR title becomes the commit subject and the PR body the commit body
+   (keep `Closes #n` in the body). Renovate PRs auto-merge on green.
+4. The merge commit triggers `Deploy staging`; the staging OTA lands within the same run. From there
+   the ladder is manual: [Release ladder](release-ladder.md).
+
+Details — merge settings, `strict` off, why no required reviews, how to change the required set —
+are in [JS gate → How merging works](js-gate.md#how-merging-works) and
+[Changing the required set](js-gate.md#changing-the-required-set).
+
+## When something is red
+
+| Red                                                 | First look                                                                                                         | Doc                                                                                                                                                              |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Lint`, `Typecheck`, `Format`, `Knip`               | Run the same script locally; lefthook should have caught most of it at `pre-commit` / `pre-push`                   | [JS gate → Running the gate locally](js-gate.md#running-the-gate-locally), [Conventions](conventions.md)                                                         |
+| `Env check` / `i18n check`                          | `bun run env:check` / `bun run i18n:extract` then commit the catalog                                               | [Environments and secrets → Environment variables](environments-and-secrets.md#environment-variables), [Conventions → i18n](conventions.md#strings-go-through-t) |
+| `Unit tests`                                        | `bun run test`; the JUnit and coverage artifacts on the run                                                        | [Testing → Unit and component tests](testing.md#unit-and-component-tests-jest)                                                                                   |
+| `Commitlint` / `PR title`                           | Reword the commit (`git commit --amend`) or edit the PR title; subject must be lowercase                           | [Conventions → Commits and PRs](conventions.md#commits-and-pr-titles)                                                                                            |
+| `Secret scan`                                       | The job summary names the finding; rotate the secret, then allowlist only true placeholders in `.gitleaks.toml`    | [Environments and secrets](environments-and-secrets.md)                                                                                                          |
+| `Bundle budget (<platform>)`                        | `bun run export:<platform> && bun run budget:<platform>`; find the cause with Atlas before raising a limit         | [Performance → Bundle budgets](performance.md#bundle-budgets-size-gate--bundle-budgetjson), [Expo Atlas](atlas.md)                                               |
+| `Maestro web`                                       | Download the `maestro-web` artifact (JUnit + debug output); reproduce with `bun run e2e:web`                       | [Testing → E2E](testing.md#end-to-end-tests-maestro), [Native E2E → Reading Maestro's debug output](native-e2e.md#reading-maestros-debug-output)                 |
+| `Template init`                                     | `bun run template:e2e --keep`; usually a moved identifier or a leftover template token in a new file               | [Template init → End-to-end test](template-init.md#end-to-end-test)                                                                                              |
+| `Perf (Reassure)` (informational)                   | Read the step summary; a real slowdown gets a fix or a justification in the PR, a noisy one a re-run               | [Render-perf tests → What `perf:gate` fails on](perf-tests.md#what-perfgate-fails-on)                                                                            |
+| `Fingerprint drift` comment                         | Expected on native changes: merging means new staging builds and a store release before production                 | [Release ladder → Fingerprint drift on PRs](release-ladder.md#fingerprint-drift-on-prs-informational)                                                            |
+| `E2E (native)`                                      | The PR comment names the failed flows and links the run; artifacts hold recordings, JUnit, device logs             | [Native E2E → A flow failed on the PR](native-e2e.md#a-flow-failed-on-the-pr--now-what)                                                                          |
+| `E2E (native)` never appears on the PR              | GitHub App not linked, fork PR, or a `[skip eas]` marker in a commit                                               | [JS gate → How EAS checks appear on the PR](js-gate.md#how-eas-checks-appear-on-the-pr-wired-in-e4)                                                              |
+| `Deploy staging`                                    | The Slack post (or run page) says which job: a build usually means credentials, an update a fingerprint mismatch   | [Release ladder → Staging](release-ladder.md#staging-automatic)                                                                                                  |
+| `Promote` refused                                   | Fingerprint gate: production has no store build for the group's runtime, or the checkout is not the group's commit | [Release ladder → UAT and production](release-ladder.md#uat-and-production-manual)                                                                               |
+| `Release` (GitHub) fails at `EXPO_TOKEN`            | Add the repository secret                                                                                          | [Environments and secrets → Human setup checklist](environments-and-secrets.md#human-setup-checklist-owner)                                                      |
+| `Release` (EAS) skipped or red                      | Skipped = fingerprint unchanged (by design); red at `version_check` = tag does not match `app.config.ts` `version` | [Release ladder → Store release](release-ladder.md#store-release-tag)                                                                                            |
+| A required check shows "Expected — waiting" forever | A job was renamed without updating `REQUIRED_CHECKS`; run `bun run repo:settings:check`                            | [JS gate → Changing the required set](js-gate.md#changing-the-required-set)                                                                                      |
+| Rolling back what a run shipped                     | Per channel: `update:rollback` / `update:republish` / roll back to embedded                                        | [Release ladder → Rollback](release-ladder.md#rollback)                                                                                                          |
