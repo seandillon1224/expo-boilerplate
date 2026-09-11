@@ -253,7 +253,11 @@ function buildManifest(id) {
       file: 'README.md',
       rules: [
         rule('title', /^# [^\n]*$/m, () => `# ${id.name}`),
-        rule('badge repo', TEMPLATE.githubRepo, id.githubRepo),
+        rule(
+          'badge repo',
+          `github.com/${TEMPLATE.githubRepo}/actions`,
+          `github.com/${id.githubRepo}/actions`,
+        ),
       ],
     },
     {
@@ -353,6 +357,7 @@ function buildManifest(id) {
 const KEEP = Object.freeze({
   'PLAN.md': 'replaced by a stub that links the upstream plan (--keep-plan keeps it)',
   'docs/performance.md': 'links the upstream research issue (#63) on the template repo',
+  'README.md': 'links the upstream deferred-ticket issues under "Commonly added next"',
   'scripts/init.js':
     'the template identity this script matches on (self-deleted unless --keep-init)',
   'scripts/__tests__/init.test.ts': 'the drift guard for this script (removed with it)',

@@ -158,11 +158,12 @@ describe('applyRules (fixture strings)', () => {
 
   it('rewrites README title and badges, package.json name and the reviewer logins', () => {
     const readme = applyRules(
-      '# Expo Boilerplate\n\n[![CI](https://github.com/seandillon1224/expo-boilerplate/actions/workflows/ci.yml/badge.svg)](https://github.com/seandillon1224/expo-boilerplate/actions/workflows/ci.yml)\n\n## Docs',
+      '# Expo Boilerplate\n\n[![CI](https://github.com/seandillon1224/expo-boilerplate/actions/workflows/ci.yml/badge.svg)](https://github.com/seandillon1224/expo-boilerplate/actions/workflows/ci.yml)\n\n- release-please ([#60](https://github.com/seandillon1224/expo-boilerplate/issues/60))\n\n## Docs',
       rulesFor('README.md'),
     ).content;
     expect(readme.startsWith('# Acme Mobile\n')).toBe(true);
     expect(readme).toContain('github.com/acme-inc/acme-mobile/actions');
+    expect(readme).toContain('github.com/seandillon1224/expo-boilerplate/issues/60');
     expect(readme).toContain('## Docs');
 
     const pkg = applyRules(
