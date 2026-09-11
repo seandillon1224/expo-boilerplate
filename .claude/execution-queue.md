@@ -75,8 +75,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 ### E6 — Performance tooling (tracker #73)
 
 - [x] **#47 T6.1** — Rozenite host + TanStack Query, network, performance plugins; docs on adding a project plugin.
-- [~] **#48 T6.2** — expo-atlas wiring + `bun run atlas`.
-- [ ] **#49 T6.3** — Reassure baseline + two seed tests (already in gate via T2.6; this ticket owns setup).
+- [x] **#48 T6.2** — expo-atlas wiring + `bun run atlas`.
+- [~] **#49 T6.3** — Reassure baseline + two seed tests (already in gate via T2.6; this ticket owns setup).
 - [ ] **#50 T6.4** — EAS Observe verification: query `eas observe:metrics-summary` post-deploy; document gating on TTI.
 - [ ] **#51 T6.5** — Performance doc: what each layer answers and where to look.
 
@@ -147,3 +147,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-11 — #45 | t45-build-sharing | https://github.com/seandillon1224/expo-boilerplate/pull/118 | merged | 2026-09-11 (docs-only; SLACK_WEBHOOK_URL knob already existed; human owes Slack channel + webhook via eas env:set on preview + production)
 - 2026-09-11 — #46 | t46-release-runbook | https://github.com/seandillon1224/expo-boilerplate/pull/119 | merged | 2026-09-11 (docs-only; rollback verified against eas-cli 23.2.0 --help; re-check flags when Renovate bumps to 24)
 - 2026-09-11 — #47 | t47-rozenite | https://github.com/seandillon1224/expo-boilerplate/pull/120 | merged | 2026-09-11 (rozenite 2.4.0 behind WITH_ROZENITE; react-native-performance is native → fingerprint drift, new dev client needed; human owes on-device DevTools check)
+- 2026-09-11 — #48 | t48-expo-atlas | https://github.com/seandillon1224/expo-boilerplate/pull/121 | merged | 2026-09-11 (expo-atlas 0.4.3 via EXPO_ATLAS=true; rozenite atlas plugin deliberately not wired, see docs/atlas.md)
