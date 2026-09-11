@@ -115,8 +115,8 @@ manifest fails CI.
 
 Afterwards the script scans every tracked file for leftover template identifiers and prints what
 it found. Some are kept on purpose (`KEEP` in `scripts/init.js`): `PLAN.md` (stubbed by the
-`plan` step; the stub links upstream), the upstream research-issue link in `docs/performance.md`,
-and the init script plus its test (they carry the template identity they match on, and are
+`plan` step; the stub links upstream), the upstream issue links in `docs/performance.md` and under
+"Commonly added next" in `README.md`, and the init script plus its test (they carry the template identity they match on, and are
 removed by the `self-delete` step anyway).
 
 Then run the gate — it must pass on the first commit:
