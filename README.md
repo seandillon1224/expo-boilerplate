@@ -21,4 +21,5 @@ bun run ios    # or android / web
 - [Release ladder](docs/release-ladder.md) — the runbook: PR previews → `main` → staging (automatic) → UAT → production (approval-gated promotions) → store release on a `vX.Y.Z` tag; channel / branch / variant mapping, rollback per channel (`eas update:rollback` / `update:republish` / roll-back-to-embedded), hotfix path.
 - [Getting the staging app on your iPhone](docs/device-onboarding.md) — device registration for testers (plain language) and the engineer side (`bun run devices:add`, the `Register test device` workflow, rebuild after).
 - [Build sharing](docs/build-sharing.md) — where install links come from (install page, Slack `slack` jobs, PR comments, TestFlight / Play internal), `SLACK_WEBHOOK_URL` wiring, Expo Orbit for engineers.
+- [Rozenite DevTools](docs/rozenite.md) — React Native DevTools plugins in dev builds (TanStack Query, network activity, performance monitor), how to open them, and adding a project-local plugin.
 - [Installing the staging app](docs/install-staging-app.md) — the no-CLI one-pager for designers / PMs / testers: iOS and Android install, and why "reinstall required" happens.

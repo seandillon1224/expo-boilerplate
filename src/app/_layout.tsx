@@ -8,8 +8,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { useDevTools } from '@/lib/devtools';
 import { assertEnv } from '@/lib/env';
 import { configureObserve, wrapObserveRoot } from '@/lib/observe';
+import { queryClient } from '@/lib/query-client';
 import { initSentry, wrapRoot } from '@/lib/sentry';
 import { QueryProvider } from '@/providers/query-provider';
 
@@ -27,6 +29,8 @@ SplashScreen.preventAutoHideAsync();
 
 function RootLayout() {
   const colorScheme = useColorScheme();
+  // Rozenite DevTools plugins (Query / network / performance); no-op outside dev.
+  useDevTools(queryClient);
   return (
     <QueryProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
