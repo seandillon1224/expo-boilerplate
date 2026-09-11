@@ -22,5 +22,6 @@ bun run ios    # or android / web
 - [Getting the staging app on your iPhone](docs/device-onboarding.md) — device registration for testers (plain language) and the engineer side (`bun run devices:add`, the `Register test device` workflow, rebuild after).
 - [Build sharing](docs/build-sharing.md) — where install links come from (install page, Slack `slack` jobs, PR comments, TestFlight / Play internal), `SLACK_WEBHOOK_URL` wiring, Expo Orbit for engineers.
 - [Rozenite DevTools](docs/rozenite.md) — React Native DevTools plugins in dev builds (TanStack Query, network activity, performance monitor), how to open them, and adding a project-local plugin.
+- [Render-perf tests (Reassure)](docs/perf-tests.md) — writing `*.perf-test.tsx`, `measureRenders` / `measureFunction`, baseline vs compare locally, what `perf:gate` fails on, reading `.reassure/output.md`.
 - [Expo Atlas](docs/atlas.md) — bundle composition per platform (which module pulls what): `bun run atlas` against the dev server, `bun run atlas:export` for a release export; budget = the gate, Atlas = the diagnosis.
 - [Installing the staging app](docs/install-staging-app.md) — the no-CLI one-pager for designers / PMs / testers: iOS and Android install, and why "reinstall required" happens.
