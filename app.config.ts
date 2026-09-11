@@ -9,19 +9,27 @@ type Variant = 'development' | 'staging' | 'uat' | 'production';
 
 const VARIANT = (process.env.APP_VARIANT ?? 'development') as Variant;
 
+/**
+ * App identity. `bun run init` (scripts/init.js) rewrites this block for a new app; keep the
+ * keys one per line so its patterns keep matching. `bundleId` is the iOS bundle identifier,
+ * `androidPackage` the Android application id (usually the same, but Android forbids hyphens).
+ */
 const BASE = {
   name: 'Expo Boilerplate',
   slug: 'expo-boilerplate',
   scheme: 'expoboilerplate',
   bundleId: 'com.seandillon.expoboilerplate',
+  androidPackage: 'com.seandillon.expoboilerplate',
 } as const;
 
 /**
  * EAS project id (`@seandillon1224/expo-boilerplate`, linked by `eas init`). This is the
  * one place it lives: it feeds `extra.eas.projectId` (EAS Build / Update / Observe) and
- * `updates.url`. `bun run init` (T7.1) rewrites it for a new app.
+ * `updates.url`. `bun run init` rewrites it for a new app; left empty (`bun run init` without
+ * `--eas-project-id`), updates and Observe stay off until `eas init` links a project and the
+ * id is pasted here.
  */
-const EAS_PROJECT_ID = '885fa7d0-e079-4722-bafa-e05da702b132';
+const EAS_PROJECT_ID: string = '885fa7d0-e079-4722-bafa-e05da702b132';
 
 const SUFFIX: Record<Variant, { name: string; id: string; scheme: string }> = {
   development: { name: ' (Dev)', id: '.dev', scheme: '-dev' },
@@ -40,7 +48,7 @@ const v = SUFFIX[VARIANT];
  * `checkAutomatically` stays ON_LOAD for now — the `useUpdatePolicy` hook
  * (src/features/updates, filled in by D3) owns runtime behaviour.
  */
-const UPDATES_URL = `https://u.expo.dev/${EAS_PROJECT_ID}`;
+const UPDATES_URL = EAS_PROJECT_ID ? `https://u.expo.dev/${EAS_PROJECT_ID}` : undefined;
 
 /**
  * Sentry org/project are build-time values (never EXPO_PUBLIC_*). They are only
@@ -69,7 +77,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: false,
   },
   android: {
-    package: `${BASE.bundleId}${v.id}`,
+    package: `${BASE.androidPackage}${v.id}`,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/images/android-icon-foreground.png',
@@ -84,10 +92,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   runtimeVersion: { policy: 'fingerprint' },
   updates: {
-    enabled: true,
+    enabled: Boolean(UPDATES_URL),
     checkAutomatically: 'ON_LOAD',
     fallbackToCacheTimeout: 0,
-    url: UPDATES_URL,
+    ...(UPDATES_URL ? { url: UPDATES_URL } : {}),
   },
   plugins: [
     'expo-router',
@@ -109,7 +117,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     appVariant: VARIANT,
-    // Read natively by EAS Build / Update and EAS Observe (src/lib/observe.ts).
-    eas: { projectId: EAS_PROJECT_ID },
+    // Read natively by EAS Build / Update and EAS Observe (src/lib/observe.ts); absent until
+    // `eas init` links a project (see EAS_PROJECT_ID above).
+    ...(EAS_PROJECT_ID ? { eas: { projectId: EAS_PROJECT_ID } } : {}),
   },
 });
