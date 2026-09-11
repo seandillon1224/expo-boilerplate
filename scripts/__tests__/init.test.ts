@@ -261,8 +261,8 @@ describe('diffLines / scanLeftovers', () => {
     ]);
   });
 
-  it('exposes the rewrite step first so later tickets can append to `steps`', () => {
-    expect(steps.map((s: { id: string }) => s.id)).toEqual(['rewrite', 'scan']);
+  it('runs the toolchain check first, then rewrite + scan, so later tickets can append to `steps`', () => {
+    expect(steps.map((s: { id: string }) => s.id)).toEqual(['doctor', 'rewrite', 'scan']);
   });
 });
 
@@ -295,9 +295,11 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
 
   it('CLI --dry-run --yes exits 0 and writes nothing', () => {
     const before = fs.readFileSync(path.join(ROOT, 'app.config.ts'), 'utf8');
+    // --skip-doctor keeps this hermetic: the toolchain check shells out to real binaries
+    // (`bun run eas whoami` needs the network); scripts/__tests__/doctor.test.ts covers it.
     const result = spawnSync(
       process.execPath,
-      ['scripts/init.js', '--dry-run', ...HEADLESS_FLAGS],
+      ['scripts/init.js', '--dry-run', '--skip-doctor', ...HEADLESS_FLAGS],
       {
         cwd: ROOT,
         encoding: 'utf8',
@@ -305,6 +307,7 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
     );
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('[dry run] Initialising Acme Mobile (acme-mobile)');
+    expect(result.stdout).not.toContain('Toolchain check');
     expect(result.stdout).toContain('Would rewrite:');
     expect(result.stdout).toContain("+   bundleId: 'com.acme.mobile',");
     expect(fs.readFileSync(path.join(ROOT, 'app.config.ts'), 'utf8')).toBe(before);

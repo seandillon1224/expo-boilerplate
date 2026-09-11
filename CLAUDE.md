@@ -11,6 +11,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 
 ## Commands
 
+- `bun run doctor` — toolchain check (Bun / Node / git required; EAS CLI + login, gh, Maestro, Xcode, Android SDK, Java per lane) with versions and fix hints; exit 1 only on a missing required tool, `--strict` fails warnings, `--json` for machines. Also the first `init` step (`--skip-doctor`). Expected versions: `EXPECTED` in `scripts/doctor.js` (`docs/template-init.md` → Toolchain check)
 - `bun run init` — rebrand a fresh copy of the template (name / slug / scheme / bundle id / package / EAS project id / owner / GitHub repo); `--yes` + flags for headless, `--dry-run` to preview. Manifest + drift guard in `scripts/init.js` / `scripts/__tests__/init.test.ts` (`docs/template-init.md`)
 - `bun run ios` / `android` / `web` — dev server (dev client / web)
 - `bun run lint` — ESLint (expo config + a11y + import sort + unused imports)
