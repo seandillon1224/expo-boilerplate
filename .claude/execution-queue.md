@@ -78,11 +78,11 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#48 T6.2** — expo-atlas wiring + `bun run atlas`.
 - [x] **#49 T6.3** — Reassure baseline + two seed tests (already in gate via T2.6; this ticket owns setup).
 - [x] **#50 T6.4** — EAS Observe verification: query `eas observe:metrics-summary` post-deploy; document gating on TTI.
-- [~] **#51 T6.5** — Performance doc: what each layer answers and where to look.
+- [x] **#51 T6.5** — Performance doc: what each layer answers and where to look.
 
 ### E7 — Template init script (tracker #74)
 
-- [ ] **#52 T7.1** — `bun run init`: prompts for name, slug, bundle ID, package, EAS project ID, scheme; rewrites `app.config.ts`, `eas.json`, `.maestro/config.yaml` + flow envs, workflow YAML, README badges, `package.json` name.
+- [~] **#52 T7.1** — `bun run init`: prompts for name, slug, bundle ID, package, EAS project ID, scheme; rewrites `app.config.ts`, `eas.json`, `.maestro/config.yaml` + flow envs, workflow YAML, README badges, `package.json` name.
 - [ ] **#53 T7.2** — Toolchain check: Bun version, EAS CLI login, Maestro, Xcode, Android SDK, Java; prints fix hints.
 - [ ] **#54 T7.3** — Resets `.claude/execution-queue.md`, clears CHANGELOG, fresh git history option, self-deletes.
 - [ ] **#55 T7.4** — Template-repo settings script (`gh`): branch protection, required checks, environments, labels.
@@ -150,3 +150,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-11 — #48 | t48-expo-atlas | https://github.com/seandillon1224/expo-boilerplate/pull/121 | merged | 2026-09-11 (expo-atlas 0.4.3 via EXPO_ATLAS=true; rozenite atlas plugin deliberately not wired, see docs/atlas.md)
 - 2026-09-11 — #49 | t49-reassure-seed | https://github.com/seandillon1224/expo-boilerplate/pull/122 | merged | 2026-09-11 (reassure.setup.ts loaded only in reassure child process; second seed = fetch screen; docs/perf-tests.md)
 - 2026-09-11 — #50 | t50-observe-check | https://github.com/seandillon1224/expo-boilerplate/pull/123 | merged | 2026-09-11 (observe:check informational; budget keyed median/p80/p90; human owes first real run + re-base observe-budget.json after ~1 week, cron in observe-check.yml still commented)
+- 2026-09-11 — #51 | t51-performance-doc | https://github.com/seandillon1224/expo-boilerplate/pull/124 | merged | 2026-09-11 (docs-only; docs/performance.md is the perf entry point)
