@@ -70,11 +70,11 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#43 T5.4** — PR preview web deploys with unique URLs in the PR comment.
 - [x] **#44 T5.5** — Fingerprint-drift check on PRs: comment when a PR changes the native fingerprint ("this needs a store release").
 - [x] **#45 T5.6** — Build-sharing surfaces: Slack channel wiring, Orbit setup doc, "how a designer installs the staging app" one-pager.
-- [~] **#46 T5.7** — Runbook: `docs/release-ladder.md` covering the full path, rollback (`eas update:republish` / `update:rollback`), and channel/branch mapping.
+- [x] **#46 T5.7** — Runbook: `docs/release-ladder.md` covering the full path, rollback (`eas update:republish` / `update:rollback`), and channel/branch mapping.
 
 ### E6 — Performance tooling (tracker #73)
 
-- [ ] **#47 T6.1** — Rozenite host + TanStack Query, network, performance plugins; docs on adding a project plugin.
+- [~] **#47 T6.1** — Rozenite host + TanStack Query, network, performance plugins; docs on adding a project plugin.
 - [ ] **#48 T6.2** — expo-atlas wiring + `bun run atlas`.
 - [ ] **#49 T6.3** — Reassure baseline + two seed tests (already in gate via T2.6; this ticket owns setup).
 - [ ] **#50 T6.4** — EAS Observe verification: query `eas observe:metrics-summary` post-deploy; document gating on TTI.
@@ -145,3 +145,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-10 — #43 | t43-pr-preview-web | https://github.com/seandillon1224/expo-boilerplate/pull/116 | merged | 2026-09-10 (validated, not executed; behind HOSTING constant; comment-per-push, no alias delete; human owes first eas deploy + Expo GitHub App link)
 - 2026-09-10 — #44 | t44-fingerprint-drift | https://github.com/seandillon1224/expo-boilerplate/pull/117 | merged | 2026-09-10 (GHA job, informational, not required; label fingerprint-drift created — #55 to absorb into DESIRED labels; live drift comment unproven until a native-touching PR)
 - 2026-09-11 — #45 | t45-build-sharing | https://github.com/seandillon1224/expo-boilerplate/pull/118 | merged | 2026-09-11 (docs-only; SLACK_WEBHOOK_URL knob already existed; human owes Slack channel + webhook via eas env:set on preview + production)
+- 2026-09-11 — #46 | t46-release-runbook | https://github.com/seandillon1224/expo-boilerplate/pull/119 | merged | 2026-09-11 (docs-only; rollback verified against eas-cli 23.2.0 --help; re-check flags when Renovate bumps to 24)
