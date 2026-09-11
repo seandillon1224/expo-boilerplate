@@ -1,8 +1,9 @@
 # Template init (`bun run init`)
 
 `bun run init` turns a fresh copy of this template into your app: it rewrites every place the
-template's own identity is hardcoded and leaves everything else alone. Run it once, right after
-"Use this template" / `git clone`, before the first commit (PLAN.md decision 4).
+template's own identity is hardcoded, resets the queue ledger and `PLAN.md`, removes itself, and
+(if you say yes) starts a fresh git history with one commit. Run it once, right after "Use this
+template" / `git clone`, before the first commit (PLAN.md decision 4).
 
 ```sh
 bun install
@@ -13,31 +14,75 @@ bun run init            # interactive; defaults derived from the folder name
 Headless (what the CI end-to-end test, #56, runs):
 
 ```sh
-bun run init --yes \
+bun run init --yes --fresh-git \
   --name "Acme Mobile" --slug acme-mobile --scheme acme \
   --bundle-id com.acme.mobile --package com.acme.mobile \
   --owner acme-team --github-repo acme-inc/acme-mobile \
   --eas-project-id 11111111-2222-4333-8444-555555555555
 ```
 
-Add `--dry-run` to print the per-file diff and the summary table without writing. `--yes` skips
-the prompts and fills any missing flag from the derived defaults (folder name → slug / name /
-scheme, OS user → Expo account, `com.<owner>.<scheme>` → bundle id and package). Init starts
-with the [toolchain check](#toolchain-check) and stops before writing anything when a required
-tool is missing; `--skip-doctor` skips it.
+Add `--dry-run` to print the per-file diff and the step summary without writing (or deleting)
+anything. `--yes` skips the prompts and fills any missing flag from the derived defaults (folder
+name → slug / name / scheme, OS user → Expo account, `com.<owner>.<scheme>` → bundle id and
+package). Init starts with the [toolchain check](doctor.md) and stops before writing anything
+when a required tool is missing; `--skip-doctor` skips it.
+
+## Steps, in order
+
+`scripts/init.js` exports `steps`, the ordered list of what init does; every step is dry-run
+aware and reported in the closing summary.
+
+| Step          | What it does                                                                                                                                                                                                                   | Opt out                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| `doctor`      | [Toolchain check](doctor.md); a `MISSING` required tool aborts before anything is written                                                                                                                                      | `--skip-doctor`                                                 |
+| `rewrite`     | Rewrites the identifiers listed under [What it rewrites](#what-it-rewrites), then runs prettier on the touched files                                                                                                           | —                                                               |
+| `scan`        | Scans every tracked file for leftover template identifiers and prints them (warnings, never failures)                                                                                                                          | —                                                               |
+| `ledger`      | Replaces `.claude/execution-queue.md` with an empty ledger: same legend and rule, tracker = your GitHub repo, empty `OPEN QUEUE`, a run log with the init line — so `/ship-next` works from day one                            | —                                                               |
+| `plan`        | Replaces `PLAN.md` with a stub: the template's **Locked decisions** table kept verbatim (`CLAUDE.md` and `docs/` cite "PLAN.md decision N" by number) plus a link to the upstream plan for the rest                            | `--keep-plan`                                                   |
+| `changelog`   | Replaces `CHANGELOG.md` with a fresh header when the template ships one (it does not yet; release-please is #60), otherwise notes "no CHANGELOG.md, skipped"                                                                   | —                                                               |
+| `self-delete` | Removes init: see [What it deletes](#what-it-deletes)                                                                                                                                                                          | `--keep-init`                                                   |
+| `fresh-git`   | `rm -rf .git`, `git init -b main`, one commit `chore: initialize <slug> from expo-boilerplate` of the final tree, then `bunx lefthook install` (the hooks went with the old `.git`); prints the `git remote add origin …` hint | on only with `--fresh-git` (interactive prompt, default **No**) |
+
+`.claude/skills/ship-next` and `.claude/settings.json` are kept as they are. Without
+`--fresh-git` the old history stays and init prints the recommended first commit
+(`git add -A && git commit -m "chore: initialize <slug> from expo-boilerplate"`).
+
+`--fresh-git` refuses to run — before anything is written — when `git status --porcelain` shows
+uncommitted changes, so it never swallows work that is not init's own; commit or stash first. It
+never runs under `--dry-run`.
+
+## What it deletes
+
+The self-delete manifest is `REMOVAL` in `scripts/init.js`; like the rewrite manifest, every
+entry must match on `main` (the drift guard in `scripts/__tests__/init.test.ts` checks it).
+
+- `scripts/init.js`, `scripts/__tests__/init.test.ts`, this doc
+- the `init` script in `package.json`
+- the `bun run init` quick-start line and the "Template init" docs entry in `README.md`
+- the `bun run init` command bullet in `CLAUDE.md`, and the "Also the first `init` step" note on
+  the `bun run doctor` bullet (also in `docs/doctor.md`)
+
+`bun run doctor`, `scripts/doctor.js`, its test and `docs/doctor.md` stay: they are useful in
+the project. Comments in `app.config.ts`, the workflows and a few docs that say "`bun run init`
+rewrites this" are left as history. `knip.jsonc` has no init-specific entry, so nothing changes
+there; the gate (`lint`, `typecheck`, `test`, `knip`, `i18n:check`, `format:check`) passes on
+the generated project — `scripts/__tests__/init.test.ts` proves it on a temp copy.
 
 ## Flags
 
-| Flag               | What it sets                                                                                                 | Validation                                |
-| ------------------ | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| `--name`           | Display name (`app.config.ts` `BASE.name`; variants append ` (Dev)` / ` (Staging)` / ` (UAT)`), README title | non-empty, no quotes                      |
-| `--slug`           | Expo slug, `package.json` name, EAS Hosting dev-domain, query-cache key, gitleaks title                      | `^[a-z0-9]+(-[a-z0-9]+)*$`                |
-| `--scheme`         | URL scheme (variants append `-dev` / `-staging` / `-uat`)                                                    | lowercase, starts with a letter           |
-| `--bundle-id`      | iOS bundle identifier (production; variants append `.dev` / `.staging` / `.uat`)                             | reverse-DNS                               |
-| `--package`        | Android application id (usually equal to the bundle id; Android forbids dashes)                              | reverse-DNS, segments start with a letter |
-| `--owner`          | Expo account: `expo.dev/accounts/<owner>/projects/<slug>` links in workflow Slack / PR messages and docs     | letters, digits, dashes                   |
-| `--github-repo`    | `owner/name`: README badge URLs, docs, and the `uat` / `production` environment reviewer in `repo-settings`  | `owner/name`                              |
-| `--eas-project-id` | `EAS_PROJECT_ID` in `app.config.ts` (`extra.eas.projectId` + `updates.url`)                                  | UUID, or empty (see below)                |
+| Flag               | What it sets                                                                                                  | Validation                                |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `--name`           | Display name (`app.config.ts` `BASE.name`; variants append ` (Dev)` / ` (Staging)` / ` (UAT)`), README title  | non-empty, no quotes                      |
+| `--slug`           | Expo slug, `package.json` name, EAS Hosting dev-domain, query-cache key, gitleaks title                       | `^[a-z0-9]+(-[a-z0-9]+)*$`                |
+| `--scheme`         | URL scheme (variants append `-dev` / `-staging` / `-uat`)                                                     | lowercase, starts with a letter           |
+| `--bundle-id`      | iOS bundle identifier (production; variants append `.dev` / `.staging` / `.uat`)                              | reverse-DNS                               |
+| `--package`        | Android application id (usually equal to the bundle id; Android forbids dashes)                               | reverse-DNS, segments start with a letter |
+| `--owner`          | Expo account: `expo.dev/accounts/<owner>/projects/<slug>` links in workflow Slack / PR messages and docs      | letters, digits, dashes                   |
+| `--github-repo`    | `owner/name`: README badge URLs, docs, and the `uat` / `production` environment reviewer in `repo-settings`   | `owner/name`                              |
+| `--eas-project-id` | `EAS_PROJECT_ID` in `app.config.ts` (`extra.eas.projectId` + `updates.url`)                                   | UUID, or empty (see below)                |
+| `--fresh-git`      | Replace the git history with one initial commit (prompted interactively, default No; never under `--dry-run`) | refuses a dirty working tree              |
+| `--keep-init`      | Keep `scripts/init.js`, its test and this doc (default: self-delete)                                          | —                                         |
+| `--keep-plan`      | Keep `PLAN.md` untouched (default: stub with the inherited decisions)                                         | —                                         |
 
 **No EAS project yet?** Pass `--eas-project-id=` (the `=` form: `bun run` drops an empty `""`
 argument) or accept the empty prompt default.
@@ -67,9 +112,10 @@ manifest fails CI.
 | `docs/*.md`                                                                  | bundle id / package examples, credentials table, dev-domain, staging web URL, expo.dev and GitHub links      |
 
 Afterwards the script scans every tracked file for leftover template identifiers and prints what
-it found. Some are kept on purpose (`KEEP` in `scripts/init.js`): `PLAN.md` (the template's
-design document), the upstream research-issue link in `docs/performance.md`, and the init script
-plus its test (they carry the template identity they match on).
+it found. Some are kept on purpose (`KEEP` in `scripts/init.js`): `PLAN.md` (stubbed by the
+`plan` step; the stub links upstream), the upstream research-issue link in `docs/performance.md`,
+and the init script plus its test (they carry the template identity they match on, and are
+removed by the `self-delete` step anyway).
 
 Then run the gate — it must pass on the first commit:
 
@@ -78,50 +124,9 @@ bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18
 bunx expo config --type public   # sanity-check the rebranded app config
 ```
 
-## Toolchain check
-
-`bun run doctor` (`scripts/doctor.js`) checks the tools this template needs, prints one row per
-tool — status, the version found, the version expected — and, for every row that is not `ok`, the
-exact install command (Homebrew on macOS; Linux where it differs). It is also the first `init`
-step (`--skip-doctor` to skip). No network access except `eas whoami`.
-
-| Check             | Expected (source)                                                                        | Required | Lane it unlocks                            |
-| ----------------- | ---------------------------------------------------------------------------------------- | -------- | ------------------------------------------ |
-| **Bun**           | `>= 1.2.0` — `bun.lock` is a text lockfile (`saveTextLockfile` in `bunfig.toml`)         | yes      | everything                                 |
-| Lockfiles         | only `bun.lock`; warns on `package-lock.json` / `yarn.lock` / `pnpm-lock.yaml`           | —        | Bun-only installs                          |
-| **Node**          | major of `.node-version` (22)                                                            | yes      | scripts, lefthook, eas-cli                 |
-| **git**           | `>= 2.28`                                                                                | yes      | everything                                 |
-| lefthook hooks    | `.git/hooks/pre-commit` written by lefthook (`bunx lefthook install`, runs on `prepare`) | —        | pre-commit / commit-msg / pre-push hooks   |
-| EAS CLI           | major of `eas-cli` in `package.json`, resolved via `bun run eas --version`               | —        | EAS build / update / workflows, `env:pull` |
-| EAS login         | `bun run eas whoami --non-interactive` succeeds, or `EXPO_TOKEN` is set                  | —        | `e2e:build`, `env:pull`, `devices:*`       |
-| GitHub CLI + auth | `gh` installed, `gh auth status` logged in                                               | —        | `repo:settings:*`                          |
-| Maestro           | `>= 2.9.0`; CI pins `2.10.0` (`ci.yml`, `.eas/workflows/e2e.yml`); `~/.maestro/bin` ok   | —        | `e2e:web`, `e2e:ios`, `e2e:android`        |
-| Xcode             | `>= 16.0` + at least one iOS simulator; macOS only (`skip` elsewhere)                    | —        | iOS lane                                   |
-| Android SDK       | `ANDROID_HOME` (or `ANDROID_SDK_ROOT`) exists, `adb` and `emulator` resolvable           | —        | Android lane                               |
-| Java              | JDK `>= 17` — what the Maestro CLI and `@expo/repack-app`'s build-tools need             | —        | Maestro, Android repack                    |
-
-Statuses: `ok`, `warn` (missing / incompatible / logged out, but only an optional lane is
-affected), `MISSING` (a required tool — Bun, Node, git — is absent or incompatible), `skip` (not
-applicable on this platform, or depends on a row that is not `ok`).
-
-Flags and exit codes:
-
-| Invocation                | Exit 1 when                                                 |
-| ------------------------- | ----------------------------------------------------------- |
-| `bun run doctor`          | a required tool is `MISSING`; warnings exit 0               |
-| `bun run doctor --strict` | any `MISSING` **or** `warn` (CI, #56); `skip` never fails   |
-| `bun run doctor --json`   | same rules; prints `{ rows, summary }` instead of the table |
-
-The expected versions live in one `EXPECTED` constant at the top of `scripts/doctor.js`, each
-with the reason for the number; `scripts/__tests__/doctor.test.ts` drives every check with a fake
-`run()` so the tests never touch a real binary.
-
 ## Left for the sibling tickets
 
-`scripts/init.js` exports `steps`, the ordered list of what init does (`doctor`, `rewrite`,
-`scan`); the next tickets add to it rather than growing the rewrite step:
+The next tickets append to `steps` rather than growing the rewrite step:
 
-- **#54** reset `.claude/execution-queue.md`, clear the changelog, optional fresh git history, and
-  self-delete (`scripts/init.js`, its test, this doc, the `init` script in `package.json`).
 - **#55** `bun run repo:settings:apply` + labels — until then run it by hand after pushing.
 - **#56** CI end-to-end test of the template: headless init on a fresh copy, then the JS gate.

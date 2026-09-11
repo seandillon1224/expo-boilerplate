@@ -13,6 +13,9 @@
  *   bun run init --dry-run ...         # print the diff and the summary table, write nothing
  *   bun run init --yes --eas-project-id= ...   # no EAS project yet (`=` form: bun drops an empty "")
  *   bun run init --skip-doctor ...     # skip the toolchain check (`bun run doctor`) that runs first
+ *   bun run init --fresh-git ...       # rm -rf .git, one initial commit (prompted otherwise; default No)
+ *   bun run init --keep-init ...       # keep this script, its test and doc (default: self-delete)
+ *   bun run init --keep-plan ...       # keep PLAN.md as is (default: stub pointing at the upstream plan)
  *
  * Design:
  *   - `MANIFEST` lists every (file, pattern) init touches. A pattern that matches fewer times than
@@ -20,9 +23,12 @@
  *     breaks `scripts/__tests__/init.test.ts` (the drift guard) instead of silently leaving it behind.
  *   - After rewriting, tracked files are scanned for leftover template identifiers; hits are
  *     reported as warnings (never failures) and `KEEP` lists the ones that are intentional.
- *   - `steps` is the ordered list of what init does: the toolchain check (#53, `scripts/doctor.js`)
- *     first, then rewrite + scan. #54 appends "reset queue ledger", "clear changelog", "fresh git
- *     history" and "self-delete" steps. A step's optional `when({ args })` can opt it out.
+ *   - `steps` is the ordered list of what init does: the toolchain check (#53, `scripts/doctor.js`),
+ *     rewrite + scan, then (#54) reset the queue ledger, stub PLAN.md, clear the changelog,
+ *     self-delete, and — last, so the initial commit holds the final tree — fresh git history.
+ *     A step's optional `when({ args })` can opt it out. #55 appends repo settings.
+ *   - `REMOVAL` is the self-delete manifest: the files and lines that only make sense in the
+ *     template. Like `MANIFEST`, every entry must match on main (same drift guard).
  *
  * Plain Node/JS (no @types/node in tsconfig `types`), same as the other scripts; runs under Bun.
  */
@@ -114,7 +120,16 @@ const FIELDS = [
   },
 ];
 
-const FLAGS = new Set([...FIELDS.map((f) => f.flag), 'yes', 'dry-run', 'skip-doctor', 'help']);
+const BOOLEAN_FLAGS = [
+  'yes',
+  'dry-run',
+  'skip-doctor',
+  'fresh-git',
+  'keep-init',
+  'keep-plan',
+  'help',
+];
+const FLAGS = new Set([...FIELDS.map((f) => f.flag), ...BOOLEAN_FLAGS]);
 
 /** Derive sensible defaults from the working-directory name and the OS user. */
 function deriveDefaults(folderName, username = os.userInfo().username) {
@@ -158,7 +173,7 @@ function parseArgs(argv) {
     const eq = arg.indexOf('=');
     const flag = eq === -1 ? arg.slice(2) : arg.slice(2, eq);
     if (!FLAGS.has(flag)) throw new Error(`init: unknown argument --${flag}`);
-    if (flag === 'yes' || flag === 'dry-run' || flag === 'skip-doctor' || flag === 'help') {
+    if (BOOLEAN_FLAGS.includes(flag)) {
       out[flag] = true;
       continue;
     }
@@ -332,10 +347,11 @@ function buildManifest(id) {
  * skips these; everything else it finds is reported so the owner can decide.
  */
 const KEEP = Object.freeze({
-  'PLAN.md': 'the template design document (#54 decides its fate)',
+  'PLAN.md': 'replaced by a stub that links the upstream plan (--keep-plan keeps it)',
   'docs/performance.md': 'links the upstream research issue (#63) on the template repo',
-  'scripts/init.js': 'the template identity this script matches on (#54 self-deletes it)',
-  'scripts/__tests__/init.test.ts': 'the drift guard for this script (#54 removes it)',
+  'scripts/init.js':
+    'the template identity this script matches on (self-deleted unless --keep-init)',
+  'scripts/__tests__/init.test.ts': 'the drift guard for this script (removed with it)',
 });
 
 /** Files the leftover scan never reads. */
@@ -425,13 +441,196 @@ function scanLeftovers(files, template = TEMPLATE) {
 }
 
 /* ------------------------------------------------------------------------------------------ */
-/* Steps                                                                                       */
+/* Reset: queue ledger, PLAN.md stub, changelog                                                */
+/* ------------------------------------------------------------------------------------------ */
+
+const UPSTREAM_URL = `https://github.com/${TEMPLATE.githubRepo}`;
+const LEDGER_PATH = '.claude/execution-queue.md';
+
+/**
+ * The ledger's fixed header lines. The drift guard asserts the template's own ledger still
+ * carries them verbatim, so the reset template and `/ship-next` never disagree on the format.
+ */
+const LEDGER_LEGEND =
+  'Legend: `[ ]` pending · `[x]` shipped · `[M]` manual/human · `[B]` blocked · `[D]` deferred · `[S]` needs secrets';
+const LEDGER_RULE =
+  'Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the issue on merge. Fresh subagent per ticket.';
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+/** An empty ledger for the new project: same header, no tickets, a run log with the init line. */
+function buildLedger(identity, date = today()) {
+  return [
+    `# Execution Queue — ${identity.slug}`,
+    '',
+    `**Source of truth for \`/ship-next\`.** Tracker: GitHub Issues in \`${identity.githubRepo}\`. Plan: \`PLAN.md\`.`,
+    '',
+    LEDGER_LEGEND,
+    '',
+    LEDGER_RULE,
+    '',
+    '## OPEN QUEUE (dependency order)',
+    '',
+    '_Empty. Add one `### E<n> — <epic> (tracker #<issue>)` heading per epic and one_',
+    '_`- [ ] **#<issue> T<n>.<m>** — <summary>` line per ticket, in dependency order._',
+    '',
+    '## RUN LOG',
+    '',
+    `- ${date} — Initialised from ${TEMPLATE.githubRepo} (\`bun run init\`).`,
+    '',
+  ].join('\n');
+}
+
+const PLAN_DECISIONS_HEADING = '## Locked decisions';
+
+/**
+ * PLAN.md for the new project: a short header, then the template's "Locked decisions" section
+ * kept verbatim (CLAUDE.md and docs/ cite "PLAN.md decision N" by number) and a link to the
+ * upstream plan for the epics, tickets and definition of done that only concern the template.
+ */
+function buildPlanStub(identity, templatePlan) {
+  const start = templatePlan.indexOf(`${PLAN_DECISIONS_HEADING}\n`);
+  if (start === -1) throw new Error(`init: PLAN.md has no "${PLAN_DECISIONS_HEADING}" section`);
+  const rest = templatePlan.slice(start + PLAN_DECISIONS_HEADING.length + 1);
+  const next = rest.search(/^## /m);
+  const decisions = (next === -1 ? rest : rest.slice(0, next)).trim();
+  return [
+    `# Plan — ${identity.name}`,
+    '',
+    `Design decisions and the ticket breakdown for ${identity.name} live here; the queue is`,
+    '`.claude/execution-queue.md` and `/ship-next` works it.',
+    '',
+    `Created from [expo-boilerplate](${UPSTREAM_URL}) with \`bun run init\`. The decisions below are`,
+    'inherited from the template (`CLAUDE.md` and `docs/` cite them as "PLAN.md decision N"); the',
+    `template's own epics, tickets and definition of done stay upstream at`,
+    `${UPSTREAM_URL}/blob/main/PLAN.md.`,
+    '',
+    `${PLAN_DECISIONS_HEADING} (inherited)`,
+    '',
+    decisions,
+    '',
+  ].join('\n');
+}
+
+/** A fresh CHANGELOG.md; only written when the template ships one (release-please, #60). */
+function buildChangelog(identity) {
+  return `# Changelog\n\nAll notable changes to ${identity.name} are documented here.\n`;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Self-delete manifest                                                                        */
 /* ------------------------------------------------------------------------------------------ */
 
 /**
- * Ordered steps; each gets `{ root, identity, dryRun, log, results }` and may declare
- * `when({ args })` to opt out. Later tickets append to this list: #54 reset ledger / clear
- * changelog / fresh git history / self-delete, #55 repo settings.
+ * What only makes sense while this checkout is the template: the init script, its drift-guard
+ * test and doc, and every line that points at them. `bun run doctor` (and its test and doc)
+ * stays — it is useful in the project. Each `edits` rule must match (min 1) on main; the drift
+ * guard runs them against the real files, like `buildManifest`.
+ */
+const REMOVAL = Object.freeze({
+  files: ['scripts/init.js', 'scripts/__tests__/init.test.ts', 'docs/template-init.md'],
+  edits: [
+    {
+      file: 'package.json',
+      rules: [rule('init script', /^ {4}"init": "node scripts\/init\.js",\n/gm, () => '')],
+    },
+    {
+      file: 'README.md',
+      rules: [
+        rule('quick start line', /^bun run init +# [^\n]*\n/gm, () => ''),
+        rule(
+          'docs list entry',
+          /^- \[Template init\]\(docs\/template-init\.md\)[^\n]*\n/gm,
+          () => '',
+        ),
+      ],
+    },
+    {
+      file: 'CLAUDE.md',
+      rules: [
+        rule('init command bullet', /^- `bun run init` — [^\n]*\n/gm, () => ''),
+        rule(
+          'doctor bullet: init step',
+          / Also the first `init` step \(`--skip-doctor`\)\./g,
+          () => '',
+        ),
+      ],
+    },
+    {
+      file: 'docs/doctor.md',
+      rules: [
+        rule(
+          'init step sentence',
+          /It is also the first `init`\nstep \(`--skip-doctor` to skip\)\. /g,
+          () => '',
+        ),
+      ],
+    },
+  ],
+});
+
+/** Line-removal edits for the self-delete step; throws (listing every miss) on drift. */
+function planRemoval(read) {
+  const misses = [];
+  const changes = [];
+  for (const file of REMOVAL.files) {
+    if (read(file) === null) misses.push(`${file}: file not found`);
+  }
+  for (const entry of REMOVAL.edits) {
+    const before = read(entry.file);
+    if (before === null) {
+      misses.push(`${entry.file}: file not found`);
+      continue;
+    }
+    const { content, counts } = applyRules(before, entry.rules);
+    for (const c of counts) {
+      if (c.count < c.min)
+        misses.push(`${entry.file}: "${c.id}" matched ${c.count}× (expected ≥ ${c.min})`);
+    }
+    changes.push({ file: entry.file, before, after: content, counts });
+  }
+  if (misses.length) {
+    throw new Error(
+      `init: the self-delete manifest drifted — fix REMOVAL in scripts/init.js:\n  ${misses.join('\n  ')}`,
+    );
+  }
+  return changes;
+}
+
+/** Initial-commit subject for a fresh history; the slug keeps it commitlint-lowercase. */
+const initialCommitMessage = (identity) =>
+  `chore: initialize ${identity.slug} from ${TEMPLATE.slug}`;
+
+/** Runs a git command in `root`; returns `{ ok, out }`. */
+function git(root, args) {
+  const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  return { ok: r.status === 0, out: `${r.stdout || ''}${r.stderr || ''}`.trim() };
+}
+
+/**
+ * Uncommitted changes in `root` (`git status --porcelain` lines), or `null` when it is not a git
+ * checkout. Taken before any step writes, so `--fresh-git` can refuse to wipe history that holds
+ * someone's work rather than init's own edits.
+ */
+function uncommittedChanges(root) {
+  if (!git(root, ['rev-parse', '--is-inside-work-tree']).ok) return null;
+  const status = git(root, ['status', '--porcelain']);
+  return status.ok ? status.out.split('\n').filter(Boolean) : null;
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Steps                                                                                       */
+/* ------------------------------------------------------------------------------------------ */
+
+/** Writes `content` to `file` under `root` unless dry-running. */
+function writeOrPlan(root, file, content, dryRun) {
+  if (!dryRun) fs.writeFileSync(path.join(root, file), content);
+}
+
+/**
+ * Ordered steps; each gets `{ root, identity, dryRun, log, results, args }` and may declare
+ * `when({ args })` to opt out. Every step returns `{ summary }` (plus whatever later steps need)
+ * for the closing table. #55 appends repo settings.
  */
 const steps = [
   // Fails init (nothing written) when Bun / Node / git are missing; `--skip-doctor` skips it.
@@ -481,7 +680,7 @@ const steps = [
           `  ${change.file.padEnd(width)}  ${String(total).padStart(3)}×  ${change.counts.map((c) => c.id).join(', ')}`,
         );
       }
-      return { files: changes.map((c) => c.file) };
+      return { files: changes.map((c) => c.file), summary: `${changes.length} files` };
     },
   },
   {
@@ -491,7 +690,7 @@ const steps = [
       const ls = spawnSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' });
       if (ls.status !== 0) {
         log('\nLeftover scan skipped (not a git checkout).');
-        return { hits: [] };
+        return { hits: [], summary: 'skipped (not a git checkout)' };
       }
       const rewritten = new Set(results.rewrite?.files ?? []);
       const files = {};
@@ -513,7 +712,106 @@ const steps = [
           .map(([f, why]) => `${f} (${why})`)
           .join('; ')}.`,
       );
-      return { hits };
+      return { hits, summary: hits.length ? `${hits.length} to review by hand` : 'clean' };
+    },
+  },
+  {
+    id: 'ledger',
+    title: 'Reset the queue ledger',
+    run({ root, identity, dryRun, log }) {
+      writeOrPlan(root, LEDGER_PATH, buildLedger(identity), dryRun);
+      log(
+        `  ${dryRun ? 'Would reset' : 'Reset'} ${LEDGER_PATH} (empty queue, tracker ${identity.githubRepo}).`,
+      );
+      return { summary: 'empty queue' };
+    },
+  },
+  {
+    id: 'plan',
+    title: 'Replace PLAN.md with a stub',
+    when: ({ args }) => !args['keep-plan'],
+    run({ root, identity, dryRun, log }) {
+      const abs = path.join(root, 'PLAN.md');
+      if (!fs.existsSync(abs)) {
+        log('  No PLAN.md, skipped.');
+        return { summary: 'no PLAN.md, skipped' };
+      }
+      writeOrPlan(root, 'PLAN.md', buildPlanStub(identity, fs.readFileSync(abs, 'utf8')), dryRun);
+      log(
+        `  ${dryRun ? 'Would replace' : 'Replaced'} PLAN.md: inherited decisions + link to ${UPSTREAM_URL} (--keep-plan keeps the original).`,
+      );
+      return { summary: 'stub with inherited decisions' };
+    },
+  },
+  {
+    id: 'changelog',
+    title: 'Clear the changelog',
+    run({ root, identity, dryRun, log }) {
+      if (!fs.existsSync(path.join(root, 'CHANGELOG.md'))) {
+        log('  No CHANGELOG.md, skipped.');
+        return { summary: 'no CHANGELOG.md, skipped' };
+      }
+      writeOrPlan(root, 'CHANGELOG.md', buildChangelog(identity), dryRun);
+      log(`  ${dryRun ? 'Would replace' : 'Replaced'} CHANGELOG.md with a fresh header.`);
+      return { summary: 'fresh header' };
+    },
+  },
+  {
+    id: 'self-delete',
+    title: 'Remove the init script',
+    when: ({ args }) => !args['keep-init'],
+    run({ root, dryRun, log }) {
+      const read = (file) => {
+        const abs = path.join(root, file);
+        return fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8') : null;
+      };
+      const edits = planRemoval(read);
+      const verb = dryRun ? 'Would remove' : 'Removed';
+      for (const file of REMOVAL.files) {
+        if (!dryRun) fs.rmSync(path.join(root, file));
+        log(`  ${verb} ${file}`);
+      }
+      for (const edit of edits) {
+        writeOrPlan(root, edit.file, edit.after, dryRun);
+        log(`  ${verb} from ${edit.file}: ${edit.counts.map((c) => c.id).join(', ')}`);
+      }
+      log('  Kept scripts/doctor.js, its test and `bun run doctor` (--keep-init keeps init too).');
+      return {
+        files: REMOVAL.files,
+        summary: `${REMOVAL.files.length} files removed, ${edits.length} edited`,
+      };
+    },
+  },
+  {
+    id: 'fresh-git',
+    title: 'Fresh git history',
+    when: ({ args }) => Boolean(args['fresh-git']),
+    run({ root, identity, dryRun, log }) {
+      const message = initialCommitMessage(identity);
+      if (dryRun) {
+        log(`  Would rm -rf .git, git init -b main, and commit everything as "${message}".`);
+        return { summary: 'would re-init with one commit' };
+      }
+      fs.rmSync(path.join(root, '.git'), { recursive: true, force: true });
+      const recover = `recover with: git init -b main && git add -A && git commit -m "${message}"`;
+      for (const cmd of [
+        ['init', '-b', 'main'],
+        ['add', '-A'],
+        ['commit', '-q', '-m', message],
+      ]) {
+        const r = git(root, cmd);
+        if (!r.ok) throw new Error(`init: git ${cmd[0]} failed (${r.out}); ${recover}`);
+      }
+      log(`  Re-initialised .git on main with one commit: "${message}".`);
+      // .git/hooks went with the old history; lefthook (the `prepare` script) writes them back.
+      const hooks = spawnSync('bunx', ['lefthook', 'install'], { cwd: root, encoding: 'utf8' });
+      if (hooks.status === 0) log('  Reinstalled lefthook hooks.');
+      else
+        log('  lefthook hooks not installed (run `bun install`, which runs `lefthook install`).');
+      log(
+        `  Next: git remote add origin git@github.com:${identity.githubRepo}.git && git push -u origin main`,
+      );
+      return { summary: `1 commit, hooks ${hooks.status === 0 ? 'installed' : 'pending'}` };
     },
   },
 ];
@@ -524,7 +822,19 @@ const steps = [
 
 function usage() {
   const flags = FIELDS.map((f) => `  --${f.flag.padEnd(16)} ${f.label}`).join('\n');
-  return `Usage: bun run init [--yes] [--dry-run] [--skip-doctor] [flags]\n\n${flags}\n  --yes              no prompts: flags + derived defaults\n  --dry-run          print the diff and summary, write nothing\n  --skip-doctor      skip the toolchain check (bun run doctor)\n\nSee docs/template-init.md.`;
+  return [
+    'Usage: bun run init [--yes] [--dry-run] [--skip-doctor] [--fresh-git] [--keep-init] [--keep-plan] [flags]',
+    '',
+    flags,
+    '  --yes              no prompts: flags + derived defaults',
+    '  --dry-run          print the diff and summary, write nothing',
+    '  --skip-doctor      skip the toolchain check (bun run doctor)',
+    '  --fresh-git        rm -rf .git and make one initial commit (asked interactively; default No)',
+    '  --keep-init        keep scripts/init.js, its test and doc (default: self-delete)',
+    '  --keep-plan        keep PLAN.md as is (default: stub with the inherited decisions)',
+    '',
+    'See docs/template-init.md.',
+  ].join('\n');
 }
 
 async function collectIdentity(args, { interactive, root, log }) {
@@ -581,20 +891,42 @@ async function main(argv) {
     return 1;
   }
 
-  log(
-    `${args['dry-run'] ? '[dry run] ' : ''}Initialising ${identity.name} (${identity.slug}) in ${root}`,
-  );
+  const dryRun = Boolean(args['dry-run']);
+  if (interactive && !args['fresh-git'] && !dryRun) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      const answer = await rl.question(
+        'Start a fresh git history (rm -rf .git, one initial commit)?\n  [y/N] > ',
+      );
+      if (/^y(es)?$/i.test(answer.trim())) args['fresh-git'] = true;
+    } finally {
+      rl.close();
+    }
+  }
+  // Before anything is written: a fresh history must not swallow uncommitted work.
+  if (args['fresh-git'] && !dryRun) {
+    const dirty = uncommittedChanges(root);
+    if (dirty && dirty.length) {
+      console.error(
+        `init: --fresh-git refused, the working tree has uncommitted changes (commit or stash them first):\n  ${dirty.join('\n  ')}`,
+      );
+      return 1;
+    }
+  }
+
+  log(`${dryRun ? '[dry run] ' : ''}Initialising ${identity.name} (${identity.slug}) in ${root}`);
   const results = {};
   for (const step of steps) {
     if (step.when && !step.when({ args })) continue;
     log(`\n▶ ${step.title}`);
-    results[step.id] = await step.run({
-      root,
-      identity,
-      dryRun: Boolean(args['dry-run']),
-      log,
-      results,
-    });
+    results[step.id] = await step.run({ root, identity, dryRun, log, results, args });
+  }
+
+  log(`\n${dryRun ? 'Would do' : 'Done'}:`);
+  const width = Math.max(...steps.map((s) => s.title.length));
+  for (const step of steps) {
+    const outcome = results[step.id] ? (results[step.id].summary ?? 'done') : 'skipped';
+    log(`  ${step.title.padEnd(width)}  ${outcome}`);
   }
 
   if (!identity.easProjectId) {
@@ -605,7 +937,11 @@ async function main(argv) {
   }
   log(
     `\nNext: bun install && bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check` +
-      `\nThen: bun run repo:settings:apply (#55), commit. See docs/template-init.md.`,
+      `\nThen: bun run repo:settings:apply (#55)` +
+      (args['fresh-git']
+        ? ''
+        : `, then commit: git add -A && git commit -m "${initialCommitMessage(identity)}"`) +
+      (args['keep-init'] ? '. See docs/template-init.md.' : '.'),
   );
   return 0;
 }
@@ -613,15 +949,26 @@ async function main(argv) {
 module.exports = {
   FIELDS,
   KEEP,
+  LEDGER_LEGEND,
+  LEDGER_PATH,
+  LEDGER_RULE,
+  PLAN_DECISIONS_HEADING,
+  REMOVAL,
   TEMPLATE,
   applyRules,
+  buildChangelog,
+  buildLedger,
   buildManifest,
+  buildPlanStub,
   deriveDefaults,
   diffLines,
+  initialCommitMessage,
   parseArgs,
   plan,
+  planRemoval,
   scanLeftovers,
   steps,
+  uncommittedChanges,
   validateIdentity,
 };
 
