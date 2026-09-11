@@ -11,13 +11,14 @@ Opinionated Expo template: Bun-only, EAS Workflows native lane, GitHub Actions J
 ```sh
 bun install
 bun run doctor # toolchain check with fix hints (Bun / Node / git required; EAS, gh, Maestro, Xcode, Android, Java per lane)
-bun run init   # new app from the template: rewrites name / slug / ids (docs/template-init.md)
+bun run init   # new app from the template: rewrites name / slug / ids, resets the ledger, removes itself (docs/template-init.md)
 bun run ios    # or android / web
 ```
 
 ## Docs
 
-- [Template init](docs/template-init.md) — `bun run init`: what it rewrites (app config, workflow envs, badges, docs), the flags, the headless form, the `bun run doctor` toolchain check, and what the sibling tickets still add.
+- [Template init](docs/template-init.md) — `bun run init`: what it rewrites (app config, workflow envs, badges, docs), the steps (ledger + `PLAN.md` reset, self-delete, optional fresh git history), the flags, the headless form.
+- [Toolchain check](docs/doctor.md) — `bun run doctor`: every tool the lanes need, the expected versions and why, install hints, `--strict` / `--json`.
 - [JS gate: required checks](docs/js-gate.md) — what gates merge, how merging works, running the gate locally.
 - [Environments and secrets](docs/environments-and-secrets.md) — EAS build profiles (`eas.json`) and, from T3.2, environment variables.
 - [Native E2E (iOS / Android)](docs/native-e2e.md) — reproducing the EAS Workflows native lane locally: `bun run e2e:build`, `e2e:repack`, `e2e:ios` / `e2e:android`.

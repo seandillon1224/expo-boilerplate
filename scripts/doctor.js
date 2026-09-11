@@ -520,7 +520,7 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  return 'Usage: bun run doctor [--strict] [--json]\n\n  --strict   warnings exit 1 as well (CI)\n  --json     machine-readable { rows, summary }\n\nSee docs/template-init.md → Toolchain check.';
+  return 'Usage: bun run doctor [--strict] [--json]\n\n  --strict   warnings exit 1 as well (CI)\n  --json     machine-readable { rows, summary }\n\nSee docs/doctor.md.';
 }
 
 /**

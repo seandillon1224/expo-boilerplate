@@ -1,17 +1,29 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- plain-Node script under test; no @types/node */
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const {
+  LEDGER_LEGEND,
+  LEDGER_PATH,
+  LEDGER_RULE,
+  PLAN_DECISIONS_HEADING,
+  REMOVAL,
   TEMPLATE,
   applyRules,
+  buildChangelog,
+  buildLedger,
   buildManifest,
+  buildPlanStub,
   deriveDefaults,
   diffLines,
+  initialCommitMessage,
   parseArgs,
   plan,
+  planRemoval,
   scanLeftovers,
   steps,
+  uncommittedChanges,
   validateIdentity,
 } = require('../init');
 
@@ -229,11 +241,15 @@ describe('validateIdentity / deriveDefaults / parseArgs', () => {
   });
 
   it('reads flags in both forms and rejects unknown ones', () => {
-    expect(parseArgs(['--slug', 'a', '--name=B', '--yes', '--dry-run'])).toEqual({
+    expect(
+      parseArgs(['--slug', 'a', '--name=B', '--yes', '--dry-run', '--fresh-git', '--keep-init']),
+    ).toEqual({
       slug: 'a',
       name: 'B',
       yes: true,
       'dry-run': true,
+      'fresh-git': true,
+      'keep-init': true,
     });
     expect(() => parseArgs(['--bogus'])).toThrow(/unknown argument/);
     expect(() => parseArgs(['--slug'])).toThrow(/needs a value/);
@@ -261,8 +277,127 @@ describe('diffLines / scanLeftovers', () => {
     ]);
   });
 
-  it('runs the toolchain check first, then rewrite + scan, so later tickets can append to `steps`', () => {
-    expect(steps.map((s: { id: string }) => s.id)).toEqual(['doctor', 'rewrite', 'scan']);
+  it('orders the steps: rewrites, ledger / plan / changelog, self-delete, fresh git last', () => {
+    expect(steps.map((s: { id: string }) => s.id)).toEqual([
+      'doctor',
+      'rewrite',
+      'scan',
+      'ledger',
+      'plan',
+      'changelog',
+      'self-delete',
+      'fresh-git',
+    ]);
+  });
+
+  it('opts steps out through their flags', () => {
+    const on = (id: string, args: Record<string, boolean>) => {
+      const step = steps.find((s: { id: string }) => s.id === id);
+      return step.when ? step.when({ args }) : true;
+    };
+    expect(on('plan', {})).toBe(true);
+    expect(on('plan', { 'keep-plan': true })).toBe(false);
+    expect(on('self-delete', {})).toBe(true);
+    expect(on('self-delete', { 'keep-init': true })).toBe(false);
+    expect(on('fresh-git', {})).toBe(false);
+    expect(on('fresh-git', { 'fresh-git': true })).toBe(true);
+    expect(on('ledger', {})).toBe(true);
+    expect(on('changelog', {})).toBe(true);
+  });
+});
+
+describe('reset templates', () => {
+  it('builds an empty ledger with the same legend and rule, pointing at the new repo', () => {
+    const ledger = buildLedger(ACME, '2026-01-02');
+    expect(ledger.startsWith('# Execution Queue — acme-mobile\n')).toBe(true);
+    expect(ledger).toContain('Tracker: GitHub Issues in `acme-inc/acme-mobile`. Plan: `PLAN.md`.');
+    expect(ledger).toContain(`\n${LEDGER_LEGEND}\n`);
+    expect(ledger).toContain(`\n${LEDGER_RULE}\n`);
+    expect(ledger).toContain('## OPEN QUEUE (dependency order)');
+    expect(ledger).toContain('## RUN LOG');
+    expect(ledger).toContain('- 2026-01-02 — Initialised from seandillon1224/expo-boilerplate');
+    expect(ledger).not.toMatch(/^- \[[ x~MBDS]\]/m);
+    expect(ledger).not.toMatch(/^### E\d/m);
+  });
+
+  it('stubs PLAN.md with the inherited decisions and a link upstream', () => {
+    const template = [
+      '# Plan',
+      '',
+      '## Goal',
+      '',
+      'template goal',
+      '',
+      '## Locked decisions',
+      '',
+      '| # | Area | Decision |',
+      '| 1 | CI | GitHub Actions |',
+      '',
+      '## Epics and tickets',
+      '',
+      '- **T7.1** init',
+    ].join('\n');
+    const stub = buildPlanStub(ACME, template);
+    expect(stub.startsWith('# Plan — Acme Mobile\n')).toBe(true);
+    expect(stub).toContain('https://github.com/seandillon1224/expo-boilerplate/blob/main/PLAN.md');
+    expect(stub).toContain(
+      '## Locked decisions (inherited)\n\n| # | Area | Decision |\n| 1 | CI | GitHub Actions |\n',
+    );
+    expect(stub).not.toContain('template goal');
+    expect(stub).not.toContain('T7.1');
+    expect(() => buildPlanStub(ACME, '# Plan\n\n## Goal\n')).toThrow(/Locked decisions/);
+  });
+
+  it('builds a fresh changelog header and a lowercase initial-commit subject', () => {
+    expect(buildChangelog(ACME)).toBe(
+      '# Changelog\n\nAll notable changes to Acme Mobile are documented here.\n',
+    );
+    expect(initialCommitMessage(ACME)).toBe('chore: initialize acme-mobile from expo-boilerplate');
+  });
+});
+
+describe('planRemoval (fixture strings)', () => {
+  it('drops exactly the init lines and keeps the doctor ones', () => {
+    const read = (file: string) =>
+      ({
+        'scripts/init.js': '',
+        'scripts/__tests__/init.test.ts': '',
+        'docs/template-init.md': '',
+        'package.json':
+          '{\n  "scripts": {\n    "init": "node scripts/init.js",\n    "doctor": "node scripts/doctor.js",\n  }\n}',
+        'README.md':
+          'bun run doctor # check\nbun run init   # new app (docs/template-init.md)\nbun run ios\n\n- [Template init](docs/template-init.md) — x.\n- [JS gate](docs/js-gate.md) — y.\n',
+        'CLAUDE.md':
+          '- `bun run doctor` — toolchain check. Also the first `init` step (`--skip-doctor`). Expected versions: x\n- `bun run init` — rebrand.\n- `bun run ios`\n',
+        'docs/doctor.md':
+          'exact install command. It is also the first `init`\nstep (`--skip-doctor` to skip). No network access.\n',
+      })[file] ?? null;
+    const after = Object.fromEntries(
+      planRemoval(read).map((c: { file: string; after: string }) => [c.file, c.after]),
+    );
+    expect(after['package.json']).toBe(
+      '{\n  "scripts": {\n    "doctor": "node scripts/doctor.js",\n  }\n}',
+    );
+    expect(after['README.md']).toBe(
+      'bun run doctor # check\nbun run ios\n\n- [JS gate](docs/js-gate.md) — y.\n',
+    );
+    expect(after['CLAUDE.md']).toBe(
+      '- `bun run doctor` — toolchain check. Expected versions: x\n- `bun run ios`\n',
+    );
+    expect(after['docs/doctor.md']).toBe('exact install command. No network access.\n');
+  });
+
+  it('fails loudly when a file or line is missing', () => {
+    const read = (file: string) => (file === 'package.json' ? '{}' : null);
+    expect(() => planRemoval(read)).toThrow(/scripts\/init\.js: file not found/);
+    expect(() => planRemoval(read)).toThrow(/package\.json: "init script" matched 0×/);
+    expect(() => planRemoval(read)).toThrow(/README\.md: file not found/);
+  });
+
+  it('never removes the doctor script, its test or doc', () => {
+    expect(REMOVAL.files).not.toContain('scripts/doctor.js');
+    expect(REMOVAL.files).not.toContain('scripts/__tests__/doctor.test.ts');
+    expect(REMOVAL.files).not.toContain('docs/doctor.md');
   });
 });
 
@@ -293,13 +428,33 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
     }
   });
 
+  it('every self-delete manifest entry matches the checked-in files', () => {
+    for (const change of planRemoval(read)) {
+      expect(change.after).not.toBe(change.before);
+      expect(change.after).not.toMatch(/bun run init|template-init|scripts\/init\.js/);
+    }
+    for (const file of REMOVAL.files) expect(read(file)).not.toBeNull();
+  });
+
+  it("the reset ledger keeps the live ledger's legend and rule, and PLAN.md has the decisions", () => {
+    const live = read(LEDGER_PATH) as string;
+    expect(live).toContain(`\n${LEDGER_LEGEND}\n`);
+    expect(live).toContain(`\n${LEDGER_RULE}\n`);
+    expect(live).toContain('## OPEN QUEUE (dependency order)');
+    expect(live).toContain('## RUN LOG');
+    const stub = buildPlanStub(ACME, read('PLAN.md') as string);
+    expect(stub).toContain(`${PLAN_DECISIONS_HEADING} (inherited)\n\n| #`);
+    expect(stub).not.toContain('## Epics and tickets');
+  });
+
   it('CLI --dry-run --yes exits 0 and writes nothing', () => {
     const before = fs.readFileSync(path.join(ROOT, 'app.config.ts'), 'utf8');
+    const ledgerBefore = fs.readFileSync(path.join(ROOT, LEDGER_PATH), 'utf8');
     // --skip-doctor keeps this hermetic: the toolchain check shells out to real binaries
     // (`bun run eas whoami` needs the network); scripts/__tests__/doctor.test.ts covers it.
     const result = spawnSync(
       process.execPath,
-      ['scripts/init.js', '--dry-run', '--skip-doctor', ...HEADLESS_FLAGS],
+      ['scripts/init.js', '--dry-run', '--skip-doctor', '--fresh-git', ...HEADLESS_FLAGS],
       {
         cwd: ROOT,
         encoding: 'utf8',
@@ -307,10 +462,19 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
     );
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('[dry run] Initialising Acme Mobile (acme-mobile)');
-    expect(result.stdout).not.toContain('Toolchain check');
+    expect(result.stdout).not.toContain('▶ Toolchain check');
     expect(result.stdout).toContain('Would rewrite:');
     expect(result.stdout).toContain("+   bundleId: 'com.acme.mobile',");
+    expect(result.stdout).toContain(`Would reset ${LEDGER_PATH}`);
+    expect(result.stdout).toContain('Would replace PLAN.md');
+    expect(result.stdout).toContain('No CHANGELOG.md, skipped.');
+    expect(result.stdout).toContain('Would remove scripts/init.js');
+    expect(result.stdout).toContain('Would rm -rf .git');
+    expect(result.stdout).toContain('Would do:');
     expect(fs.readFileSync(path.join(ROOT, 'app.config.ts'), 'utf8')).toBe(before);
+    expect(fs.readFileSync(path.join(ROOT, LEDGER_PATH), 'utf8')).toBe(ledgerBefore);
+    expect(fs.existsSync(path.join(ROOT, 'scripts/init.js'))).toBe(true);
+    expect(fs.existsSync(path.join(ROOT, '.git'))).toBe(true);
   });
 
   it('CLI rejects invalid flags without touching files', () => {
@@ -322,5 +486,139 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('--slug ("Bad Slug")');
     expect(result.stderr).toContain('--eas-project-id ("nope")');
+  });
+});
+
+/**
+ * Headless init on a copy of the tracked files (node_modules symlinked so `bunx prettier` and
+ * `bunx lefthook` resolve locally). `--fresh-git` needs a history to replace, so the copy is a
+ * real git repo with one commit; git identity comes from the environment below.
+ */
+describeTemplate('integration (headless init on a temp copy)', () => {
+  const GIT_ENV = {
+    ...process.env,
+    GIT_AUTHOR_NAME: 'init test',
+    GIT_AUTHOR_EMAIL: 'init@test.invalid',
+    GIT_COMMITTER_NAME: 'init test',
+    GIT_COMMITTER_EMAIL: 'init@test.invalid',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+  };
+  const gitIn = (cwd: string, args: string[]) =>
+    spawnSync('git', args, { cwd, encoding: 'utf8', env: GIT_ENV });
+  const exists = (dir: string, file: string) => fs.existsSync(path.join(dir, file));
+  const readIn = (dir: string, file: string) => fs.readFileSync(path.join(dir, file), 'utf8');
+  const dirs: string[] = [];
+
+  function copyRepo(): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'init-'));
+    dirs.push(dir);
+    const files = spawnSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' })
+      .stdout.split('\0')
+      .filter(Boolean);
+    for (const file of files) {
+      const src = path.join(ROOT, file);
+      if (!fs.existsSync(src)) continue;
+      fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+      fs.copyFileSync(src, path.join(dir, file));
+    }
+    fs.symlinkSync(path.join(ROOT, 'node_modules'), path.join(dir, 'node_modules'));
+    expect(gitIn(dir, ['init', '-q', '-b', 'main']).status).toBe(0);
+    // The symlink is not matched by `node_modules/` in .gitignore (that only matches directories).
+    fs.writeFileSync(path.join(dir, '.git/info/exclude'), 'node_modules\n');
+    expect(gitIn(dir, ['add', '-A']).status).toBe(0);
+    expect(gitIn(dir, ['commit', '-q', '-m', 'chore: template snapshot']).status).toBe(0);
+    return dir;
+  }
+
+  function runInit(dir: string, extra: string[]) {
+    return spawnSync(
+      process.execPath,
+      ['scripts/init.js', '--skip-doctor', '--eas-project-id=', ...extra, ...HEADLESS_FLAGS],
+      { cwd: dir, encoding: 'utf8', env: GIT_ENV },
+    );
+  }
+
+  afterAll(() => {
+    for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('self-deletes, resets the ledger and stubs PLAN.md; without --fresh-git it prints the commit command', () => {
+    const dir = copyRepo();
+    const result = runInit(dir, []);
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+
+    for (const file of REMOVAL.files) expect(exists(dir, file)).toBe(false);
+    expect(exists(dir, 'scripts/doctor.js')).toBe(true);
+    expect(exists(dir, 'scripts/__tests__/doctor.test.ts')).toBe(true);
+    expect(exists(dir, 'docs/doctor.md')).toBe(true);
+
+    const pkg = JSON.parse(readIn(dir, 'package.json'));
+    expect(pkg.name).toBe('acme-mobile');
+    expect(pkg.scripts.init).toBeUndefined();
+    expect(pkg.scripts.doctor).toBe('node scripts/doctor.js');
+    expect(readIn(dir, 'README.md')).not.toMatch(/bun run init|template-init/);
+    expect(readIn(dir, 'CLAUDE.md')).not.toMatch(
+      /bun run init|template-init|Also the first `init` step/,
+    );
+    expect(readIn(dir, 'docs/doctor.md')).not.toContain('first `init`');
+
+    const ledger = readIn(dir, LEDGER_PATH);
+    expect(ledger).toContain('Tracker: GitHub Issues in `acme-inc/acme-mobile`');
+    expect(ledger).not.toMatch(/^- \[x\]/m);
+    expect(exists(dir, '.claude/skills/ship-next/SKILL.md')).toBe(true);
+    expect(exists(dir, '.claude/settings.json')).toBe(true);
+    expect(readIn(dir, 'PLAN.md')).toContain('# Plan — Acme Mobile');
+    expect(exists(dir, 'CHANGELOG.md')).toBe(false);
+
+    // History untouched, everything above is uncommitted, and the hint names the commit.
+    expect(gitIn(dir, ['rev-list', '--count', 'HEAD']).stdout.trim()).toBe('1');
+    expect(gitIn(dir, ['status', '--porcelain']).stdout).toMatch(/^ D scripts\/init\.js$/m);
+    expect(result.stdout).toContain(
+      'then commit: git add -A && git commit -m "chore: initialize acme-mobile from expo-boilerplate"',
+    );
+  }, 60_000);
+
+  it('--keep-init --keep-plan leaves the script, its doc and PLAN.md alone', () => {
+    const dir = copyRepo();
+    const result = runInit(dir, ['--keep-init', '--keep-plan']);
+    expect(result.status).toBe(0);
+    for (const file of REMOVAL.files) expect(exists(dir, file)).toBe(true);
+    expect(JSON.parse(readIn(dir, 'package.json')).scripts.init).toBe('node scripts/init.js');
+    expect(readIn(dir, 'PLAN.md')).toBe(readIn(ROOT, 'PLAN.md'));
+    expect(readIn(dir, LEDGER_PATH)).toContain('acme-inc/acme-mobile');
+  }, 60_000);
+
+  it('--fresh-git replaces the history with one commit of the final tree, and refuses a dirty tree', () => {
+    const dir = copyRepo();
+    fs.writeFileSync(path.join(dir, 'WIP.md'), 'not committed\n');
+    const refused = runInit(dir, ['--fresh-git']);
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toContain('--fresh-git refused');
+    expect(refused.stderr).toContain('?? WIP.md');
+    expect(exists(dir, 'scripts/init.js')).toBe(true); // nothing was written
+    fs.rmSync(path.join(dir, 'WIP.md'));
+
+    const result = runInit(dir, ['--fresh-git']);
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(gitIn(dir, ['rev-list', '--count', 'HEAD']).stdout.trim()).toBe('1');
+    expect(gitIn(dir, ['log', '-1', '--format=%s']).stdout.trim()).toBe(
+      'chore: initialize acme-mobile from expo-boilerplate',
+    );
+    expect(gitIn(dir, ['branch', '--show-current']).stdout.trim()).toBe('main');
+    expect(gitIn(dir, ['status', '--porcelain']).stdout).toBe('');
+    expect(gitIn(dir, ['ls-files', 'scripts/init.js']).stdout).toBe('');
+    expect(gitIn(dir, ['ls-files', 'scripts/doctor.js']).stdout.trim()).toBe('scripts/doctor.js');
+    expect(exists(dir, '.git/hooks/pre-commit')).toBe(true);
+    expect(result.stdout).toContain(
+      'git remote add origin git@github.com:acme-inc/acme-mobile.git',
+    );
+  }, 60_000);
+
+  it('uncommittedChanges reports null outside a checkout', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'init-nogit-'));
+    dirs.push(dir);
+    expect(uncommittedChanges(dir)).toBeNull();
   });
 });

@@ -32,7 +32,7 @@ bun run e2e:ios                      # add --keep to leave the simulator running
 
 ### Prerequisites
 
-`bun run doctor` checks all of these (versions + install hints, `docs/template-init.md` → Toolchain check).
+`bun run doctor` checks all of these (versions + install hints, `docs/doctor.md`).
 
 | Tool                                  | Needed by                     | Notes                                                                                                                                                                                                                                                           |
 | ------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
