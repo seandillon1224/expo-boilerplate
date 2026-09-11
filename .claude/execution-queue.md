@@ -69,8 +69,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#42 T5.3** — `release.yml`: on `v*` tag, `build` production for both platforms, `submit` to Play internal track, `testflight` internal group; refuses/skips with a clear message when the fingerprint hasn't changed since the last store release.
 - [x] **#43 T5.4** — PR preview web deploys with unique URLs in the PR comment.
 - [x] **#44 T5.5** — Fingerprint-drift check on PRs: comment when a PR changes the native fingerprint ("this needs a store release").
-- [ ] **#45 T5.6** — Build-sharing surfaces: Slack channel wiring, Orbit setup doc, "how a designer installs the staging app" one-pager.
-- [ ] **#46 T5.7** — Runbook: `docs/release-ladder.md` covering the full path, rollback (`eas update:republish` / `update:rollback`), and channel/branch mapping.
+- [x] **#45 T5.6** — Build-sharing surfaces: Slack channel wiring, Orbit setup doc, "how a designer installs the staging app" one-pager.
+- [~] **#46 T5.7** — Runbook: `docs/release-ladder.md` covering the full path, rollback (`eas update:republish` / `update:rollback`), and channel/branch mapping.
 
 ### E6 — Performance tooling (tracker #73)
 
@@ -144,3 +144,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-10 — #42 | t42-release | https://github.com/seandillon1224/expo-boilerplate/pull/115 | merged | 2026-09-10 (validated, not executed; IOS_RELEASE/PLAY_SUBMIT constants default off; human owes EXPO_TOKEN repo secret, ASC key + ascAppId, Play service account + first manual AAB)
 - 2026-09-10 — #43 | t43-pr-preview-web | https://github.com/seandillon1224/expo-boilerplate/pull/116 | merged | 2026-09-10 (validated, not executed; behind HOSTING constant; comment-per-push, no alias delete; human owes first eas deploy + Expo GitHub App link)
 - 2026-09-10 — #44 | t44-fingerprint-drift | https://github.com/seandillon1224/expo-boilerplate/pull/117 | merged | 2026-09-10 (GHA job, informational, not required; label fingerprint-drift created — #55 to absorb into DESIRED labels; live drift comment unproven until a native-touching PR)
+- 2026-09-11 — #45 | t45-build-sharing | https://github.com/seandillon1224/expo-boilerplate/pull/118 | merged | 2026-09-11 (docs-only; SLACK_WEBHOOK_URL knob already existed; human owes Slack channel + webhook via eas env:set on preview + production)
