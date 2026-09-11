@@ -77,8 +77,8 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#47 T6.1** — Rozenite host + TanStack Query, network, performance plugins; docs on adding a project plugin.
 - [x] **#48 T6.2** — expo-atlas wiring + `bun run atlas`.
 - [x] **#49 T6.3** — Reassure baseline + two seed tests (already in gate via T2.6; this ticket owns setup).
-- [~] **#50 T6.4** — EAS Observe verification: query `eas observe:metrics-summary` post-deploy; document gating on TTI.
-- [ ] **#51 T6.5** — Performance doc: what each layer answers and where to look.
+- [x] **#50 T6.4** — EAS Observe verification: query `eas observe:metrics-summary` post-deploy; document gating on TTI.
+- [~] **#51 T6.5** — Performance doc: what each layer answers and where to look.
 
 ### E7 — Template init script (tracker #74)
 
@@ -149,3 +149,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-11 — #47 | t47-rozenite | https://github.com/seandillon1224/expo-boilerplate/pull/120 | merged | 2026-09-11 (rozenite 2.4.0 behind WITH_ROZENITE; react-native-performance is native → fingerprint drift, new dev client needed; human owes on-device DevTools check)
 - 2026-09-11 — #48 | t48-expo-atlas | https://github.com/seandillon1224/expo-boilerplate/pull/121 | merged | 2026-09-11 (expo-atlas 0.4.3 via EXPO_ATLAS=true; rozenite atlas plugin deliberately not wired, see docs/atlas.md)
 - 2026-09-11 — #49 | t49-reassure-seed | https://github.com/seandillon1224/expo-boilerplate/pull/122 | merged | 2026-09-11 (reassure.setup.ts loaded only in reassure child process; second seed = fetch screen; docs/perf-tests.md)
+- 2026-09-11 — #50 | t50-observe-check | https://github.com/seandillon1224/expo-boilerplate/pull/123 | merged | 2026-09-11 (observe:check informational; budget keyed median/p80/p90; human owes first real run + re-base observe-budget.json after ~1 week, cron in observe-check.yml still commented)
