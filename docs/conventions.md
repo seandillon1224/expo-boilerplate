@@ -18,6 +18,15 @@ or "hook-enforced", the enforcement is the source of truth and this page is the 
   `@types/node` (they `require` with an eslint-disable line).
 - **Expo SDK docs by version.** Before writing code against an Expo API, read the docs for the
   pinned SDK (`AGENTS.md` carries the URL); APIs move between SDKs.
+- **Two linters, one owner each** ([ADR-0004](adr/0004-oxlint-front-pass.md)). `bun run lint` is
+  `oxlint && expo lint`: oxlint runs its default rule set first (≈ 0.1 s; `.oxlintrc.json` holds
+  only ignore patterns), then ESLint owns what oxlint cannot express — `eslint-config-expo`, RN
+  a11y, `simple-import-sort`, `unused-imports` (the `^_` policy) and the local `require-testid`
+  rule. `eslint-plugin-oxlint` turns off in ESLint every rule oxlint already runs, so nothing is
+  reported twice. Both linters print warnings and fail only on errors. `oxlint` and
+  `eslint-plugin-oxlint` are pinned to the same version and Renovate bumps them together. Local
+  ESLint rules live in `eslint-rules/`; the folder must not be called `eslint/`, because
+  `expo lint` spawns `bun eslint …` and Bun resolves a local path before the binary.
 
 ## Commits and PR titles
 
@@ -88,7 +97,7 @@ docs/             One markdown page per concern.
 
 ### Every pressable and input has a `testID`
 
-`local/require-testid` (`eslint/rules/require-testid.js`) is an error. Maestro selects by `id:`
+`local/require-testid` (`eslint-rules/rules/require-testid.js`) is an error. Maestro selects by `id:`
 only — the identifier works as accessibility identifier on iOS, resource-id on Android and DOM id
 on web — so a component without a `testID` is untestable end to end. Shared components (the states,
 buttons) accept `testID` as a prop and pass it through; screens name theirs by screen

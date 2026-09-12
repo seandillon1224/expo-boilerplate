@@ -63,6 +63,16 @@
       automergeType: 'pr',
       platformAutomerge: true,
     },
+    // oxlint and its ESLint bridge (ADR-0004): the plugin's rule list must match the oxlint
+    // binary, so they bump in lockstep. Later rules win, so this comes after the generic
+    // dev-tooling group to pull both packages out of it.
+    {
+      groupName: 'oxlint',
+      matchPackageNames: ['oxlint', 'eslint-plugin-oxlint'],
+      automerge: true,
+      automergeType: 'pr',
+      platformAutomerge: true,
+    },
     // GitHub Actions: pin to digests, auto-merge minor/patch.
     {
       matchManagers: ['github-actions'],
