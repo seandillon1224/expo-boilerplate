@@ -20,8 +20,6 @@ type CheckStatus =
 /** Static keys so `i18n:extract` sees every policy label. */
 function policyLabel(t: ReturnType<typeof useTranslation>['t'], policy: UpdatePolicy): string {
   switch (policy) {
-    case 'manual':
-      return t('updates.policies.manual');
     case 'forced':
       return t('updates.policies.forced');
     case 'opt-in':

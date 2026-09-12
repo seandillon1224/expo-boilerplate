@@ -126,9 +126,26 @@ Build-time secrets (`SENTRY_AUTH_TOKEN`, `EXPO_TOKEN`) are never `EXPO_PUBLIC_`.
 ### Updates go through `useUpdatePolicy`
 
 `src/features/updates/use-update-policy.ts` is the only place that calls `expo-updates` actions
-(check, download, reload; later forced / opt-in / silent and rollout, #62). Screens call the hook;
-`useUpdateInfo` is the read-only view for display. This keeps the update behaviour a one-file
-decision when a project changes it.
+(check, download, reload). Its driver (`useUpdatePolicyDriver`) is mounted once by the root layout
+and runs the policy on launch and on every return to the foreground; screens never import
+`expo-updates`, and `useUpdateInfo` is the read-only view for display. This keeps the update
+behaviour a one-file decision when a project changes it
+([ADR-0003](adr/0003-update-policies.md)).
+
+- **Policy per build:** `EXPO_PUBLIC_UPDATE_POLICY` = `silent` (default: download in the
+  background, apply on the next cold start or idle resume, no UI) | `opt-in` (same, plus the
+  "Update ready" banner with Restart now / Later) | `forced` (every downloaded update reloads at
+  once, Sentry flushed first). Set per EAS environment; recommended `forced` on `preview`,
+  `silent` on `production`.
+- **Critical per update:** `EAS_UPDATE_CRITICAL=1` at publish time makes `app.config.ts` write
+  `extra.updatePolicy: 'forced'` into the update manifest; the app reads it from the incoming
+  update and reloads immediately whatever the build policy. It is a workflow input (#137), never
+  an EAS environment variable, and `fingerprint.config.js` keeps `extra` out of the runtime
+  version so a critical publish still matches the installed builds.
+- **Idle resume (every policy):** coming back to the foreground after ≥ 30 minutes in the
+  background (`RESUME_RELOAD_AFTER_MS`) with an update already downloaded reloads into it.
+- The Updates screen (Settings → OTA updates) shows the active policy and keeps the manual
+  check / download buttons as the test bed.
 
 ### Loading, empty and error UI is shared
 

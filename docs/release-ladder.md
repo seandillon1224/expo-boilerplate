@@ -289,6 +289,25 @@ of the same ladder: a job that declares `environment: production` — `release.y
 later Actions-side promotion step — waits for a reviewer before it runs. They do not apply to EAS
 workflow runs; they are created now so both halves of the ladder carry the same named rungs.
 
+## Update policies
+
+How an installed app applies what the ladder publishes is decided in the app, not in the
+workflows ([ADR-0003](adr/0003-update-policies.md); the one-file implementation is
+`src/features/updates/use-update-policy.ts`, see
+[Conventions → Updates go through `useUpdatePolicy`](conventions.md#updates-go-through-useupdatepolicy)):
+
+| Lever                                          | Where                                                              | Effect                                                                                                                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_UPDATE_POLICY`                    | EAS environment variable (`preview` → staging + UAT, `production`) | Build-level policy: `silent` (default), `opt-in` (banner), `forced`. Recommended `forced` on `preview` so testers always run the newest group, `silent` on `production`.          |
+| `EAS_UPDATE_CRITICAL=1`                        | Set on a single `eas update` (workflow `critical` input, #137)     | Marks that update forced through its manifest (`extra.expoClient.extra.updatePolicy`); promotion republishes the manifest unchanged, so the flag rides along to UAT / production. |
+| Idle resume (`RESUME_RELOAD_AFTER_MS`, 30 min) | Code constant next to the hook                                     | A downloaded update is applied when the app comes back after ≥ 30 min in the background, under every policy, so a silent update does not wait for a cold start.                   |
+
+The workflow inputs (`critical` on `deploy-staging.yml` / `promote.yml`, `rollout_percentage` on
+`promote.yml` for staged production rollouts) and the runbook for ramping / ending a rollout and
+for verifying each policy on a staging build are the pipeline half of the design, tracked in
+issue #137. Until it lands, a critical
+publish is a manual `EAS_UPDATE_CRITICAL=1 bun run eas update …`.
+
 ## Store release (tag)
 
 **Workflows:** two files, one gate. `.github/workflows/release.yml` (`Release`, GitHub Actions) runs

@@ -32,7 +32,7 @@ describe('UpdatesScreen', () => {
     expect(row('source').getByText(/^Embedded/)).toBeOnTheScreen();
     expect(row('createdAt').getByText('—')).toBeOnTheScreen();
     expect(row('enabled').getByText('No')).toBeOnTheScreen();
-    expect(row('policy').getByText('Manual')).toBeOnTheScreen();
+    expect(row('policy').getByText('Silent')).toBeOnTheScreen();
     expect(screen.queryByTestId('updates-apply')).toBeNull();
   });
 

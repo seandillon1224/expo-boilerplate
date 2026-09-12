@@ -38,6 +38,12 @@
   },
   "updates": {
     "apply": "Download and restart",
+    "banner": {
+      "description": "A new version has been downloaded. Restart to use it now, or it will apply the next time the app starts.",
+      "later": "Later",
+      "restart": "Restart now",
+      "title": "Update ready"
+    },
     "check": "Check for update",
     "checking": "Checking…",
     "downloading": "Downloading…",
@@ -45,7 +51,6 @@
     "pending": "An update has been downloaded and will apply on next launch.",
     "policies": {
       "forced": "Forced",
-      "manual": "Manual",
       "opt-in": "Opt-in",
       "silent": "Silent"
     },

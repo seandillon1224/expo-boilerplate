@@ -49,4 +49,5 @@ reasoning has a home that outlives the plan.
 The deferred deep dives in `PLAN.md` (D1 release mechanics, D2 multi-runtime OTA backports, D3
 update policies, D4 Flashlight, D5 oxlint, D6 accessibility E2E, D7 Maestro Cloud) each follow
 research ticket → grill session → their own ADR when they land. D1 landed as
-[ADR-0002](0002-release-please-versioning.md); the rest are open.
+[ADR-0002](0002-release-please-versioning.md) and D3 as [ADR-0003](0003-update-policies.md); the
+rest are open.

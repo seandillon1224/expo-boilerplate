@@ -69,9 +69,12 @@ The human-readable version of these rules, with the reasoning, is `docs/conventi
   never `process.env` directly. Document new keys in `.env.example`.
 - EAS environment variables are the source of truth (`development` / `preview` / `production` ↔ dev / staging+UAT / prod);
   `.env.local` is pulled, never hand-edited. Every `eas.json` profile sets `environment`; profile `env` beats EAS vars of the same name.
-- OTA updates: `useUpdatePolicy` (`src/features/updates/use-update-policy.ts`) is the single place to
-  change update behaviour (check / download / reload, and later forced / opt-in / silent + rollout);
-  never call `expo-updates` actions from screens directly. `useUpdateInfo` is the read-only view.
+- OTA updates: `useUpdatePolicy` (`src/features/updates/use-update-policy.ts`, ADR-0003) is the single place to
+  change update behaviour; its driver is mounted once in `src/app/_layout.tsx` (check on launch + foreground,
+  idle-resume reload after 30 min). Policy = `EXPO_PUBLIC_UPDATE_POLICY` (`silent` default | `opt-in` banner |
+  `forced`); a single update is forced by `EAS_UPDATE_CRITICAL=1` at publish time (`app.config.ts` → manifest
+  `extra.updatePolicy`, never an EAS env var). Never call `expo-updates` actions from screens directly;
+  `useUpdateInfo` is the read-only view.
 - All user-facing strings go through `t()` from `react-i18next` (keys typed against `src/i18n/locales/en/common.json`);
   run `bun run i18n:extract` after adding keys.
 - Rozenite (`docs/rozenite.md`) is the dev-only React Native DevTools plugin host: `metro.config.js` gates it on `WITH_ROZENITE=true` (set by `bun run start|ios|android`), plugin hooks live only in `src/lib/devtools-plugins.ts` behind the `__DEV__` `require` in `src/lib/devtools.ts`; never import `@rozenite/*` elsewhere, and add a project-local plugin as a `link:` devDependency.
