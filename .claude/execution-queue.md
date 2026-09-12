@@ -101,7 +101,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#62 T9.3** — D3 update policies (forced / opt-in / silent) — app side (grilled 2026-09-11, spec in issue comment).
 - [x] **#137 T9.3b** — update policies pipeline side: `rollout_percentage` + `critical` workflow inputs, runbook.
 - [D] **#63 T9.4** — D4 Flashlight.
-- [ ] **#64 T9.5** — D5 oxlint.
+- [x] **#64 T9.5** — D5 oxlint (grilled 2026-09-12, spec in issue comment, ADR-0004).
 - [D] **#65 T9.6** — D6 a11y Maestro flow.
 - [D] **#66 T9.7** — D7 Maestro Cloud optional job.
 
@@ -164,3 +164,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-11 — #60 | t60-release-please | https://github.com/seandillon1224/expo-boilerplate/pull/135 | merged | 2026-09-11 (grilled first, spec in issue comment + ADR-0002; release-please manifest mode, version from package.json, fingerprint.config.js skips ExpoConfigVersions — verified hash-neutral; Renovate → chore; human owes RELEASE_PLEASE_TOKEN secret + `repo:settings:apply --only labels`; one-time fingerprint change → staging builds on this merge)
 - 2026-09-11 — #62 | t62-update-policies | https://github.com/seandillon1224/expo-boilerplate/pull/138 | merged | 2026-09-11 (grilled; ADR-0003; policy driver mounted once in root layout, EXPO_PUBLIC_UPDATE_POLICY, critical flag via EAS_UPDATE_CRITICAL → manifest extra; fingerprint.config.js now also skips ExpoConfigExtraSection — one-time hash change; init.test.ts teardown flaked once in CI on rmdir .git ENOTEMPTY, fixed in follow-up chore PR; preview env set to forced by orchestrator; human owes staging build with updates to verify)
 - 2026-09-11 — #137 | t137-update-policy-pipeline | https://github.com/seandillon1224/expo-boilerplate/pull/140 | merged | 2026-09-11 (rollout_percentage + critical inputs; promote.yml at 16164 B of 16384 cap — nearly full; critical-on-promote checks the source group manifest via manifestPermalink, unexercised until a staging group exists; #139 fixed init.test.ts teardown flake). Lesson: parallel subagents must use isolation: worktree — a branch switch by the orchestrator landed a subagent commit on local main.
+- 2026-09-12 — #64 | t64-oxlint | https://github.com/seandillon1224/expo-boilerplate/pull/141 | merged | 2026-09-12 (grilled; ADR-0004; oxlint defaults as a front pass inside `bun run lint`, eslint-plugin-oxlint drops the overlap, oxlint + plugin pinned together in Renovate; JS-plugin bridge rejected while alpha. Found on the way: `expo lint` had never run ESLint here — Bun resolved the local `eslint/` folder before the binary — fixed by renaming it to `eslint-rules/`, so the CI Lint job is real from this merge on. Only [D] items remain.)
