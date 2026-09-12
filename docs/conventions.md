@@ -176,8 +176,8 @@ change one:
 1. Open an issue that names the decision number, what changes and why, and what it breaks
    (workflows, docs, the required-check set).
 2. Grill the proposal (`/grill-me` exists for exactly this) until the trade-offs are written down.
-3. Record the outcome as an ADR — #59 adds the `docs/adr/` folder with the current table as
-   ADR-0001; a change is a new ADR that supersedes the relevant entry — and update the row in
-   `PLAN.md` in the same PR.
+3. Record the outcome as an ADR in [`docs/adr/`](adr/README.md): copy the template, take the next
+   number, mark the entry in [ADR-0001](adr/0001-locked-architecture-decisions.md) as superseded,
+   and update the row in `PLAN.md` in the same PR.
 4. Then the implementation PRs, each citing the ADR. Deferred deep dives (`D1`–`D7` in `PLAN.md`)
    follow the same path: research ticket → grill → ADR → epic.
