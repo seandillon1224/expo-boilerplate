@@ -608,6 +608,11 @@ describeTemplate('integration (headless init on a temp copy)', () => {
     GIT_COMMITTER_NAME: 'init test',
     GIT_COMMITTER_EMAIL: 'init@test.invalid',
     GIT_CONFIG_GLOBAL: '/dev/null',
+    // `git commit` may fork a detached `git gc --auto` that is still writing under `.git` when
+    // afterAll removes the directory (ENOTEMPTY on CI). Turn auto-gc off for the temp repos.
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'gc.auto',
+    GIT_CONFIG_VALUE_0: '0',
   };
   const gitIn = (cwd: string, args: string[]) =>
     spawnSync('git', args, { cwd, encoding: 'utf8', env: GIT_ENV });
@@ -645,7 +650,9 @@ describeTemplate('integration (headless init on a temp copy)', () => {
   }
 
   afterAll(() => {
-    for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
+    // Retry: a straggling git child can briefly hold entries under `.git`.
+    for (const dir of dirs)
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
 
   it('self-deletes, resets the ledger and stubs PLAN.md; without --fresh-git it prints the commit command', () => {
