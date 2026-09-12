@@ -92,7 +92,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 
 - [x] **#57 T8.1** — README: what's inside, quick start, the pipeline diagram, "commonly added next".
 - [x] **#58 T8.2** — `docs/`: ci-overview, js-gate, native-e2e, release-ladder, environments-and-secrets, performance, testing, conventions.
-- [ ] **#59 T8.3** — ADR folder with the decisions table above as ADR-0001.
+- [x] **#59 T8.3** — ADR folder with the decisions table above as ADR-0001.
 
 ### E9 — Deferred deep-dive research tickets (tracker #76)
 
@@ -158,3 +158,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-11 — #56 | t56-template-e2e | https://github.com/seandillon1224/expo-boilerplate/pull/130 | merged | 2026-09-11 (Template init CI job + bun run template:e2e, in REQUIRED_CHECKS but not yet required on GitHub; human owes `bun run repo:settings:apply --only protection`; also fixed a personal-identifier leak in doctor test fixtures)
 - 2026-09-11 — #57 | t57-readme | https://github.com/seandillon1224/expo-boilerplate/pull/131 | merged | 2026-09-11 (README with mermaid pipeline; README joined init KEEP list; human owes eyeballing the rendered diagram)
 - 2026-09-11 — #58 | t58-docs-set | https://github.com/seandillon1224/expo-boilerplate/pull/132 | merged | 2026-09-11 (ci-overview, testing, conventions; stale "not wired yet" callout in docs/js-gate.md noted for a later docs PR)
+- 2026-09-11 — #59 | t59-adr-folder | https://github.com/seandillon1224/expo-boilerplate/pull/133 | merged | 2026-09-11 — E8 complete (docs/adr with README, 0000 template, 0001 locked decisions; generated projects inherit ADR-0001; D1–D7 outcomes become ADR-0002+). Only [D] items remain.
