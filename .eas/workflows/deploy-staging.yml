@@ -4,7 +4,7 @@
 # `staging` alias → Slack with install links, flagged "reinstall required" when a build was cut.
 # Same cache idiom as e2e.yml; the runbook is docs/release-ladder.md.
 #
-# Run by hand:  bun run eas workflow:run .eas/workflows/deploy-staging.yml [-F hosting=enabled]
+# Run by hand:  bun run eas workflow:run .eas/workflows/deploy-staging.yml [-F hosting=enabled] [-F critical=yes]
 # Validate:     bun run eas workflow:validate .eas/workflows/deploy-staging.yml   (cap: 16 KiB)
 # Push triggers need the Expo GitHub App linked to the repo (docs/release-ladder.md → Enable).
 #
@@ -34,6 +34,12 @@ on:
         default: disabled
         required: false
         description: enabled = deploy the web export to the EAS Hosting `staging` alias.
+      critical:
+        type: choice
+        options: ['yes', 'no']
+        default: 'no'
+        required: false
+        description: yes = publish a critical (forced) update (ADR-0003) — installed apps download and reload it at once; promotion carries the flag along. Verify on staging before promoting.
 
 concurrency:
   # EAS never queues runs; without this two pushes publish in parallel and the OLDER one can land
@@ -116,10 +122,15 @@ jobs:
     environment: preview
     env:
       APP_VARIANT: staging
+      # `critical` input (dispatch only; a push is never critical): app.config.ts writes
+      # `extra.updatePolicy: 'forced'` into the manifest. Never an EAS env var — that would make every
+      # update critical — and not `EXPO_PUBLIC_`, so it stays out of the bundle. Outside the fingerprint
+      # (`ExpoConfigExtraSection` skipped in fingerprint.config.js), so the runtime version is unchanged.
+      EAS_UPDATE_CRITICAL: "${{ inputs.critical == 'yes' ? '1' : '0' }}"
     params:
       channel: staging
       # Dispatch runs have no commit message; keep the update findable either way.
-      message: ${{ github.commit_message || 'manual staging publish of ' + (github.sha || 'HEAD') }}
+      message: "${{ (inputs.critical == 'yes' ? 'CRITICAL: ' : '') + (github.commit_message || 'manual staging publish of ' + (github.sha || 'HEAD')) }}"
       # Sentry source maps are uploaded by the job itself, from the same export it publishes
       # (`dist` only exists on this worker, so a separate job cannot do it). Unset = best-effort:
       # `@sentry/react-native` is installed so it tries, and without SENTRY_AUTH_TOKEN /
@@ -187,7 +198,7 @@ jobs:
       - name: Compose message
         run: |
           cat > slack.txt <<'__SLACK_MSG__'
-          *Staging* · ${{ after.update.status == 'success' ? '✅ published' : after.update.status == 'failure' ? '❌ update failed' : '⏭️ update skipped' }} · `${{ substring(github.sha || '', 0, 7) }}` ${{ github.commit_message ? '— ' + substring(github.commit_message || '', 0, 120) : '(manual run)' }}
+          *Staging* · ${{ after.update.status == 'success' ? '✅ published' : after.update.status == 'failure' ? '❌ update failed' : '⏭️ update skipped' }}${{ inputs.critical == 'yes' ? ' · 🚨 *critical* (forced reload)' : '' }} · `${{ substring(github.sha || '', 0, 7) }}` ${{ github.commit_message ? '— ' + substring(github.commit_message || '', 0, 120) : '(manual run)' }}
           ${{ (after.build_ios.status == 'success' || after.build_android.status == 'success') ? ':warning: *Reinstall required* — the native fingerprint changed, new staging builds were cut. Installed apps will NOT receive this update.' : 'JS-only change: installed staging apps pick it up on next launch.' }}
           • *iOS*: ${{ after.build_ios.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_ios.outputs.build_id + '|new build — install page + QR>' : after.get_build_ios.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.get_build_ios.outputs.build_id + '|current build — install page + QR>' : after.build_ios.status == 'failure' ? '❌ build failed (credentials? docs/environments-and-secrets.md → iOS runbook)' : '⏭️ no build for this fingerprint (IOS_BUILDS disabled)' }}
           • *Android*: ${{ after.build_android.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_android.outputs.build_id + '|new build — install page + QR>' : after.get_build_android.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.get_build_android.outputs.build_id + '|current build — install page + QR>' : '❌ build failed (' + after.build_android.status + ')' }}

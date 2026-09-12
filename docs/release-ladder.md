@@ -208,17 +208,21 @@ re-bundled, so what UAT signed off is byte-for-byte what production gets.
 ```sh
 bun run eas workflow:run .eas/workflows/promote.yml -F target=uat                          # newest staging group
 bun run eas workflow:run .eas/workflows/promote.yml -F target=production -F update_group_id=<id>
+bun run eas workflow:run .eas/workflows/promote.yml -F target=production -F rollout_percentage=10   # staged rollout
+bun run eas workflow:run .eas/workflows/promote.yml -F target=uat -F critical=yes                   # refuse a non-critical group
 bun run eas workflow:run .eas/workflows/promote.yml --ref <commit> -F target=uat -F ios_builds=enabled -F hosting=enabled
 bun run eas workflow:validate .eas/workflows/promote.yml                                    # after editing (cap: 16 KiB)
 ```
 
-| Input             | Values                  | Default          | Meaning                                                                                                                                                           |
-| ----------------- | ----------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `target`          | `uat` \| `production`   | `uat` (required) | Channel to promote to.                                                                                                                                            |
-| `update_group_id` | group id                | empty            | Which staging group. Empty = newest on the `staging` branch (`bun run eas update:list --branch staging --limit 1 --json`). Any group not on `staging` is refused. |
-| `web`             | `promote` \| `skip`     | `promote`        | Whether to move the web alias too (still needs `HOSTING`).                                                                                                        |
-| `ios_builds`      | `enabled` \| `disabled` | `disabled`       | `IOS_BUILDS` repo constant (as in `deploy-staging.yml`): cut an iOS uat build on a miss. Needs the `uat` ad hoc credentials.                                      |
-| `hosting`         | `enabled` \| `disabled` | `disabled`       | `HOSTING` repo constant: the dev-domain has been claimed by hand.                                                                                                 |
+| Input                | Values                  | Default          | Meaning                                                                                                                                                             |
+| -------------------- | ----------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `target`             | `uat` \| `production`   | `uat` (required) | Channel to promote to.                                                                                                                                              |
+| `update_group_id`    | group id                | empty            | Which staging group. Empty = newest on the `staging` branch (`bun run eas update:list --branch staging --limit 1 --json`). Any group not on `staging` is refused.   |
+| `rollout_percentage` | integer `1`–`100`       | `100`            | Share of **production** users served the update at once ([Staged rollouts](#staged-rollouts-production)); validated in `republish`, ignored for `uat` (always 100). |
+| `critical`           | `yes` \| `no`           | `no`             | `yes` refuses the run unless the group already carries the critical flag ([Critical updates](#critical-forced-updates)); a republish cannot add it.                 |
+| `web`                | `promote` \| `skip`     | `promote`        | Whether to move the web alias too (still needs `HOSTING`).                                                                                                          |
+| `ios_builds`         | `enabled` \| `disabled` | `disabled`       | `IOS_BUILDS` repo constant (as in `deploy-staging.yml`): cut an iOS uat build on a miss. Needs the `uat` ad hoc credentials.                                        |
+| `hosting`            | `enabled` \| `disabled` | `disabled`       | `HOSTING` repo constant: the dev-domain has been claimed by hand.                                                                                                   |
 
 `--ref <commit>` runs the workflow from a git ref instead of uploading the working directory; use
 the group's commit (printed by `resolve`, and `gitCommitHash` in `bun run eas update:view <id> --json`)
@@ -232,17 +236,17 @@ resolve ── approve ─┬─ fingerprint_<target> ──┐
                                                                               └───── slack
 ```
 
-| Job                    | Type               | What it does                                                                                                                                                                                                                                                                                            |
-| ---------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolve`              | custom steps       | Picks the group (input or newest on `staging`), refuses one that is not on the `staging` branch, and exports `group_id`, per-platform `ios_runtime` / `android_runtime`, `commit`, `message`. Runs **before** the approval so the approver can read what they are approving.                            |
-| `approve`              | `require-approval` | The gate. The run pauses on expo.dev (run page → Approve / Reject); any account member with access to the project can decide. Reject fails the job and, through `needs`, every job below it; nothing has been built or published yet.                                                                   |
-| `fingerprint_<target>` | `fingerprint`      | The checkout's native fingerprint for the target variant (`preview` + `APP_VARIANT=uat`, or `production` + `APP_VARIANT=production` — must equal the `eas.json` profile).                                                                                                                               |
-| `get_build_<p>`        | `get-build`        | Newest finished build of the **target** profile whose fingerprint equals the **group's** runtime version — "can an installed uat / production build run these bytes?". `store` distribution for production, `internal` for uat. Skipped for a platform the group was not published for.                 |
-| `gate`                 | custom steps       | The matrix below, per platform; exits 1 with the reason on a refusal. Outputs `build_ios` / `build_android`.                                                                                                                                                                                            |
-| `build_<p>`            | `build`            | uat only, on a miss: an internal-distribution `uat` build from this checkout (install page + QR). iOS also needs `IOS_BUILDS`.                                                                                                                                                                          |
-| `republish`            | custom steps       | `eas update:republish --group <id> --destination-channel <target> --non-interactive`; `after:` the builds, so a failed uat build never blocks the OTA (it is keyed by runtime and harmless for a platform without a matching build). Message: `promote <id8> (staging → <target>): <original message>`. |
-| `promote_web_<target>` | `deploy`           | Exports web from this checkout and deploys it to the `uat` alias / to production (`prod: true`). See _Web_ below.                                                                                                                                                                                       |
-| `slack`                | custom steps       | Same job as staging: verdict, group ids, install links, "reinstall required" when uat builds were cut. Exits 0 while `SLACK_WEBHOOK_URL` is unset.                                                                                                                                                      |
+| Job                    | Type               | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolve`              | custom steps       | Picks the group (input or newest on `staging`), refuses one that is not on the `staging` branch, and exports `group_id`, per-platform `ios_runtime` / `android_runtime`, `commit`, `message`. Reads each platform's manifest (`manifestPermalink`) and logs `updatePolicy … → CRITICAL / not critical`; with `critical=yes` it fails when the group is not critical. Runs **before** the approval so the approver can read what they are approving. |
+| `approve`              | `require-approval` | The gate. The run pauses on expo.dev (run page → Approve / Reject); any account member with access to the project can decide. Reject fails the job and, through `needs`, every job below it; nothing has been built or published yet.                                                                                                                                                                                                               |
+| `fingerprint_<target>` | `fingerprint`      | The checkout's native fingerprint for the target variant (`preview` + `APP_VARIANT=uat`, or `production` + `APP_VARIANT=production` — must equal the `eas.json` profile).                                                                                                                                                                                                                                                                           |
+| `get_build_<p>`        | `get-build`        | Newest finished build of the **target** profile whose fingerprint equals the **group's** runtime version — "can an installed uat / production build run these bytes?". `store` distribution for production, `internal` for uat. Skipped for a platform the group was not published for.                                                                                                                                                             |
+| `gate`                 | custom steps       | The matrix below, per platform; exits 1 with the reason on a refusal. Outputs `build_ios` / `build_android`.                                                                                                                                                                                                                                                                                                                                        |
+| `build_<p>`            | `build`            | uat only, on a miss: an internal-distribution `uat` build from this checkout (install page + QR). iOS also needs `IOS_BUILDS`.                                                                                                                                                                                                                                                                                                                      |
+| `republish`            | custom steps       | `eas update:republish --group <id> --destination-channel <target> --non-interactive`, plus `--rollout-percentage <n>` when `target=production` and `rollout_percentage` < 100 (the log prints what was applied); `after:` the builds, so a failed uat build never blocks the OTA (it is keyed by runtime and harmless for a platform without a matching build). Message: `promote <id8> (staging → <target>): <original message>`.                  |
+| `promote_web_<target>` | `deploy`           | Exports web from this checkout and deploys it to the `uat` alias / to production (`prod: true`). See _Web_ below.                                                                                                                                                                                                                                                                                                                                   |
+| `slack`                | custom steps       | Same job as staging: verdict, group ids, install links, "reinstall required" when uat builds were cut. Exits 0 while `SLACK_WEBHOOK_URL` is unset.                                                                                                                                                                                                                                                                                                  |
 
 **Fingerprint gate** (PLAN.md decision 13). `runtimeVersion` is the fingerprint, so an update
 only ever runs on a build with the same hash. Per platform in the group:
@@ -299,14 +303,92 @@ workflows ([ADR-0003](adr/0003-update-policies.md); the one-file implementation 
 | Lever                                          | Where                                                              | Effect                                                                                                                                                                            |
 | ---------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `EXPO_PUBLIC_UPDATE_POLICY`                    | EAS environment variable (`preview` → staging + UAT, `production`) | Build-level policy: `silent` (default), `opt-in` (banner), `forced`. Recommended `forced` on `preview` so testers always run the newest group, `silent` on `production`.          |
-| `EAS_UPDATE_CRITICAL=1`                        | Set on a single `eas update` (workflow `critical` input, #137)     | Marks that update forced through its manifest (`extra.expoClient.extra.updatePolicy`); promotion republishes the manifest unchanged, so the flag rides along to UAT / production. |
+| `EAS_UPDATE_CRITICAL=1`                        | Set on a single `eas update` (`deploy-staging.yml` `critical=yes`) | Marks that update forced through its manifest (`extra.expoClient.extra.updatePolicy`); promotion republishes the manifest unchanged, so the flag rides along to UAT / production. |
+| `rollout_percentage`                           | `promote.yml` input, production only                               | Staged rollout: `eas update:republish --rollout-percentage <n>`; the rest of production keeps the previous group until the rollout is ramped to 100 or ended.                     |
 | Idle resume (`RESUME_RELOAD_AFTER_MS`, 30 min) | Code constant next to the hook                                     | A downloaded update is applied when the app comes back after ≥ 30 min in the background, under every policy, so a silent update does not wait for a cold start.                   |
 
-The workflow inputs (`critical` on `deploy-staging.yml` / `promote.yml`, `rollout_percentage` on
-`promote.yml` for staged production rollouts) and the runbook for ramping / ending a rollout and
-for verifying each policy on a staging build are the pipeline half of the design, tracked in
-issue #137. Until it lands, a critical
-publish is a manual `EAS_UPDATE_CRITICAL=1 bun run eas update …`.
+### Staged rollouts (production)
+
+`rollout_percentage` on `promote.yml` is honoured only for `target=production` — UAT testers
+always get everyone, so the input is validated (integer 1–100) and then ignored there, with a log
+line saying so. Below 100 the `republish` job passes `--rollout-percentage <n>`: EAS serves the
+new group to that share of production installs (decided per install, stable across launches) and
+the **previous latest group on the branch** to the rest. The rollout is a property of the new
+group on the `production` branch, so every later step names **that** id (the `republish` job's
+`group_id` output / the Slack post), not the staging one. Flags verified with
+`bun run eas update:edit --help` / `update:rollback --help` (eas-cli 24).
+
+```sh
+bun run eas workflow:run .eas/workflows/promote.yml -F target=production -F update_group_id=<staging-id> -F rollout_percentage=10
+bun run eas update:list --branch production --limit 2 --json        # the new group + what the other 90 % still run
+bun run eas update:view <production-group-id> --insights --days 1   # launches, crash rate, unique users of the rollout so far
+
+# Ramp — set the percentage on the group; repeat until 100 (100 ends the rollout: everyone gets it):
+bun run eas update:edit <production-group-id> --rollout-percentage 50 --non-interactive
+bun run eas update:edit <production-group-id> --rollout-percentage 100 --non-interactive
+
+# End a bad rollout — publish the previous group again on top of it (same channel, no approval):
+bun run eas update:rollback <production-group-id> --message "rollback: <why>" --non-interactive
+```
+
+Rules: ramp only **up** — installs that already received the group keep it, so lowering the number
+takes nothing back; `update:rollback` needs the rollout group to be the branch's **latest**, so do
+not promote another group on top of an open rollout — finish it (100) or end it first;
+`update:rollback` on a rollout group republishes the group the other users were on, so the whole
+channel converges on the old code (it is exactly the [Rollback](#rollback) mechanism, one command).
+Ramping is a CLI action — post the percentage in the Slack thread of the promotion, the workflow
+does not know about it. UAT and staging never roll out: use them to find the problem before
+production sees 10 % of it.
+
+### Critical (forced) updates
+
+A critical update is a **staging publish**, not a promotion: the flag lives in the manifest
+(`extra.expoClient.extra.updatePolicy: 'forced'`, written by `app.config.ts` when
+`EAS_UPDATE_CRITICAL=1`) and `eas update:republish` reuses the source manifest byte for byte, so
+it can never be added, or removed, at promotion time.
+
+1. Merge the fix to `main` as usual. The push-triggered staging run is **not** critical (a push has
+   no inputs), so once it has published, dispatch the same commit with the input:
+   `bun run eas workflow:run .eas/workflows/deploy-staging.yml --ref <sha> -F critical=yes`.
+   The `update` job exports `EAS_UPDATE_CRITICAL=1`, the update message is prefixed `CRITICAL:`
+   and the Slack post says 🚨 _critical_. The fingerprint is unchanged (`extra` is skipped by
+   `fingerprint.config.js`), so no build is cut.
+2. Verify on a staging build ([below](#verify-each-policy-on-a-staging-build)): the app must
+   reload into it within one foreground session, whatever `EXPO_PUBLIC_UPDATE_POLICY` says.
+3. Promote **that group** — `-F update_group_id=<id>` — to `uat`, then `production`, with
+   `-F critical=yes`. The input changes nothing about the republish; it makes `resolve` read each
+   platform's manifest and **fail before the approval** when the group is not critical (log:
+   `updatePolicy ios=silent android=silent → not critical`), so nobody promotes the wrong group
+   believing it is forced. Every run logs the policy, with or without the input.
+
+A critical rollout is contradictory (forced on 10 % of users, silent for the rest) — promote a
+critical group with `rollout_percentage=100` (the default). Rolling back a critical group is a
+normal [rollback](#rollback): the rollback group is not critical, so users pick it up on the
+next launch / idle resume rather than immediately.
+
+### Verify each policy on a staging build
+
+Every check needs an installed **staging build with updates enabled** (a `staging` profile build
+from the build page, not a dev client) and a merge or dispatch that publishes a visible change —
+bump a string on the Updates screen. Unit tests only prove the decision logic against a mocked
+`expo-updates`; this is the owner-owed manual pass (ADR-0003 § 9). The Updates screen
+(`src/features/updates`) shows the active policy, the running update id and manual check /
+download buttons; `bun run eas update:view <group-id>` gives the id to compare against.
+
+`EXPO_PUBLIC_UPDATE_POLICY` is an EAS environment variable, so a policy is switched by changing
+it on the `preview` environment (`bun run eas env:set` or expo.dev → Environment variables)
+**and publishing a new update** — the value is baked into the JS bundle, so a staging build only
+runs a policy once it has downloaded a group exported with it. The recommended value on `preview`
+is `forced`; set it back afterwards. (`production` stays `silent`.)
+
+| Policy                | Set-up                                                                      | Publish                                                         | Expected on the staging build                                                                                                                                                                                                         |
+| --------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `silent`              | `EXPO_PUBLIC_UPDATE_POLICY` unset or `silent` on `preview`, one publish     | merge (or dispatch) a visible change                            | Nothing visible in the session that downloads it. Force-quit, relaunch: the change is there. Updates screen shows the new id.                                                                                                         |
+| `opt-in`              | `EXPO_PUBLIC_UPDATE_POLICY=opt-in`, one publish so the build runs it        | merge a visible change                                          | Top banner "Update ready" within the session (launch or foreground check). **Later** hides it; **Restart now** reloads into the change. The banner does not return for the same group.                                                |
+| `forced` (build)      | `EXPO_PUBLIC_UPDATE_POLICY=forced`, one publish                             | merge a visible change                                          | The app reloads into the change by itself, within seconds of launch or of coming to the foreground, with no prompt.                                                                                                                   |
+| critical (per update) | `EXPO_PUBLIC_UPDATE_POLICY` = `silent` or `opt-in` (must **not** be forced) | `deploy-staging.yml` dispatch with `critical=yes`               | Same as forced, for this group only — no banner, immediate reload. A following non-critical publish behaves per the build policy again. `resolve` in `promote.yml` logs `→ CRITICAL` for the group.                                   |
+| idle resume           | any policy except forced                                                    | merge a visible change; open the app once so it downloads       | Background the app ≥ 30 min (`RESUME_RELOAD_AFTER_MS`) with the update downloaded (Updates screen: pending), foreground it: the app reloads into the change. Under 30 min it does not.                                                |
+| staged rollout        | production only — a second device or tester on the production build         | promote with `rollout_percentage=10`, then `update:edit` to 100 | `update:view <production-group> --insights` counts launches for the group; `update:list --branch production` shows the rollout group as latest. There is no per-install way to force a device into the rollout bucket — ramp instead. |
 
 ## Store release (tag)
 
@@ -412,9 +494,10 @@ fail early without theirs), the `autorelease: *` labels and the GitHub `producti
 
 An OTA rollback is **never an undo**: it is one more update group published on the branch, whose
 bytes happen to be an earlier group's (or the binary's embedded bundle). Installed apps pick it up
-exactly like any other update — with the current `manual` policy (`useUpdatePolicy`,
-`checkAutomatically: ON_LOAD`, `fallbackToCacheTimeout: 0`) that means **up to two cold launches**:
-one to download it in the background, the next to run it. The bad group stays in the branch history
+exactly like any other update — under the default `silent` policy ([Update policies](#update-policies))
+that means the next launch or foreground check downloads it and the launch after that (or an
+[idle resume](#update-policies) after ≥ 30 min in the background) runs it; a `forced` build, or a
+critical group, reloads at once. The bad group stays in the branch history
 and can be inspected (`bun run eas update:view <id> --insights`); nothing is deleted.
 
 ### Which tool

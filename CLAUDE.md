@@ -73,7 +73,9 @@ The human-readable version of these rules, with the reasoning, is `docs/conventi
   change update behaviour; its driver is mounted once in `src/app/_layout.tsx` (check on launch + foreground,
   idle-resume reload after 30 min). Policy = `EXPO_PUBLIC_UPDATE_POLICY` (`silent` default | `opt-in` banner |
   `forced`); a single update is forced by `EAS_UPDATE_CRITICAL=1` at publish time (`app.config.ts` → manifest
-  `extra.updatePolicy`, never an EAS env var). Never call `expo-updates` actions from screens directly;
+  `extra.updatePolicy`, never an EAS env var) — `deploy-staging.yml` `critical=yes`; `promote.yml` `critical=yes`
+  only verifies the group already carries it, and `rollout_percentage` stages a production promotion
+  (runbook: `docs/release-ladder.md` → Update policies). Never call `expo-updates` actions from screens directly;
   `useUpdateInfo` is the read-only view.
 - All user-facing strings go through `t()` from `react-i18next` (keys typed against `src/i18n/locales/en/common.json`);
   run `bun run i18n:extract` after adding keys.
