@@ -80,6 +80,9 @@ describe('DESIRED.labels', () => {
       'e2e:ios',
       'fingerprint-drift',
       'dependencies',
+      // release-please's own names (with the space): .github/workflows/release-please.yml
+      'autorelease: pending',
+      'autorelease: tagged',
     ]) {
       expect(names).toContain(required);
     }
@@ -89,7 +92,9 @@ describe('DESIRED.labels', () => {
     ][]) {
       expect(color).toMatch(/^[0-9a-f]{6}$/);
       expect(description.length).toBeGreaterThan(0);
-      expect(name).not.toMatch(/\s/);
+      // Our labels have no whitespace at all; release-please's carry one inner space.
+      expect(name).not.toMatch(/^\s|\s$/);
+      expect(name.includes(' ') ? name.startsWith('autorelease: ') : true).toBe(true);
     }
   });
 });

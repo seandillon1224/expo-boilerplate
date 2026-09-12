@@ -27,7 +27,8 @@
  *     reported as warnings (never failures) and `KEEP` lists the ones that are intentional.
  *   - `steps` is the ordered list of what init does: the toolchain check (#53, `scripts/doctor.js`),
  *     rewrite + scan, then (#54) reset the queue ledger, stub PLAN.md, clear the changelog,
- *     self-delete, and — last, so the initial commit holds the final tree — fresh git history.
+ *     reset versioning to 1.0.0 (#60, release-please), self-delete, and — last, so the initial
+ *     commit holds the final tree — fresh git history.
  *     A step's optional `when({ args })` can opt it out. The last step (#55) applies the GitHub
  *     repo settings (`scripts/repo-settings.js`) when asked to.
  *   - `REMOVAL` is the self-delete manifest: the files and lines that only make sense in the
@@ -527,6 +528,42 @@ function buildChangelog(identity) {
 }
 
 /* ------------------------------------------------------------------------------------------ */
+/* Versioning reset (release-please, #60 / ADR-0002)                                           */
+/* ------------------------------------------------------------------------------------------ */
+
+const RELEASE_PLEASE_CONFIG = 'release-please-config.json';
+const RELEASE_PLEASE_MANIFEST = '.release-please-manifest.json';
+const INITIAL_VERSION = '1.0.0';
+const PACKAGE_VERSION_RE = /^( {2}"version": ")[^"]*(",)$/m;
+
+/**
+ * The new project starts at 1.0.0 whatever the template has released by now: the manifest and
+ * `package.json` `version` (which app.config.ts reads) are reset, and the template's
+ * `last-release-sha` — "everything up to here is already released" — is dropped for a fresh
+ * history or pointed at `headSha` (the current HEAD) so the inherited history is never released
+ * retroactively. Throws on drift, like the manifests.
+ */
+function resetVersioning({ config, manifest, packageJson, headSha }) {
+  const { 'last-release-sha': _previous, $schema, ...rest } = JSON.parse(config);
+  const nextConfig = {
+    ...($schema ? { $schema } : {}),
+    ...(headSha ? { 'last-release-sha': headSha } : {}),
+    ...rest,
+  };
+  if (!Object.keys(JSON.parse(manifest)).includes('.')) {
+    throw new Error(`init: ${RELEASE_PLEASE_MANIFEST} has no "." package — fix scripts/init.js`);
+  }
+  if (!PACKAGE_VERSION_RE.test(packageJson)) {
+    throw new Error('init: package.json has no "version" line — fix scripts/init.js');
+  }
+  return {
+    config: `${JSON.stringify(nextConfig, null, 2)}\n`,
+    manifest: `${JSON.stringify({ '.': INITIAL_VERSION }, null, 2)}\n`,
+    packageJson: packageJson.replace(PACKAGE_VERSION_RE, `$1${INITIAL_VERSION}$2`),
+  };
+}
+
+/* ------------------------------------------------------------------------------------------ */
 /* Self-delete manifest                                                                        */
 /* ------------------------------------------------------------------------------------------ */
 
@@ -806,6 +843,33 @@ const steps = [
     },
   },
   {
+    id: 'versioning',
+    title: 'Reset versioning to 1.0.0',
+    run({ root, dryRun, log, args }) {
+      const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+      // A fresh history has no commit to point at; otherwise the current HEAD (the last commit
+      // of the inherited history) is the marker, and the init commit is the first one counted.
+      const head = args['fresh-git'] ? null : git(root, ['rev-parse', 'HEAD']);
+      const headSha = head?.ok ? head.out : null;
+      const next = resetVersioning({
+        config: read(RELEASE_PLEASE_CONFIG),
+        manifest: read(RELEASE_PLEASE_MANIFEST),
+        packageJson: read('package.json'),
+        headSha,
+      });
+      writeOrPlan(root, RELEASE_PLEASE_CONFIG, next.config, dryRun);
+      writeOrPlan(root, RELEASE_PLEASE_MANIFEST, next.manifest, dryRun);
+      writeOrPlan(root, 'package.json', next.packageJson, dryRun);
+      const marker = headSha
+        ? `last-release-sha = ${headSha.slice(0, 7)} (current HEAD)`
+        : 'last-release-sha dropped (fresh history)';
+      log(
+        `  ${dryRun ? 'Would reset' : 'Reset'} ${RELEASE_PLEASE_MANIFEST} and package.json version to ${INITIAL_VERSION}; ${marker} in ${RELEASE_PLEASE_CONFIG}.`,
+      );
+      return { summary: `${INITIAL_VERSION}, ${marker}` };
+    },
+  },
+  {
     id: 'self-delete',
     title: 'Remove the init script',
     when: ({ args }) => !args['keep-init'],
@@ -1051,11 +1115,14 @@ async function main(argv) {
 
 module.exports = {
   FIELDS,
+  INITIAL_VERSION,
   KEEP,
   LEDGER_LEGEND,
   LEDGER_PATH,
   LEDGER_RULE,
   PLAN_DECISIONS_HEADING,
+  RELEASE_PLEASE_CONFIG,
+  RELEASE_PLEASE_MANIFEST,
   REMOVAL,
   TEMPLATE,
   applyRules,
@@ -1069,6 +1136,7 @@ module.exports = {
   parseArgs,
   plan,
   planRemoval,
+  resetVersioning,
   scanLeftovers,
   steps,
   uncommittedChanges,

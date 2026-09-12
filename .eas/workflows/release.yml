@@ -7,8 +7,8 @@
 # Trigger: `workflow_dispatch` ONLY — never `push: tags`, although EAS supports it. The tag push
 # lands in .github/workflows/release.yml, whose `environment: production` waits for the GitHub
 # reviewer before it runs `bun run eas workflow:run .eas/workflows/release.yml -F tag=<tag>`;
-# an EAS tag trigger would bypass that gate. Until D1 (#60) the tag is cut by a human:
-#   git tag v1.2.3 && git push origin v1.2.3
+# an EAS tag trigger would bypass that gate. The tag is pushed by release-please when its release
+# PR is merged (.github/workflows/release-please.yml, ADR-0002); `version` = package.json.
 # Run by hand:  bun run eas workflow:run .eas/workflows/release.yml -F tag=v1.2.3 [-F force=yes]
 # Validate:     bun run eas workflow:validate .eas/workflows/release.yml   (cap: 16 KiB)
 #
@@ -52,7 +52,7 @@ on:
         description: enabled = submit the Android build to the Play internal track (needs the service-account key on EAS).
 
 jobs:
-  # --- Tag ↔ version (D1 / #60 refines this into real versioning)
+  # --- Tag ↔ version (release-please cuts both from package.json; this catches a hand-made tag)
 
   version_check:
     name: Tag matches app version

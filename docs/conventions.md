@@ -29,9 +29,17 @@ or "hook-enforced", the enforcement is the source of truth and this page is the 
 - **One ticket, one PR, one squash commit**, branched off `main`, merged as soon as the required
   checks are green, `Closes #n` in the PR body so the issue closes on merge. `/ship-next` drives
   the queue; `.claude/execution-queue.md` is the ledger and GitHub Issues mirror it.
-- Types that matter downstream: `feat` / `fix` for anything release tooling should list (#60 makes
-  this real), `docs`, `ci`, `test`, `chore`, with a scope where it helps (`ci(eas):`, `test(e2e):`,
-  `chore(queue):`).
+- **Types decide releases** ([ADR-0002](adr/0002-release-please-versioning.md)). release-please
+  reads the squash commits on `main`: `feat` → minor, `fix` / `perf` / `revert` → patch, a `!` after
+  the type or a `BREAKING CHANGE:` footer → major; these four types are the changelog. `docs`,
+  `ci`, `test`, `chore`, `build`, `refactor` and `style` are hidden and never open a release PR.
+  Every Renovate PR is `chore(deps)` (`.github/renovate.json5`), so a dependency bump alone never
+  releases — mark a dependency change that users should see with a `fix`/`feat` follow-up commit.
+  Use a scope where it helps (`ci(eas):`, `test(e2e):`, `chore(queue):`).
+- **Never hand-edit `version`.** `package.json` `version` is the single source of truth
+  (`app.config.ts` reads it); the release PR bumps it and the merge is tagged
+  ([Release ladder → Store release](release-ladder.md#store-release-tag)). To pin a specific next
+  version, add a `Release-As: X.Y.Z` footer to the PR body.
 
 ## Hooks (lefthook)
 
@@ -151,6 +159,10 @@ to override). Both report to Sentry through `captureException`.
   ([JS gate → Changing the required set](js-gate.md#changing-the-required-set)).
 - Bundle budgets are raised only with an Atlas finding in the PR; perf tests are added for every
   cost you just fixed ([Performance](performance.md)).
+- Store releases are two human steps — merge the release PR, approve the `production` Environment —
+  and the tag is release-please's, never pushed by hand
+  ([Release ladder → Store release](release-ladder.md#store-release-tag)). `fingerprint.config.js`
+  keeps the version bump out of the native fingerprint; do not remove that skip.
 
 ## Docs
 

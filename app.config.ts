@@ -1,5 +1,7 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
+import pkg from './package.json';
+
 /**
  * APP_VARIANT drives everything that must differ between installable variants so
  * staging, UAT and production can sit side by side on one device.
@@ -41,6 +43,15 @@ const SUFFIX: Record<Variant, { name: string; id: string; scheme: string }> = {
 const v = SUFFIX[VARIANT];
 
 /**
+ * App version = `package.json` `version`, the single source of truth. release-please owns it
+ * (the release PR bumps `package.json` + `CHANGELOG.md` and the merge is tagged `v<version>`,
+ * see docs/release-ladder.md → Store release); never hand-edit it here or there. Build numbers
+ * stay on EAS (`appVersionSource: remote`). `fingerprint.config.js` keeps the bump out of the
+ * native fingerprint.
+ */
+const VERSION: string = pkg.version;
+
+/**
  * EAS Update. `runtimeVersion` follows the native fingerprint (PLAN.md #2), so an OTA
  * only reaches builds whose native code it was made for. Channels are assigned per build
  * profile in eas.json and created server-side by T3.3; a build with no channel (dev
@@ -66,7 +77,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: `${BASE.name}${v.name}`,
   slug: BASE.slug,
-  version: '1.0.0',
+  version: VERSION,
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: `${BASE.scheme}${v.scheme}`,

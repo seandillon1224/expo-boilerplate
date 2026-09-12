@@ -2,8 +2,8 @@
 # `production` GitHub Environment reviewer, then starts the EAS `Release` workflow
 # (.eas/workflows/release.yml), which builds, gates on the fingerprint and submits. The gate is
 # here, not on EAS, because GitHub Environments only apply to Actions jobs; the EAS workflow is
-# therefore `workflow_dispatch`-only. The tag is cut by a human until D1 (#60):
-#   git tag v1.2.3 && git push origin v1.2.3
+# therefore `workflow_dispatch`-only. The tag is pushed by release-please when the release PR is
+# merged (.github/workflows/release-please.yml, ADR-0002) — never by hand.
 # Runbook: docs/release-ladder.md → Store release (tag).
 name: Release
 

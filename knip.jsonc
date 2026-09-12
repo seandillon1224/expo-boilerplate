@@ -11,6 +11,8 @@
     "src/tw/index.tsx",
     // Reached only through the `__DEV__` require in src/lib/devtools.ts (kept out of prod bundles).
     "src/lib/devtools-plugins.ts",
+    // Loaded by @expo/fingerprint itself (every fingerprint path), not imported by our code.
+    "fingerprint.config.js",
   ],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{js,ts}", "*.{js,ts}"],
   // Maestro CLI is installed outside package.json (~/.maestro/bin locally, curl installer in CI).
