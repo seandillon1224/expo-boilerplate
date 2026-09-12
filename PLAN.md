@@ -29,6 +29,8 @@ proven on the boilerplate itself (a live, paid EAS project). Every future projec
 | 13  | Fingerprint change on `main` | `deploy-staging` runs `fingerprint` → `get-build`; on miss it auto-builds staging internal builds for both platforms, then publishes the update and posts "reinstall required" links. UAT builds only at promotion time. Promotion to production with a changed fingerprint is refused; go through the store release workflow.                 |
 | 14  | Defaults                     | Latest stable SDK, CNG only (no committed `ios/`/`android/`), New Architecture on, React Compiler on. README + `docs/*.md`, no docs site. No Storybook. `testID` lint rule. MIT. Node pinned via `.node-version` for tools; all scripts run via Bun. Both Maestro platforms on every PR (tiered mode as a workflow input).                     |
 
+Recorded as [ADR-0001](docs/adr/0001-locked-architecture-decisions.md); changes are new ADRs in `docs/adr/`.
+
 ## Deferred deep dives (each = research ticket → grill session → its own epic)
 
 - **D1 Release mechanics:** release-please fit, version/build-number strategy, changelog, tag → store workflow.
