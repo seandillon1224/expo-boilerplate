@@ -96,7 +96,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 
 ### E9 — Deferred deep-dive research tickets (tracker #76)
 
-- [ ] **#60 T9.1** — D1 release-please + versioning.
+- [x] **#60 T9.1** — D1 release-please + versioning.
 - [D] **#61 T9.2** — D2 multi-runtime OTA backports.
 - [ ] **#62 T9.3** — D3 update policies (forced / opt-in / silent).
 - [D] **#63 T9.4** — D4 Flashlight.
@@ -160,3 +160,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-11 — #58 | t58-docs-set | https://github.com/seandillon1224/expo-boilerplate/pull/132 | merged | 2026-09-11 (ci-overview, testing, conventions; stale "not wired yet" callout in docs/js-gate.md noted for a later docs PR)
 - 2026-09-11 — #59 | t59-adr-folder | https://github.com/seandillon1224/expo-boilerplate/pull/133 | merged | 2026-09-11 — E8 complete (docs/adr with README, 0000 template, 0001 locked decisions; generated projects inherit ADR-0001; D1–D7 outcomes become ADR-0002+). Only [D] items remain.
 - 2026-09-11 — Human session: repo:settings:apply run (no drift), EXPO_TOKEN GitHub secret set + verified; Sentry and Slack left off by choice; #60/#62/#64 flipped from [D] to [ ] (each starts with a grill session, outcome → ADR).
+- 2026-09-11 — #60 | t60-release-please | https://github.com/seandillon1224/expo-boilerplate/pull/135 | merged | 2026-09-11 (grilled first, spec in issue comment + ADR-0002; release-please manifest mode, version from package.json, fingerprint.config.js skips ExpoConfigVersions — verified hash-neutral; Renovate → chore; human owes RELEASE_PLEASE_TOKEN secret + `repo:settings:apply --only labels`; one-time fingerprint change → staging builds on this merge)
