@@ -4,7 +4,8 @@ The JS gate is everything that can run without a simulator or native toolchain: 
 runs it on every PR to `main` and every push to `main` (PLAN.md decision 1). Branch protection on
 `main` requires every check below except `Perf (Reassure)` and `Fingerprint drift`, so a PR merges exactly when the
 required set is green. The native lane (fingerprint → build → repack → Maestro on device → update)
-runs in EAS Workflows and is wired in E4; see [How EAS checks appear on the PR](#how-eas-checks-appear-on-the-pr-wired-in-e4).
+runs in EAS Workflows (`.eas/workflows/e2e.yml`) and reports to the PR separately; see
+[How EAS checks appear on the PR](#how-eas-checks-appear-on-the-pr-wired-in-e4).
 
 ## Checks
 
@@ -112,24 +113,28 @@ a required context is missing or red).
 
 ## How EAS checks appear on the PR (wired in E4)
 
-> **Status: not wired yet.** E4 (#35) adds `.eas/workflows/e2e.yml`. Nothing under `.eas/`
-> exists on `main` today, and no EAS context is in `REQUIRED_CHECKS`. This section records what
-> Expo's docs promise so E4 can slot in without re-deciding anything.
+> **Status: wired, not required.** `.eas/workflows/e2e.yml` (`E2E (native)`) runs on every PR to
+> `main` and posts one PR comment per run. Its check context is deliberately **not** in
+> `REQUIRED_CHECKS`: making it required needs the Expo GitHub App linked and one paid first run
+> to read the exact context string from. How to do that is at the end of this section.
 
-The native lane runs on EAS Workflows, not GitHub Actions. EAS reports the run back to the PR
-through the Expo GitHub App, so it shows in the same Checks list as the rows above and can be
-made a required check.
+The native lane runs on EAS Workflows, not GitHub Actions: `fingerprint` → per platform
+`get_build` (hit: `repack` this commit's JS into the cached base | miss: paid full `build`) →
+`maestro` → `comment` ([Native E2E → Workflow](native-e2e.md#workflow-easworkflowse2eyml)). EAS
+reports the run back to the PR through the Expo GitHub App, so it shows in the same Checks list
+as the rows above and can be made a required check. Its exact context string is not pinned by
+Expo's docs and is unknown until the first PR run.
 
-What has to be true for that to work (from
+What has to be true for the check to appear (from
 [EAS Workflows: get started](https://docs.expo.dev/eas/workflows/get-started/) and
 [Building from GitHub](https://docs.expo.dev/build/building-from-github/)):
 
-| Requirement                                                                                | Where                                                                                                                 |
-| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| EAS project exists and is linked to this repo (`eas init`, `projectId` in `app.config.ts`) | E3 / E4                                                                                                               |
-| Expo GitHub App installed on the repo and connected to the EAS project                     | expo.dev → account → project → **GitHub** settings; the Expo user must have a linked GitHub account                   |
-| Workflow file with a GitHub trigger                                                        | `.eas/workflows/e2e.yml` with `on: pull_request: branches: [main]` (and `push: branches: [main]` for the staging OTA) |
-| Workflow file present on the PR branch                                                     | EAS reads `.eas/workflows/*.yml` from the triggering commit, so a PR that adds the file triggers it                   |
+| Requirement                                                                         | Where                                                                                                                                                                                             |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| EAS project exists and is linked to this repo (`EAS_PROJECT_ID` in `app.config.ts`) | done ([environments and secrets](environments-and-secrets.md))                                                                                                                                    |
+| Expo GitHub App installed on the repo and connected to the EAS project              | **human, once**: expo.dev → account → project → **GitHub** settings; the Expo user must have a linked GitHub account ([Native E2E → Human prerequisites](native-e2e.md#human-prerequisites-once)) |
+| Workflow file with a GitHub trigger                                                 | `.eas/workflows/e2e.yml`: `on: pull_request: branches: [main]` plus `pull_request_labeled: [e2e:ios]` and `workflow_dispatch` (`push` is off by default)                                          |
+| Workflow file present on the PR branch                                              | EAS reads `.eas/workflows/*.yml` from the triggering commit                                                                                                                                       |
 
 Behaviour worth knowing before making it required:
 
@@ -139,15 +144,25 @@ Behaviour worth knowing before making it required:
   applies, so don't use those markers on a PR that must merge.
 - Fingerprint short-circuit (PLAN.md decision 2): when the native fingerprint is unchanged the
   workflow reuses an existing build via `get-build` and only repacks + tests, so the check is
-  fast on JS-only PRs and slow (a real build) on native-affecting ones.
-- Check naming: Expo's docs do not pin the check-run string; EAS reports the workflow (and, in
-  the checks detail, links to the run on expo.dev). After E4's first PR run, read the exact
-  context from `gh pr checks <n>` and put that string, verbatim, into `REQUIRED_CHECKS`, then
-  `bun run repo:settings:apply`. Until then, the EAS check is informational on the PR.
+  fast on JS-only PRs and slow (a real build) on native-affecting ones. The very first run has
+  no cached base and cuts two paid builds.
+- iOS is tiered by the `IOS_MODE` constant (`always` | `main-only` | `label`, see
+  [Native E2E → Tiered mode](native-e2e.md#tiered-mode)); Android always runs. A tier that skips
+  iOS on PRs still reports the check, with the iOS row marked skipped in the comment.
+- Concurrency: a new push to the same branch cancels the run in flight, like `CI`.
 
-E4's ticket owns adding the `e2e` context to the required set. Later E5 workflows (`update`,
-`require-approval`, `submit`) run on `push` to `main` and via `workflow_dispatch` and are not PR
-checks.
+To make it required, once the GitHub App is linked and the first PR run has reported:
+
+1. Read the exact context string from `gh pr checks <n>` on that PR.
+2. Add it, verbatim, to `REQUIRED_CHECKS` in `scripts/repo-settings.js`.
+3. `bun run repo:settings:apply` (then `bun run repo:settings:check` to confirm no drift), as in
+   [Changing the required set](#changing-the-required-set).
+
+Until then `E2E (native)` is informational on the PR. The other EAS workflows are not PR checks:
+`preview-web.yml` runs on PRs but only posts a comment (and is skipped while `HOSTING` is
+disabled); `deploy-staging.yml` runs on `push` to `main`; `promote.yml`, `release.yml`,
+`observe-check.yml` and `register-device.yml` are `workflow_dispatch` only
+([CI overview → EAS Workflows](ci-overview.md#eas-workflows-easworkflows)).
 
 ## Running the gate locally
 
