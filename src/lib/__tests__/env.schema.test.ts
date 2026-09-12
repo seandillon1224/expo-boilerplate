@@ -9,6 +9,7 @@ describe('envSchema', () => {
         API_URL: 'https://jsonplaceholder.typicode.com',
         SENTRY_DSN: undefined,
         APP_VARIANT: undefined,
+        UPDATE_POLICY: 'silent',
       },
     });
   });
@@ -18,6 +19,7 @@ describe('envSchema', () => {
       EXPO_PUBLIC_API_URL: 'https://api.example.com',
       EXPO_PUBLIC_SENTRY_DSN: 'https://abc@o1.ingest.sentry.io/1',
       EXPO_PUBLIC_APP_VARIANT: 'staging',
+      EXPO_PUBLIC_UPDATE_POLICY: 'opt-in',
     });
     expect(result).toEqual({
       success: true,
@@ -25,6 +27,7 @@ describe('envSchema', () => {
         API_URL: 'https://api.example.com',
         SENTRY_DSN: 'https://abc@o1.ingest.sentry.io/1',
         APP_VARIANT: 'staging',
+        UPDATE_POLICY: 'opt-in',
       },
     });
   });
@@ -59,11 +62,20 @@ describe('envSchema', () => {
     expect(result.issues[0]?.key).toBe('EXPO_PUBLIC_APP_VARIANT');
   });
 
+  it('rejects an unknown update policy', () => {
+    const result = parseEnv({ EXPO_PUBLIC_UPDATE_POLICY: 'nagging' });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.issues[0]?.key).toBe('EXPO_PUBLIC_UPDATE_POLICY');
+    expect(result.fallback.UPDATE_POLICY).toBe('silent');
+  });
+
   it('reads literal process.env keys', () => {
     expect(Object.keys(readRawEnv()).sort()).toEqual([
       'EXPO_PUBLIC_API_URL',
       'EXPO_PUBLIC_APP_VARIANT',
       'EXPO_PUBLIC_SENTRY_DSN',
+      'EXPO_PUBLIC_UPDATE_POLICY',
     ]);
   });
 });

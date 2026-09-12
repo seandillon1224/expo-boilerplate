@@ -27,3 +27,4 @@ inherits as-is (it describes the template the project started from).
 | --------------------------------------------- | -------------------------------------------------- | -------- |
 | [0001](0001-locked-architecture-decisions.md) | Locked architecture decisions                      | Accepted |
 | [0002](0002-release-please-versioning.md)     | release-please owns versioning and the release tag | Accepted |
+| [0003](0003-update-policies.md)               | Update policies: silent, opt-in, forced, critical  | Accepted |

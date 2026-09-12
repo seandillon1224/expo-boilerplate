@@ -56,10 +56,24 @@ const VERSION: string = pkg.version;
  * only reaches builds whose native code it was made for. Channels are assigned per build
  * profile in eas.json and created server-side by T3.3; a build with no channel (dev
  * clients, `e2e-*`) never receives an update and runs the embedded bundle.
- * `checkAutomatically` stays ON_LOAD for now — the `useUpdatePolicy` hook
- * (src/features/updates, filled in by D3) owns runtime behaviour.
+ * `checkAutomatically` stays ON_LOAD (expo-updates' native launch check); the `useUpdatePolicy`
+ * driver (src/features/updates, ADR-0003) owns runtime behaviour on top of it.
  */
 const UPDATES_URL = EAS_PROJECT_ID ? `https://u.expo.dev/${EAS_PROJECT_ID}` : undefined;
+
+/**
+ * Per-update "critical" flag (ADR-0003, D3 update policies). `EAS_UPDATE_CRITICAL=1` at publish
+ * time writes `extra.updatePolicy: 'forced'` into this config, which `eas update` embeds in the
+ * update manifest (`extra.expoClient.extra.updatePolicy`). The running app reads that field from
+ * the *incoming* update on a successful check (`useUpdatePolicy`) and downloads + reloads at once,
+ * whatever the build-level `EXPO_PUBLIC_UPDATE_POLICY` says. It is set per publish by the
+ * workflows' `critical` input (#137) — never as an EAS environment variable, or every update
+ * would be critical. Republish / promote carries the manifest unchanged, so the flag survives
+ * promotion. Not `EXPO_PUBLIC_`: it must not be baked into the JS bundle.
+ */
+const UPDATE_CRITICAL = ['1', 'true'].includes(
+  (process.env.EAS_UPDATE_CRITICAL ?? '').trim().toLowerCase(),
+);
 
 /**
  * Sentry org/project are build-time values (never EXPO_PUBLIC_*). They are only
@@ -131,5 +145,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Read natively by EAS Build / Update and EAS Observe (src/lib/observe.ts); absent until
     // `eas init` links a project (see EAS_PROJECT_ID above).
     ...(EAS_PROJECT_ID ? { eas: { projectId: EAS_PROJECT_ID } } : {}),
+    // Only present on critical publishes; see UPDATE_CRITICAL above.
+    ...(UPDATE_CRITICAL ? { updatePolicy: 'forced' } : {}),
   },
 });

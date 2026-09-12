@@ -14,6 +14,15 @@ import { z } from 'zod';
 /** Mirrors `APP_VARIANT` in `app.config.ts`; set per EAS build profile. */
 const APP_VARIANTS = ['development', 'staging', 'uat', 'production'] as const;
 
+/**
+ * Build-level OTA update policy (ADR-0003). `silent` = download in the background, apply on the
+ * next cold start or idle resume; `opt-in` = same, plus a "restart now / later" banner; `forced` =
+ * every downloaded update reloads immediately. A critical publish (`EAS_UPDATE_CRITICAL=1`,
+ * see app.config.ts) forces a single update regardless of this value.
+ */
+const UPDATE_POLICIES = ['silent', 'opt-in', 'forced'] as const;
+export type UpdatePolicy = (typeof UPDATE_POLICIES)[number];
+
 /** Empty string (unset in `.env`) is treated as "not provided". */
 const optionalString = z
   .string()
@@ -32,6 +41,8 @@ export const envSchema = z.object({
   EXPO_PUBLIC_SENTRY_DSN: optionalString.pipe(z.url().optional()),
   /** Mirrors `APP_VARIANT` so runtime code can branch on the installed variant. */
   EXPO_PUBLIC_APP_VARIANT: optionalString.pipe(z.enum(APP_VARIANTS).optional()),
+  /** How the running app applies OTA updates; see `UPDATE_POLICIES`. */
+  EXPO_PUBLIC_UPDATE_POLICY: optionalString.pipe(z.enum(UPDATE_POLICIES).default('silent')),
 });
 
 export type EnvInput = z.input<typeof envSchema>;
@@ -42,6 +53,7 @@ export type Env = {
   API_URL: ParsedEnv['EXPO_PUBLIC_API_URL'];
   SENTRY_DSN: ParsedEnv['EXPO_PUBLIC_SENTRY_DSN'];
   APP_VARIANT: ParsedEnv['EXPO_PUBLIC_APP_VARIANT'];
+  UPDATE_POLICY: ParsedEnv['EXPO_PUBLIC_UPDATE_POLICY'];
 };
 
 export const ENV_KEYS = Object.keys(envSchema.shape) as (keyof EnvInput)[];
@@ -55,6 +67,7 @@ export function readRawEnv(): EnvInput {
     EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
     EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN,
     EXPO_PUBLIC_APP_VARIANT: process.env.EXPO_PUBLIC_APP_VARIANT,
+    EXPO_PUBLIC_UPDATE_POLICY: process.env.EXPO_PUBLIC_UPDATE_POLICY,
   };
 }
 
@@ -63,6 +76,7 @@ function toEnv(parsed: ParsedEnv): Env {
     API_URL: parsed.EXPO_PUBLIC_API_URL,
     SENTRY_DSN: parsed.EXPO_PUBLIC_SENTRY_DSN,
     APP_VARIANT: parsed.EXPO_PUBLIC_APP_VARIANT,
+    UPDATE_POLICY: parsed.EXPO_PUBLIC_UPDATE_POLICY,
   };
 }
 

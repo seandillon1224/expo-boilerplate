@@ -8,6 +8,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { UpdateBanner } from '@/features/updates/update-banner';
+import { useUpdatePolicyDriver } from '@/features/updates/use-update-policy';
 import { useDevTools } from '@/lib/devtools';
 import { assertEnv } from '@/lib/env';
 import { configureObserve, wrapObserveRoot } from '@/lib/observe';
@@ -31,6 +33,8 @@ function RootLayout() {
   const colorScheme = useColorScheme();
   // Rozenite DevTools plugins (Query / network / performance); no-op outside dev.
   useDevTools(queryClient);
+  // OTA policy (ADR-0003): check on launch / foreground, idle-resume reload; no state, one effect.
+  useUpdatePolicyDriver();
   return (
     <QueryProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -38,6 +42,8 @@ function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
         </Stack>
+        {/* Overlays the navigator; renders only for `opt-in` with a downloaded update waiting. */}
+        <UpdateBanner />
       </ThemeProvider>
     </QueryProvider>
   );
