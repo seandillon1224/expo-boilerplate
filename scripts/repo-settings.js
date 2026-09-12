@@ -115,6 +115,18 @@ const LABELS = [
     color: '0366d6',
     description: 'Renovate dependency update (.github/renovate.json5)',
   },
+  // release-please's own labels (.github/workflows/release-please.yml): it puts `pending` on the
+  // open release PR and swaps it for `tagged` once the merge is tagged.
+  {
+    name: 'autorelease: pending',
+    color: 'ededed',
+    description: 'Open release-please release PR; merging it cuts the version and tag',
+  },
+  {
+    name: 'autorelease: tagged',
+    color: 'ededed',
+    description: 'Merged release PR whose commit release-please has tagged vX.Y.Z',
+  },
 ];
 
 /** Desired state. One object per section; `--only` picks a subset of `SECTIONS`. */

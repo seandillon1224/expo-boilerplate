@@ -2,7 +2,18 @@
 // (https://github.com/apps/renovate). Bun lockfiles are supported natively.
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
-  extends: ['config:recommended', ':semanticCommits', 'helpers:pinGitHubActionDigests'],
+  // `:semanticCommitTypeAll(chore)` comes last so its package rule beats the
+  // `:semanticPrefixFixDepsChoreOthers` rule inside config:recommended, which would give
+  // production dependencies a `fix` prefix. Every Renovate PR is `chore(deps)`: a dependency bump
+  // must never open or grow a release-please release PR on its own (ADR-0002; only `feat` /
+  // `fix` / `perf` / `revert` and breaking changes release, docs/conventions.md).
+  extends: [
+    'config:recommended',
+    ':semanticCommits',
+    'helpers:pinGitHubActionDigests',
+    ':semanticCommitTypeAll(chore)',
+  ],
+  semanticCommitType: 'chore',
   timezone: 'America/New_York',
   schedule: ['before 6am on monday'],
   labels: ['dependencies'],

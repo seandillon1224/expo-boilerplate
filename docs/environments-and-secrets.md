@@ -171,10 +171,11 @@ written out.
 - **GitHub Actions** (the JS gate) runs against the schema defaults and `.env.example` today. Any job
   that needs real values (bundle export, Maestro web) runs `bun run env:pull` with `EXPO_TOKEN` in the
   environment; `eas-cli` honours it and skips the interactive login.
-- GitHub repository secrets therefore hold exactly two things: `EXPO_TOKEN` (an EAS
-  [robot / personal access token](https://docs.expo.dev/accounts/programmatic-access/)) and
-  `SENTRY_AUTH_TOKEN` (for `bun run sentry:sourcemaps` after a web export, if that ever runs from
-  GitHub rather than EAS). Everything else lives on EAS.
+- GitHub repository secrets therefore hold exactly three things: `EXPO_TOKEN` (an EAS
+  [robot / personal access token](https://docs.expo.dev/accounts/programmatic-access/)),
+  `RELEASE_PLEASE_TOKEN` (a GitHub token for `.github/workflows/release-please.yml`, checklist
+  below) and `SENTRY_AUTH_TOKEN` (for `bun run sentry:sourcemaps` after a web export, if that ever
+  runs from GitHub rather than EAS). Everything else lives on EAS.
 
 ### Human setup checklist (owner)
 
@@ -201,7 +202,8 @@ bun run eas env:set --scope project --environment development --environment prev
 bun run eas env:list --environment production --format long
 ```
 
-Then add `SENTRY_AUTH_TOKEN` and `EXPO_TOKEN` as GitHub repository secrets. To point a real backend at
+Then add `SENTRY_AUTH_TOKEN`, `EXPO_TOKEN` and `RELEASE_PLEASE_TOKEN` (below) as GitHub repository
+secrets. To point a real backend at
 `staging` / `uat` / `production`, update `EXPO_PUBLIC_API_URL` per environment with the same
 `env:set` command (it creates or updates in place).
 
@@ -228,6 +230,24 @@ the owner can provide. Until each is done the matching job skips itself and the 
       `-F ios_builds=enabled` when a uat build is needed.
 - [ ] **`EXPO_TOKEN` GitHub repository secret** (EAS robot token) — `.github/workflows/release.yml`
       (T5.3) starts the EAS release with it and fails early with a readable error while it is missing.
+- [ ] **`RELEASE_PLEASE_TOKEN` GitHub repository secret** — `.github/workflows/release-please.yml`
+      ([ADR-0002](adr/0002-release-please-versioning.md)) opens the release PR and pushes the
+      `vX.Y.Z` tag with it, and fails early while it is missing. The built-in `GITHUB_TOKEN` cannot
+      be used: events it creates never trigger other workflows, so the release PR would have no
+      required checks and the tag would never start `release.yml`. Two options:
+  - **GitHub App (recommended, no expiry, no personal account):** create an App on the owning
+    account with repository permissions **Contents: read & write** and **Pull requests: read &
+    write**, install it on this repo, store its App id and private key as the secrets
+    `RELEASE_PLEASE_APP_ID` / `RELEASE_PLEASE_APP_PRIVATE_KEY`, and add an
+    `actions/create-github-app-token` step before release-please that turns them into the
+    `RELEASE_PLEASE_TOKEN` value (the workflow keeps reading one token input).
+  - **Fine-grained PAT (quick path):** Settings → Developer settings → Fine-grained tokens, scoped to
+    this repository only, permissions **Contents: read & write** and **Pull requests: read & write**;
+    set an expiry reminder — the workflow starts failing at its `Require RELEASE_PLEASE_TOKEN`
+    step when it lapses.
+- [ ] **`autorelease: pending` / `autorelease: tagged` labels** — `bun run repo:settings:apply --only labels`
+      (release-please puts them on the release PR; `repo:settings:check` reports them missing until
+      then).
 - [ ] App Store credentials + ASC API key on EAS and `ascAppId` in `eas.json` (below), then flip
       `IOS_RELEASE` to `enabled` in `.eas/workflows/release.yml`.
 - [ ] Play service-account key on EAS after the first manual AAB upload (below), then flip

@@ -30,7 +30,7 @@ bun run ios    # or android / web
 
 Then push to GitHub and run `bun run repo:settings:apply` once: it makes every JS-gate job a required check on `main` and sets squash-only merging with auto-merge for Renovate ([JS gate](docs/js-gate.md#how-merging-works)). Create the EAS project, channels and environments as described in [Environments and secrets](docs/environments-and-secrets.md); from there every merge to `main` lands on staging by itself.
 
-First release: [Release ladder → Store release](docs/release-ladder.md#store-release-tag) (bump `version`, push a `vX.Y.Z` tag, approve the GitHub `production` Environment).
+First release: [Release ladder → Store release](docs/release-ladder.md#store-release-tag) (merge the release-please PR, which tags `vX.Y.Z`; approve the GitHub `production` Environment).
 
 ## The pipeline
 
@@ -85,7 +85,6 @@ Deliberately not in the template (PLAN.md decision 5: no auth, backend or forms)
 - **Deep links** — the `scheme` per variant is already in `app.config.ts`; add universal links / app links via `ios.associatedDomains` and `android.intentFilters`.
 - **Analytics** — PostHog (`posthog-react-native`) or Segment; keep the key in EAS environment variables and read it through `@/lib/env`.
 - **Storybook** — deliberately not included (PLAN.md decision 14); the demo screens plus RNTL and Reassure cover component work.
-- **Release automation** — release-please for version / build-number bumps and changelog ([#60](https://github.com/seandillon1224/expo-boilerplate/issues/60)).
 - **Multi-runtime OTA backports** — shipping OTA-safe fixes to older store runtimes ([#61](https://github.com/seandillon1224/expo-boilerplate/issues/61)).
 - **Update policies** — forced / opt-in / silent updates and rollout % on top of `useUpdatePolicy` ([#62](https://github.com/seandillon1224/expo-boilerplate/issues/62)).
 - **Flashlight** — Android performance scores in the native E2E lane ([#63](https://github.com/seandillon1224/expo-boilerplate/issues/63)).

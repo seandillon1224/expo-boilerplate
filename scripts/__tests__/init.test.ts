@@ -4,10 +4,13 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const {
+  INITIAL_VERSION,
   LEDGER_LEGEND,
   LEDGER_PATH,
   LEDGER_RULE,
   PLAN_DECISIONS_HEADING,
+  RELEASE_PLEASE_CONFIG,
+  RELEASE_PLEASE_MANIFEST,
   REMOVAL,
   TEMPLATE,
   applyRules,
@@ -21,6 +24,7 @@ const {
   parseArgs,
   plan,
   planRemoval,
+  resetVersioning,
   scanLeftovers,
   steps,
   uncommittedChanges,
@@ -278,7 +282,7 @@ describe('diffLines / scanLeftovers', () => {
     ]);
   });
 
-  it('orders the steps: rewrites, ledger / plan / changelog, self-delete, fresh git, repo settings last', () => {
+  it('orders the steps: rewrites, ledger / plan / changelog / versioning, self-delete, fresh git, repo settings last', () => {
     expect(steps.map((s: { id: string }) => s.id)).toEqual([
       'doctor',
       'rewrite',
@@ -286,6 +290,7 @@ describe('diffLines / scanLeftovers', () => {
       'ledger',
       'plan',
       'changelog',
+      'versioning',
       'self-delete',
       'fresh-git',
       'repo-settings',
@@ -307,6 +312,8 @@ describe('diffLines / scanLeftovers', () => {
     expect(on('repo-settings', { 'apply-repo-settings': true })).toBe(true);
     expect(on('ledger', {})).toBe(true);
     expect(on('changelog', {})).toBe(true);
+    expect(on('versioning', {})).toBe(true);
+    expect(on('versioning', { 'fresh-git': true })).toBe(true);
   });
 });
 
@@ -357,6 +364,58 @@ describe('reset templates', () => {
       '# Changelog\n\nAll notable changes to Acme Mobile are documented here.\n',
     );
     expect(initialCommitMessage(ACME)).toBe('chore: initialize acme-mobile from expo-boilerplate');
+  });
+});
+
+describe('resetVersioning (fixture strings)', () => {
+  const config = JSON.stringify(
+    {
+      $schema: 'https://example.invalid/config.json',
+      'last-release-sha': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'include-component-in-tag': false,
+      packages: { '.': { 'release-type': 'node' } },
+    },
+    null,
+    2,
+  );
+  const manifest = '{\n  ".": "1.7.0"\n}\n';
+  const packageJson = '{\n  "name": "acme-mobile",\n  "version": "1.7.0",\n  "private": true\n}\n';
+
+  it('resets the manifest and package.json to 1.0.0 and points last-release-sha at HEAD', () => {
+    const head = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const next = resetVersioning({ config, manifest, packageJson, headSha: head });
+    expect(JSON.parse(next.manifest)).toEqual({ '.': INITIAL_VERSION });
+    expect(next.manifest.endsWith('\n')).toBe(true);
+    expect(next.packageJson).toBe(
+      '{\n  "name": "acme-mobile",\n  "version": "1.0.0",\n  "private": true\n}\n',
+    );
+    const parsed = JSON.parse(next.config);
+    expect(parsed['last-release-sha']).toBe(head);
+    // Key order kept: $schema first, the marker next, the policy after.
+    expect(Object.keys(parsed)).toEqual([
+      '$schema',
+      'last-release-sha',
+      'include-component-in-tag',
+      'packages',
+    ]);
+    expect(next.config.endsWith('}\n')).toBe(true);
+  });
+
+  it('drops last-release-sha for a fresh history and keeps everything else', () => {
+    const next = resetVersioning({ config, manifest, packageJson, headSha: null });
+    const parsed = JSON.parse(next.config);
+    expect(parsed).not.toHaveProperty('last-release-sha');
+    expect(parsed['include-component-in-tag']).toBe(false);
+    expect(parsed.packages).toEqual({ '.': { 'release-type': 'node' } });
+  });
+
+  it('fails loudly when the manifest or the version line has drifted', () => {
+    expect(() =>
+      resetVersioning({ config, manifest: '{ "packages/app": "1.0.0" }', packageJson }),
+    ).toThrow(/no "\." package/);
+    expect(() =>
+      resetVersioning({ config, manifest, packageJson: '{\n  "name": "x"\n}\n' }),
+    ).toThrow(/no "version" line/);
   });
 });
 
@@ -456,6 +515,24 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
     for (const file of REMOVAL.files) expect(read(file)).not.toBeNull();
   });
 
+  it('the versioning reset matches the checked-in release-please files and package.json', () => {
+    const config = read(RELEASE_PLEASE_CONFIG) as string;
+    const manifest = read(RELEASE_PLEASE_MANIFEST) as string;
+    const packageJson = read('package.json') as string;
+    // The template's own marker must exist (ADR-0002 bootstrap) so init has something to reset.
+    expect(JSON.parse(config)['last-release-sha']).toMatch(/^[0-9a-f]{40}$/);
+    const next = resetVersioning({ config, manifest, packageJson, headSha: null });
+    expect(JSON.parse(next.manifest)).toEqual({ '.': INITIAL_VERSION });
+    expect(JSON.parse(next.packageJson).version).toBe(INITIAL_VERSION);
+    const parsed = JSON.parse(next.config);
+    expect(parsed).not.toHaveProperty('last-release-sha');
+    expect(parsed.packages['.']['release-type']).toBe('node');
+    expect(parsed['include-component-in-tag']).toBe(false);
+    // app.config.ts reads the version from package.json, so the reset reaches the app too.
+    expect(read('app.config.ts')).toContain("import pkg from './package.json'");
+    expect(read('app.config.ts')).not.toMatch(/version: '\d/);
+  });
+
   it("the reset ledger keeps the live ledger's legend and rule, and PLAN.md has the decisions", () => {
     const live = read(LEDGER_PATH) as string;
     expect(live).toContain(`\n${LEDGER_LEGEND}\n`);
@@ -488,6 +565,9 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
     expect(result.stdout).toContain(`Would reset ${LEDGER_PATH}`);
     expect(result.stdout).toContain('Would replace PLAN.md');
     expect(result.stdout).toContain('No CHANGELOG.md, skipped.');
+    expect(result.stdout).toContain(
+      `Would reset ${RELEASE_PLEASE_MANIFEST} and package.json version to ${INITIAL_VERSION}; last-release-sha dropped (fresh history)`,
+    );
     expect(result.stdout).toContain('Would remove scripts/init.js');
     expect(result.stdout).toContain('Would rm -rf .git');
     // Opt-in, so not run here; the closing hint points at the manual command instead.
@@ -496,6 +576,9 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
     expect(result.stdout).toContain('Would do:');
     expect(fs.readFileSync(path.join(ROOT, 'app.config.ts'), 'utf8')).toBe(before);
     expect(fs.readFileSync(path.join(ROOT, LEDGER_PATH), 'utf8')).toBe(ledgerBefore);
+    expect(
+      JSON.parse(fs.readFileSync(path.join(ROOT, RELEASE_PLEASE_CONFIG), 'utf8')),
+    ).toHaveProperty('last-release-sha');
     expect(fs.existsSync(path.join(ROOT, 'scripts/init.js'))).toBe(true);
     expect(fs.existsSync(path.join(ROOT, '.git'))).toBe(true);
   });
@@ -598,6 +681,14 @@ describeTemplate('integration (headless init on a temp copy)', () => {
     expect(readIn(dir, 'PLAN.md')).toContain('# Plan — Acme Mobile');
     expect(exists(dir, 'CHANGELOG.md')).toBe(false);
 
+    // Versioning starts over: 1.0.0 everywhere, and the inherited history (one snapshot commit
+    // here) is marked as already released so release-please only counts the project's commits.
+    expect(pkg.version).toBe(INITIAL_VERSION);
+    expect(JSON.parse(readIn(dir, RELEASE_PLEASE_MANIFEST))).toEqual({ '.': INITIAL_VERSION });
+    expect(JSON.parse(readIn(dir, RELEASE_PLEASE_CONFIG))['last-release-sha']).toBe(
+      gitIn(dir, ['rev-parse', 'HEAD']).stdout.trim(),
+    );
+
     // History untouched, everything above is uncommitted, and the hint names the commit.
     expect(gitIn(dir, ['rev-list', '--count', 'HEAD']).stdout.trim()).toBe('1');
     expect(gitIn(dir, ['status', '--porcelain']).stdout).toMatch(/^ D scripts\/init\.js$/m);
@@ -638,6 +729,10 @@ describeTemplate('integration (headless init on a temp copy)', () => {
     expect(gitIn(dir, ['ls-files', 'scripts/init.js']).stdout).toBe('');
     expect(gitIn(dir, ['ls-files', 'scripts/doctor.js']).stdout.trim()).toBe('scripts/doctor.js');
     expect(exists(dir, '.git/hooks/pre-commit')).toBe(true);
+    // No previous history to point at: the initial commit is the first one release-please sees.
+    expect(JSON.parse(readIn(dir, RELEASE_PLEASE_CONFIG))).not.toHaveProperty('last-release-sha');
+    expect(JSON.parse(readIn(dir, RELEASE_PLEASE_MANIFEST))).toEqual({ '.': INITIAL_VERSION });
+    expect(JSON.parse(readIn(dir, 'package.json')).version).toBe(INITIAL_VERSION);
     expect(result.stdout).toContain(
       'git remote add origin git@github.com:acme-inc/acme-mobile.git',
     );

@@ -301,15 +301,26 @@ bypass the GitHub reviewer, which is the whole point of the split. Production RC
 **TestFlight internal group** and the **Play internal track** (PLAN.md decision 12); nothing here
 touches App Store review or Play production.
 
-**Cutting a release** (by hand until D1, #60 — no release-please, no changelog yet):
+**The release PR** ([ADR-0002](adr/0002-release-please-versioning.md)). release-please
+(`.github/workflows/release-please.yml`, on every push to `main`) keeps one release PR open —
+`chore(main): release 1.2.3`, label `autorelease: pending` — holding the next version in
+`package.json` (the single source of truth; `app.config.ts` reads it) and the generated
+`CHANGELOG.md` entry, and updates it on every merge. `feat` → minor, `fix` / `perf` / `revert` →
+patch, `!` / `BREAKING CHANGE` → major; `chore` / `docs` / `ci` / `test` / `build` / `refactor` /
+`style` never open one, and every Renovate PR is `chore(deps)`, so a dependency bump never releases
+by itself. `version` tracks every release, OTA-only ones included: the unchanged-fingerprint rule
+below turns a tag without native changes into a green no-op store step. Build numbers stay on EAS
+(`appVersionSource: remote`, `autoIncrement`); nobody hand-edits `version` anywhere.
 
-1. Bump `version` in `app.config.ts` in a PR (`chore(release): 1.2.3`), merge it.
-   `appVersionSource: remote` means EAS owns `buildNumber` / `versionCode` and auto-increments them;
-   `version` is yours.
-2. Tag the merge commit and push the tag (tags are not protected; the queue never pushes one):
-   `git fetch origin && git tag v1.2.3 origin/main && git push origin v1.2.3`.
-3. Approve the `production` environment on the GitHub run (Actions → Release → Review deployments).
-4. Follow the EAS run (expo.dev → project → Workflows, or the Slack post). Manual equivalent:
+**Cutting a release** — two human steps, neither automated:
+
+1. **Merge the release PR.** release-please tags the squash commit `vX.Y.Z` (label →
+   `autorelease: tagged`) and the tag starts `.github/workflows/release.yml`. The staging deploy
+   runs on the same commit as usual, so the tagged tree always exists as a staging update group
+   whose reported version equals the tag.
+2. **Approve the `production` environment** on the GitHub run (Actions → Release → Review
+   deployments). Nothing is built or submitted before this.
+3. Follow the EAS run (expo.dev → project → Workflows, or the Slack post). Manual equivalent:
 
 ```sh
 bun run eas workflow:run .eas/workflows/release.yml -F tag=v1.2.3                 # repo constants
@@ -365,8 +376,17 @@ Builds: expo.dev → project → Builds, message `release <tag> (<version>)`.
 | `IOS_RELEASE` | `disabled` | `build_ios`      | App Store credentials for `production` and the App Store Connect API key are on EAS and `ascAppId` is in `submit.production.ios` ([iOS runbook](environments-and-secrets.md#ios-runbook-owner), steps 4–5). `submit_ios` follows. |
 | `PLAY_SUBMIT` | `disabled` | `submit_android` | The first AAB was uploaded to Play by hand and the service-account key is on EAS ([Google Play runbook](environments-and-secrets.md#google-play-runbook-owner)). Android builds run either way.                                   |
 
-Also owed: `EXPO_TOKEN` as a GitHub repository secret (the trigger job fails early without it) and
-the GitHub `production` environment (`bun run repo:settings:apply`). All on the
+**Holding, skipping and re-cutting.** To hold a release, leave the release PR open — it keeps
+collecting merges and re-rendering; do not close it (release-please reopens one on the next push).
+To force a version, put a `Release-As: 1.3.0` footer in a commit body (the PR title becomes the
+squash commit, so a footer goes in the PR body, not the title). To re-run a tag's store step (a
+rejected binary, listing changes) re-run the EAS release with `force=yes`; never re-tag.
+`fingerprint.config.js` skips `version`, so the release commit itself never changes the native
+fingerprint.
+
+Also owed: `RELEASE_PLEASE_TOKEN` and `EXPO_TOKEN` as GitHub repository secrets (both workflows
+fail early without theirs), the `autorelease: *` labels and the GitHub `production` environment
+(`bun run repo:settings:apply`). All on the
 [human setup checklist](environments-and-secrets.md#human-setup-checklist-owner).
 
 ## Rollback

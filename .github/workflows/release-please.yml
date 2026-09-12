@@ -1,0 +1,46 @@
+# Versioning (ADR-0002, #60). On every push to `main`, release-please keeps one "release PR" open
+# with the next version (feat → minor, fix → patch, `!` / BREAKING CHANGE → major) written into
+# package.json + CHANGELOG.md; `chore` / `docs` / `ci` / `test` / `build` / `refactor` / `style`
+# commits never open one on their own. Merging that PR is human step 1 of a store release: this
+# workflow then tags the merge `vX.Y.Z`, which starts .github/workflows/release.yml (step 2 = the
+# `production` Environment reviewer). Config: release-please-config.json; the last released
+# version: .release-please-manifest.json. Runbook: docs/release-ladder.md → Store release.
+#
+# Token: `RELEASE_PLEASE_TOKEN`, never `GITHUB_TOKEN`. Events created with the built-in token do
+# not trigger other workflows, so a release PR opened with it would sit with no required checks
+# (unmergeable) and the tag it pushes would never start release.yml. A GitHub App installation
+# token or a fine-grained PAT with `contents: write` + `pull-requests: write` on this repo is
+# needed (docs/environments-and-secrets.md → Human setup checklist).
+# Repo labels `autorelease: pending` / `autorelease: tagged` come from scripts/repo-settings.js.
+name: Release please
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+# One run at a time, in order: two pushes must not both try to update the same release PR.
+concurrency:
+  group: release-please-main
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release PR / tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require RELEASE_PLEASE_TOKEN
+        env:
+          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_PLEASE_TOKEN" ]; then
+            echo "::error::RELEASE_PLEASE_TOKEN is not set as a repository secret — add a GitHub App token or fine-grained PAT with contents + pull-requests write (docs/environments-and-secrets.md → Human setup checklist) and re-run."
+            exit 1
+          fi
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

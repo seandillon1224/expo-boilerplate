@@ -23,6 +23,7 @@ inherits as-is (it describes the template the project started from).
 
 ## Index
 
-| ADR                                           | Title                         | Status   |
-| --------------------------------------------- | ----------------------------- | -------- |
-| [0001](0001-locked-architecture-decisions.md) | Locked architecture decisions | Accepted |
+| ADR                                           | Title                                              | Status   |
+| --------------------------------------------- | -------------------------------------------------- | -------- |
+| [0001](0001-locked-architecture-decisions.md) | Locked architecture decisions                      | Accepted |
+| [0002](0002-release-please-versioning.md)     | release-please owns versioning and the release tag | Accepted |
