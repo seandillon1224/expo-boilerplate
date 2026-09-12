@@ -15,7 +15,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run init` — rebrand a fresh copy of the template (name / slug / scheme / bundle id / package / EAS project id / owner / GitHub repo), reset the queue ledger + stub `PLAN.md`, self-delete (`--keep-init`), optional fresh git history (`--fresh-git`, prompted), optional `repo:settings:apply` (`--apply-repo-settings`, prompted); `--yes` + flags for headless, `--dry-run` to preview. Rewrite + removal manifests and their drift guard in `scripts/init.js` / `scripts/__tests__/init.test.ts` (`docs/template-init.md`)
 - `bun run template:e2e` — template end-to-end test: copies this checkout to a temp dir, runs the headless `bun run init --fresh-git` there (no EAS project id, no `EXPO_TOKEN`) and the JS gate on the generated project's first commit; the `Template init` CI job. `--keep` leaves the copy behind, `--dir <path>` picks where (`docs/template-init.md`)
 - `bun run ios` / `android` / `web` — dev server (dev client / web)
-- `bun run lint` — ESLint (expo config + a11y + import sort + unused imports)
+- `bun run lint` — oxlint (defaults, `.oxlintrc.json` = ignores only) as a fast front pass, then ESLint (expo config + a11y + import sort + unused imports + local `require-testid`; rules oxlint owns are off via `eslint-plugin-oxlint`, ADR-0004). Warnings print, errors fail. Local ESLint rules live in `eslint-rules/` (never `eslint/`: Bun would resolve it instead of the binary)
 - `bun run format` / `format:check` — Prettier
 - `bun run typecheck` — `tsc --noEmit` (writes `expo-env.d.ts` first if missing)
 - `bun run test` — Jest; `test:coverage` for coverage

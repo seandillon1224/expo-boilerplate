@@ -5,7 +5,8 @@ const prettierConfig = require('eslint-config-prettier');
 const a11y = require('eslint-plugin-react-native-a11y');
 const simpleImportSort = require('eslint-plugin-simple-import-sort');
 const unusedImports = require('eslint-plugin-unused-imports');
-const local = require('./eslint');
+const oxlint = require('eslint-plugin-oxlint');
+const local = require('./eslint-rules');
 
 module.exports = defineConfig([
   expoConfig,
@@ -32,7 +33,7 @@ module.exports = defineConfig([
     },
   },
   {
-    files: ['scripts/**/*.{js,ts}', 'eslint/**/*.js', '*.config.js'],
+    files: ['scripts/**/*.{js,ts}', 'eslint-rules/**/*.js', '*.config.js'],
     languageOptions: {
       globals: {
         __dirname: 'readonly',
@@ -44,6 +45,10 @@ module.exports = defineConfig([
       },
     },
   },
+  // oxlint runs first in `bun run lint` (ADR-0004); turn off every rule it already reports so
+  // ESLint only owns what oxlint cannot express. Placed after our rules block so the
+  // `unused-imports/*` rules above (the `^_` policy) stay in effect.
+  ...oxlint.buildFromOxlintConfigFile('.oxlintrc.json'),
   // Must be last so it disables every formatting rule Prettier owns.
   prettierConfig,
   {
