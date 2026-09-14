@@ -115,8 +115,7 @@ function pad(value, width, right = false) {
 }
 
 /** Reads bundle-budget.json and checks the declared unit is the one this script measures. */
-function readBudgets() {
-  const budgetsPath = path.join(ROOT, 'bundle-budget.json');
+function readBudgets(budgetsPath = path.join(ROOT, 'bundle-budget.json')) {
   const budgets = JSON.parse(fs.readFileSync(budgetsPath, 'utf8'));
   if (budgets.unit !== UNIT) {
     fail(
@@ -236,4 +235,6 @@ function main(argv) {
   return code;
 }
 
-runMain(main);
+module.exports = { PLATFORMS, UNIT, checkPlatform, collectBundles, main, measure, readBudgets };
+
+if (require.main === module) runMain(main);

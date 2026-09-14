@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "current": {
+      "branch": "pr",
+      "commitHash": "aaa"
+    },
+    "baseline": {
+      "branch": "main",
+      "commitHash": "bbb"
+    }
+  },
+  "errors": ["Failed to run test: SettingsScreen renders"],
+  "warnings": [],
+  "significant": [],
+  "meaningless": [],
+  "countChanged": [],
+  "added": [],
+  "removed": []
+}

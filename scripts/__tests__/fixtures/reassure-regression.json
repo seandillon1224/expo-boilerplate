@@ -1,0 +1,98 @@
+{
+  "metadata": {
+    "current": {
+      "branch": "pr",
+      "commitHash": "aaa"
+    },
+    "baseline": {
+      "branch": "main",
+      "commitHash": "bbb"
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "significant": [
+    {
+      "name": "FetchScreen renders the list once posts resolve",
+      "type": "render",
+      "baseline": {
+        "name": "FetchScreen renders the list once posts resolve",
+        "type": "render",
+        "runs": 10,
+        "meanDuration": 3.2,
+        "stdevDuration": 0.1,
+        "meanCount": 2,
+        "stdevCount": 0
+      },
+      "current": {
+        "name": "FetchScreen renders the list once posts resolve",
+        "type": "render",
+        "runs": 10,
+        "meanDuration": 5.6,
+        "stdevDuration": 0.1,
+        "meanCount": 2,
+        "stdevCount": 0
+      },
+      "durationDiff": 2.3999999999999995,
+      "relativeDurationDiff": 0.7499999999999998,
+      "countDiff": 0,
+      "relativeCountDiff": 0
+    },
+    {
+      "name": "HomeScreen renders",
+      "type": "render",
+      "baseline": {
+        "name": "HomeScreen renders",
+        "type": "render",
+        "runs": 10,
+        "meanDuration": 4,
+        "stdevDuration": 0.1,
+        "meanCount": 2,
+        "stdevCount": 0
+      },
+      "current": {
+        "name": "HomeScreen renders",
+        "type": "render",
+        "runs": 10,
+        "meanDuration": 3.1,
+        "stdevDuration": 0.1,
+        "meanCount": 2,
+        "stdevCount": 0
+      },
+      "durationDiff": -0.8999999999999999,
+      "relativeDurationDiff": -0.22499999999999998,
+      "countDiff": 0,
+      "relativeCountDiff": 0
+    },
+    {
+      "name": "TabsScreen renders",
+      "type": "render",
+      "baseline": {
+        "name": "TabsScreen renders",
+        "type": "render",
+        "runs": 10,
+        "meanDuration": 2,
+        "stdevDuration": 0.1,
+        "meanCount": 2,
+        "stdevCount": 0
+      },
+      "current": {
+        "name": "TabsScreen renders",
+        "type": "render",
+        "runs": 10,
+        "meanDuration": 2.6,
+        "stdevDuration": 0.1,
+        "meanCount": 2,
+        "stdevCount": 0
+      },
+      "durationDiff": 0.6000000000000001,
+      "relativeDurationDiff": 0.30000000000000004,
+      "countDiff": 0,
+      "relativeCountDiff": 0
+    }
+  ],
+  "meaningless": [],
+  "countChanged": [],
+  "added": [],
+  "removed": []
+}

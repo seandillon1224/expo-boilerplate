@@ -1,0 +1,89 @@
+{
+  "metadata": {
+    "current": {
+      "branch": "pr",
+      "commitHash": "aaa"
+    },
+    "baseline": {
+      "branch": "main",
+      "commitHash": "bbb"
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "significant": [
+    {
+      "name": "HomeScreen renders",
+      "type": "render",
+      "baseline": {
+        "name": "HomeScreen renders",
+        "type": "render",
+        "runs": 10,
+        "meanDuration": 4,
+        "stdevDuration": 0.1,
+        "meanCount": 2,
+        "stdevCount": 0
+      },
+      "current": {
+        "name": "HomeScreen renders",
+        "type": "render",
+        "runs": 10,
+        "meanDuration": 3.1,
+        "stdevDuration": 0.1,
+        "meanCount": 2,
+        "stdevCount": 0
+      },
+      "durationDiff": -0.8999999999999999,
+      "relativeDurationDiff": -0.22499999999999998,
+      "countDiff": 0,
+      "relativeCountDiff": 0
+    }
+  ],
+  "meaningless": [
+    {
+      "name": "FetchScreen renders the list once posts resolve",
+      "type": "render",
+      "baseline": {
+        "name": "FetchScreen renders the list once posts resolve",
+        "type": "render",
+        "runs": 10,
+        "meanDuration": 3.2,
+        "stdevDuration": 0.1,
+        "meanCount": 2,
+        "stdevCount": 0
+      },
+      "current": {
+        "name": "FetchScreen renders the list once posts resolve",
+        "type": "render",
+        "runs": 10,
+        "meanDuration": 3.25,
+        "stdevDuration": 0.1,
+        "meanCount": 2,
+        "stdevCount": 0
+      },
+      "durationDiff": 0.04999999999999982,
+      "relativeDurationDiff": 0.015624999999999944,
+      "countDiff": 0,
+      "relativeCountDiff": 0
+    }
+  ],
+  "countChanged": [],
+  "added": [
+    {
+      "name": "SettingsScreen renders",
+      "current": {
+        "meanDuration": 2,
+        "meanCount": 1
+      }
+    }
+  ],
+  "removed": [
+    {
+      "name": "OldScreen renders",
+      "baseline": {
+        "meanDuration": 9,
+        "meanCount": 1
+      }
+    }
+  ]
+}
