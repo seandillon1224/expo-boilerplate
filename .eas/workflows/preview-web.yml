@@ -1,5 +1,5 @@
-# PR web previews (PLAN.md decisions 1, 10, 14). Every PR into main: export web on EAS → `eas deploy`
-# to the EAS Hosting `pr-<number>` alias → one PR comment with the URLs. The alias is stable for
+# PR web previews (PLAN.md decisions 1, 10, 14). A PR labelled `web-preview`: export web on EAS →
+# `eas deploy` to the EAS Hosting `pr-<number>` alias → one PR comment with the URLs. The alias is stable for
 # the life of the PR (re-assigned on every push), the deployment URL is unique per push. Native
 # E2E stays in e2e.yml (near the 16 KiB cap); the staging rung is deploy-staging.yml, whose
 # `deploy_web` job this mirrors. Runbook: docs/release-ladder.md → PR previews.
@@ -7,6 +7,8 @@
 # Run by hand:  bun run eas workflow:run .eas/workflows/preview-web.yml -F hosting=enabled
 # Validate:     bun run eas workflow:validate .eas/workflows/preview-web.yml   (cap: 16 KiB)
 # PR triggers need the Expo GitHub App linked to the repo (docs/release-ladder.md → Enable).
+# The `web-preview` label is created by `bun run repo:settings:apply --only labels` (LABELS in
+# scripts/repo-settings.js).
 #
 # One repo constant, as a `workflow_dispatch` input whose `default` equals the `|| '<literal>'`
 # fallback on the job `if` (inputs are empty outside a dispatch):
@@ -16,10 +18,16 @@
 name: Preview web
 
 on:
-  # Same trigger as e2e.yml; default types = opened, reopened, synchronize. Fork PRs never
-  # trigger EAS workflows (docs/js-gate.md).
-  pull_request:
-    branches: [main]
+  # Label-gated, not every PR (T11.6, #167): while HOSTING is disabled both jobs are skipped, and
+  # a `pull_request` trigger would put a permanent "skipped" Preview web entry on every PR's
+  # checks list. `pull_request_labeled` only starts a run when someone asks for a preview, so the
+  # checks list stays exactly the set that matters. Same idiom as e2e-cloud.yml's `e2e:cloud`.
+  # Re-label to re-run (a later push does not re-trigger it); remove + re-add the label for a
+  # fresh deploy. When HOSTING is flipped to `enabled`, swapping this back to
+  # `pull_request: branches: [main]` gives every PR a preview again — add the `web-preview`
+  # label removal to the flip PR's checklist if you do.
+  # Fork PRs never trigger EAS workflows (docs/js-gate.md).
+  pull_request_labeled: [web-preview]
   workflow_dispatch:
     inputs:
       hosting:

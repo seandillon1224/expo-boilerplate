@@ -10,7 +10,12 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # PR-only. On a PR, a new push makes the run in flight pointless, so cancel it. On `main` every
+  # push is a distinct commit that must carry its own green status — back-to-back merges (the
+  # queue ledger commits land in bursts) would otherwise cancel the earlier commit's run and
+  # leave it permanently "cancelled", which reads as a broken commit and breaks bisecting on
+  # check status.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -151,17 +156,49 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  bundle-budget-web:
+    # The web leg of the bundle budget, split out of the matrix below so `maestro-web` can
+    # `needs:` this one job: `needs` on a matrix job waits for every entry, which made the web
+    # E2E wait on the (unrelated) iOS and Android exports. The check name is unchanged —
+    # "Bundle budget (web)", exactly what the matrix produced — so branch protection and
+    # `REQUIRED_CHECKS` in scripts/repo-settings.js stay as they are.
+    # JS-only `expo export` (no native toolchain; PLAN.md decisions 7, 10) plus a gzip budget
+    # check against bundle-budget.json. The export is also uploaded as `web-export` for the
+    # Maestro web job to reuse.
+    name: Bundle budget (web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/setup
+      - run: bun run export:web
+      - run: bun run budget:web
+      - name: Upload bundle sizes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bundle-sizes-web
+          path: dist-web/bundle-sizes.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload web export
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: web-export
+          path: dist-web/
+          retention-days: 7
+
   bundle-budget:
-    # JS-only `expo export` per platform (no native toolchain; PLAN.md decisions 7, 10) plus a
-    # gzip budget check against bundle-budget.json. The web export is also uploaded as
-    # `web-export` for the Maestro web job to reuse.
+    # The native legs, same shape as the web job above and nothing depends on them. Keep the job
+    # `name:` as "Bundle budget (<platform>)": the T10.6 guard test expands this matrix and
+    # compares the result against REQUIRED_CHECKS.
     name: Bundle budget (${{ matrix.platform }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        platform: [web, ios, android]
+        platform: [ios, android]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/setup
@@ -175,18 +212,12 @@ jobs:
           path: dist-${{ matrix.platform }}/bundle-sizes.json
           if-no-files-found: warn
           retention-days: 14
-      - name: Upload web export
-        if: matrix.platform == 'web'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: web-export
-          path: dist-web/
-          retention-days: 7
 
   maestro-web:
     # Maestro web entries (`.maestro/flows/web`, tag `web`) against the static export from the
-    # bundle-budget web entry (PLAN.md decisions 6, 10). `needs` on a matrix job waits for every
-    # platform entry; only the web artifact is used. Maestro drives its own Chromium; JDK 17+ is
+    # `bundle-budget-web` job (PLAN.md decisions 6, 10) — that job exists separately from the
+    # ios/android matrix precisely so this `needs` waits on the web export only, not on all
+    # three legs. Maestro drives its own Chromium; JDK 17+ is
     # preinstalled on ubuntu-latest. The version below is pinned and kept in lockstep with
     # `.eas/workflows/*.yml` and `EXPECTED.maestroPinned` in `scripts/doctor.js` by the Maestro
     # custom manager in `.github/renovate.json5`; Maestro 2.3.0 read a 1px viewport on Chrome
@@ -194,7 +225,7 @@ jobs:
     name: Maestro web
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: bundle-budget
+    needs: bundle-budget-web
     env:
       MAESTRO_CLI_NO_ANALYTICS: 1
       MAESTRO_VERSION: 2.10.0
