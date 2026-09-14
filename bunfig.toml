@@ -1,7 +1,4 @@
 [install]
-# Reproducible installs everywhere; CI adds --frozen-lockfile explicitly.
-exact = false
+# Commit `bun.lock` (text) rather than the binary `bun.lockb`, so lockfile diffs are reviewable
+# and Renovate/`gh` can read them. CI installs with --frozen-lockfile.
 saveTextLockfile = true
-
-[test]
-# Unit/component tests run under Jest (jest-expo). `bun test` is intentionally not used.

@@ -86,8 +86,6 @@
     "android": "WITH_ROZENITE=${WITH_ROZENITE:-true} expo start --android",
     "env:check": "bun scripts/env-check.ts",
     "env:pull": "eas env:pull --environment ${EAS_ENV:-development} --path .env.local --non-interactive",
-    "env:pull:preview": "EAS_ENV=preview bun run env:pull",
-    "env:pull:production": "EAS_ENV=production bun run env:pull",
     "fingerprint": "node scripts/fingerprint.js",
     "devices:add": "node scripts/devices-add.js",
     "devices:list": "eas device:list",
@@ -97,15 +95,9 @@
     "export:web": "expo export --platform web --output-dir dist-web",
     "export:ios": "expo export --platform ios --output-dir dist-ios",
     "export:android": "expo export --platform android --output-dir dist-android",
-    "budget": "bun run budget:web && bun run budget:ios && bun run budget:android",
-    "budget:web": "bun scripts/bundle-budget.js --platform web",
-    "budget:ios": "bun scripts/bundle-budget.js --platform ios",
-    "budget:android": "bun scripts/bundle-budget.js --platform android",
+    "budget": "bun scripts/bundle-budget.js",
     "atlas": "EXPO_ATLAS=true bun run start",
     "atlas:export": "EXPO_ATLAS=true expo export --platform ${ATLAS_PLATFORM:-all} --output-dir dist-atlas && bun run atlas:serve",
-    "atlas:export:web": "ATLAS_PLATFORM=web bun run atlas:export",
-    "atlas:export:ios": "ATLAS_PLATFORM=ios bun run atlas:export",
-    "atlas:export:android": "ATLAS_PLATFORM=android bun run atlas:export",
     "atlas:serve": "expo-atlas .expo/atlas.jsonl",
     "sentry:sourcemaps": "node scripts/sentry-sourcemaps.js",
     "i18n:extract": "i18next",
@@ -140,8 +132,5 @@
     "test:coverage": "jest --coverage"
   },
   "private": true,
-  "license": "MIT",
-  "overrides": {
-    "lightningcss": "1.30.1"
-  }
+  "license": "MIT"
 }

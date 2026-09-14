@@ -33,15 +33,16 @@ interaction before touching code.
 ### Expo Atlas (bundle composition) — [atlas.md](atlas.md)
 
 Expo CLI's bundle inspector, gated on `EXPO_ATLAS=true`. `bun run atlas` attaches to the dev server
-(`http://localhost:8081/_expo/atlas`, right for "who imports this"); `bun run atlas:export` (or
-`atlas:export:web|ios|android`) inspects a release export, which is the mode to trust for sizes.
+(`http://localhost:8081/_expo/atlas`, right for "who imports this"); `bun run atlas:export` (one
+platform with `ATLAS_PLATFORM=web|ios|android`) inspects a release export, which is the mode to
+trust for sizes.
 Local and on demand; no CI or EAS job ever sets `EXPO_ATLAS`. The budget says a bundle is too big,
 Atlas says why.
 
 ### Bundle budgets (size gate) — `bundle-budget.json`
 
-`bun run export:<platform>` then `bun run budget:<platform>` (`bun run budget` runs all three after
-the exports) measures the gzip size of the `expo export` JS / CSS bundles (Hermes `.hbc` on native)
+`bun run export:<platform>` then `bun run budget --platform <platform>` (bare `bun run budget`
+checks all three, after all three exports) measures the gzip size of the `expo export` JS / CSS bundles (Hermes `.hbc` on native)
 with `scripts/bundle-budget.js` and exits 1 above the limit in `bundle-budget.json`. CI runs it as
 `Bundle budget (web)`, `(ios)`, `(android)` on every PR and push to `main`; all three are required
 checks ([js-gate.md](js-gate.md)) and upload `bundle-sizes-<platform>` for trend tracking. Raise a

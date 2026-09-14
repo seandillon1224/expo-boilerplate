@@ -1,6 +1,9 @@
 /** @type {import('i18next-parser').UserConfig} */
 module.exports = {
-  input: ['src/**/*.{ts,tsx}'],
+  // Only shipped source defines keys. Tests and Reassure perf tests render the same screens with
+  // their own literal strings; scanning them would add keys no user ever sees and make
+  // `bun run i18n:check` fail on a test-only string.
+  input: ['src/**/*.{ts,tsx}', '!src/**/__tests__/**', '!src/__perf__/**'],
   output: 'src/i18n/locales/$LOCALE/$NAMESPACE.json',
   locales: ['en'],
   defaultNamespace: 'common',

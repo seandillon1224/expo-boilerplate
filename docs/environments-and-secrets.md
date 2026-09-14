@@ -159,10 +159,10 @@ layer _under_ the pulled `.env.local` — never edit `.env.local` by hand; re-pu
 ### Pulling locally
 
 ```sh
-bun run env:pull             # development → .env.local (default)
-bun run env:pull:preview     # or EAS_ENV=preview bun run env:pull
-bun run env:pull:production  # or EAS_ENV=production bun run env:pull
-bun run env:check            # validates whatever is now in .env / .env.local
+bun run env:pull                         # development → .env.local (default)
+EAS_ENV=preview bun run env:pull          # staging + UAT
+EAS_ENV=production bun run env:pull       # production
+bun run env:check                        # validates whatever is now in .env / .env.local
 ```
 
 `eas-cli` is a pinned devDependency (`^23`), so `bun run env:pull` always uses the repo's CLI rather
