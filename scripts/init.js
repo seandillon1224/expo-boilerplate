@@ -1149,8 +1149,6 @@ module.exports = {
   validateIdentity,
 };
 
-if (require.main === module) {
-  // `exitCode`, not `process.exit()`: Bun (which `bun run` substitutes for node) can drop piped
-  // stdout that has not flushed when exit() is called.
-  runMain(main);
-}
+// `runMain` awaits the async `main`, prints a UsageError / ScriptError as a plain message and
+// sets `process.exitCode` (never `process.exit()`) — see scripts/lib/args.js.
+if (require.main === module) runMain(main);

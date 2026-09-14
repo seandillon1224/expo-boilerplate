@@ -7,12 +7,20 @@
 //
 // MAESTRO_APP_ID is the variant's bundle id / package derived in app.config.ts for APP_VARIANT=development
 // (what the e2e-* build profiles use); `.maestro/config.yaml` documents the env contract.
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const { collectDeviceLogs } = require('./e2e-device-logs');
 const { parseArgs, runMain } = require('./lib/args');
+const {
+  MAESTRO_HINT,
+  adbOnline,
+  appId,
+  maestroBin,
+  maestroFallback,
+  sdkFallbacks,
+} = require('./lib/device');
 const {
   PLATFORM_OPTION,
   PROFILES,
@@ -83,27 +91,6 @@ function selectedFlows(platform, quarantine) {
   });
 }
 
-function appId(platform) {
-  const expoBin = path.join(projectRoot, 'node_modules', '.bin', 'expo');
-  const config = runJson(NAME, expoBin, ['config', '--type', 'public', '--json'], {
-    env: { ...process.env, APP_VARIANT: 'development', CI: '1' },
-  });
-  const id = platform === 'ios' ? config.ios?.bundleIdentifier : config.android?.package;
-  if (!id)
-    fail(
-      NAME,
-      `expo config has no ${platform === 'ios' ? 'ios.bundleIdentifier' : 'android.package'}.`,
-    );
-  return id;
-}
-
-function maestroBinary() {
-  return requireBinary('maestro', {
-    fallbacks: [path.join(os.homedir(), '.maestro', 'bin', 'maestro')],
-    hint: 'Install: curl -Ls "https://get.maestro.mobile.dev" | bash   (CI pins 2.10.0)',
-  });
-}
-
 // --- iOS -------------------------------------------------------------------------------------
 
 function pickSimulator(xcrun, device) {
@@ -162,16 +149,6 @@ function runIos(maestro, id, ctx) {
 
 // --- Android ---------------------------------------------------------------------------------
 
-function onlineAdbDevices(adb) {
-  const list = run(adb, ['devices']);
-  return list.stdout
-    .split('\n')
-    .slice(1)
-    .map((line) => line.trim().split(/\s+/))
-    .filter(([serial, state]) => serial && state === 'device')
-    .map(([serial]) => serial);
-}
-
 function waitForBoot(adb, serial) {
   run(adb, ['-s', serial, 'wait-for-device']);
   const deadline = Date.now() + 180_000;
@@ -184,15 +161,14 @@ function waitForBoot(adb, serial) {
 }
 
 function runAndroid(maestro, id, ctx) {
-  const sdk = process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME || '';
   const adb = requireBinary('adb', {
-    fallbacks: [path.join(sdk, 'platform-tools', 'adb')],
-    hint: 'Install Android platform-tools (Android Studio → SDK Manager) or set ANDROID_HOME.',
+    fallbacks: sdkFallbacks('adb'),
+    hint: 'Install Android platform-tools (Android Studio → SDK Manager) or set ANDROID_SDK_ROOT.',
   });
-  let serial = ctx.device ?? onlineAdbDevices(adb)[0];
+  let serial = ctx.device ?? adbOnline(adb)[0];
   if (!serial) {
     const emulator = requireBinary('emulator', {
-      fallbacks: [path.join(sdk, 'emulator', 'emulator')],
+      fallbacks: sdkFallbacks('emulator'),
       hint: 'No device online and no `emulator` binary: start an emulator/device and re-run, or install the Android Emulator.',
     });
     const avd = run(emulator, ['-list-avds']).stdout.trim().split('\n').filter(Boolean)[0];
@@ -202,20 +178,16 @@ function runAndroid(maestro, id, ctx) {
         'no device online and no AVDs defined. Create one in Android Studio → Device Manager.',
       );
     console.log(`Emulator: starting AVD ${avd} …`);
-    const child = require('child_process').spawn(
-      emulator,
-      ['-avd', avd, '-no-snapshot-save', '-no-boot-anim'],
-      {
-        detached: true,
-        stdio: 'ignore',
-      },
-    );
+    const child = spawn(emulator, ['-avd', avd, '-no-snapshot-save', '-no-boot-anim'], {
+      detached: true,
+      stdio: 'ignore',
+    });
     child.unref();
     if (!ctx.keep) onExit(() => serial && run(adb, ['-s', serial, 'emu', 'kill']));
     const deadline = Date.now() + 60_000;
     while (!serial && Date.now() < deadline) {
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
-      serial = onlineAdbDevices(adb).find((s) => s.startsWith('emulator-'));
+      serial = adbOnline(adb).find((s) => s.startsWith('emulator-'));
     }
     if (!serial) fail(NAME, `emulator ${avd} did not show up in adb within 60 s.`);
   }
@@ -309,10 +281,13 @@ function main(argv) {
   console.log(
     `Installing ${relative(artifact)}; ${flows.length} flow(s) tagged ${selection}: ${flows.join(', ')}`,
   );
-  const maestro = maestroBinary();
-  const id = appId(platform);
-  console.log(`MAESTRO_APP_ID=${id}`);
-  return platform === 'ios' ? runIos(maestro, id, ctx) : runAndroid(maestro, id, ctx);
+  const maestro =
+    maestroBin() ??
+    fail(NAME, `\`maestro\` not found on PATH or at ${maestroFallback()}.\n${MAESTRO_HINT}`);
+  const app = appId(platform);
+  if (app.skip) fail(NAME, app.skip);
+  console.log(`MAESTRO_APP_ID=${app.id}`);
+  return platform === 'ios' ? runIos(maestro, app.id, ctx) : runAndroid(maestro, app.id, ctx);
 }
 
 runMain(main);
