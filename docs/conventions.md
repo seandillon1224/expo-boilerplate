@@ -230,6 +230,45 @@ to override). Both report to Sentry through `captureException`.
 - Sentry is errors only (`src/lib/sentry.ts`, no-op without `EXPO_PUBLIC_SENTRY_DSN`, tracing off);
   production performance is Observe's job ([Performance](performance.md)).
 
+## CI
+
+### Third-party actions are pinned to a commit SHA
+
+Every `uses:` in `.github/workflows/*.yml` and `.github/actions/setup/action.yml` that points at
+another repo is pinned to a full 40-character commit SHA with the human-readable version in a
+trailing comment:
+
+```yaml
+- uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+```
+
+A tag — `@v4`, and even `@v4.4.0` — is a mutable pointer the action's owner can move at any time, so
+a compromised upstream account silently re-points it at code that runs with our `GITHUB_TOKEN` and
+our secrets. A SHA cannot be re-pointed. Renovate keeps the pins current: the
+`helpers:pinGitHubActionDigests` preset in `.github/renovate.json5` re-resolves each SHA when the
+upstream tag moves and opens a `chore(deps)` PR that also rewrites the trailing comment, and the
+`github actions` package rule auto-merges minor/patch/digest updates once the JS gate is green. So:
+
+- **Never** add a `uses:` on a tag or a branch. Resolve the SHA first —
+  `gh api repos/<owner>/<repo>/commits/<tag> -q .sha` dereferences an annotated tag to its commit —
+  and write the matching version in the comment. Never copy a SHA from memory or another repo.
+- The comment is documentation, not a pin: if it disagrees with the SHA, the SHA wins and the
+  comment is a bug.
+- `uses: ./.github/actions/...` is a local path into this same checkout, not a fetch, so it is not
+  pinned.
+- The same rule applies to anything else CI downloads and executes. `curl | bash` installers
+  (Maestro's `get.maestro.mobile.dev`) are replaced by a versioned release archive that is checked
+  against the checksum file published with it, then cached on the version — see the `Maestro web`
+  job in `ci.yml`. The Maestro version itself is pinned in three places at once and moved by a
+  Renovate custom manager ([CI overview](ci-overview.md)).
+
+### Token permissions are granted per job
+
+The workflow-level `permissions:` block is the read-only floor (`contents: read`); a job that needs
+more declares it itself. In `docs.yml` only the `deploy` job carries `pages: write` +
+`id-token: write`, so the `build` job — the one that runs repo code, third-party actions and the
+whole dependency tree — cannot publish to Pages or mint an OIDC token even if it is compromised.
+
 ## Delivery rules
 
 - `main` is trunk; every merge lands on `staging` by itself. UAT and production are approval-gated
