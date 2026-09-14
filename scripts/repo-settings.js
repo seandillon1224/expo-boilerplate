@@ -89,6 +89,14 @@ const LABELS = [
   { name: 'epic:E7', color: EPIC_COLOR, description: 'Template init script' },
   { name: 'epic:E8', color: EPIC_COLOR, description: 'Docs' },
   { name: 'epic:E9', color: EPIC_COLOR, description: 'Deferred deep-dive research tickets' },
+  { name: 'epic:E10', color: EPIC_COLOR, description: 'Fix what the audit found broken' },
+  {
+    name: 'epic:E11',
+    color: EPIC_COLOR,
+    description: 'Hardening: scripts, workflows, supply chain',
+  },
+  { name: 'epic:E12', color: EPIC_COLOR, description: 'Docs consolidation' },
+  { name: 'epic:E13', color: EPIC_COLOR, description: 'App layer polish and examples' },
   {
     name: 'in-progress',
     color: '0e8a16',

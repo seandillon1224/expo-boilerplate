@@ -107,6 +107,49 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#65 T9.6** — D6 a11y Maestro flow (grilled 2026-09-13; screen-reader E2E impossible in Maestro → hierarchy audit script, ADR-0005).
 - [x] **#66 T9.7** — D7 Maestro Cloud optional job (decided 2026-09-13: EAS sibling workflow, label `e2e:cloud` + dispatch, refuses on fingerprint miss, skips without secrets; ADR-0006).
 
+### E10 — Fix what the audit found broken (tracker #150)
+
+_Repo audit 2026-09-14 (app code, scripts, CI/EAS workflows, docs). E10 first: each item is a live defect._
+
+- [ ] **#154 T10.1** — e2e.yml maestro jobs read outputs via `needs.*` but depend via `after:` — never run
+- [ ] **#155 T10.2** — production/uat environments reject tag deploys — release.yml gate unreachable
+- [ ] **#156 T10.3** — unblock the release-please PR — CHANGELOG.md breaks Format and init tests
+- [ ] **#157 T10.4** — stabilize fetch.test.tsx flake and update-policy act() warnings
+- [ ] **#158 T10.5** — add expo-dev-client — the development EAS profile is unbuildable
+- [ ] **#159 T10.6** — `Docs` missing from REQUIRED_CHECKS + guard that every CI job is required or listed informational
+- [ ] **#160 T10.7** — Renovate config hardening (groups, release age, custom managers for Maestro/Bun)
+- [ ] **#161 T10.8** — remove stale 'bump version + push tag' instructions (contradict release-please, ADR-0002)
+- [M] **Renovate** — install the Renovate GitHub App on the repo (no Renovate PR has ever run; ~30 packages behind). Do after #160 merges.
+
+### E11 — Hardening: scripts, workflows, supply chain (tracker #151)
+
+- [ ] **#162 T11.1** — scripts/lib/args.js — one parser (util.parseArgs), exit-code convention, doctor Node>=
+- [ ] **#163 T11.2** — scripts/lib/device.js — dedupe adb/maestro/sdk helpers; built-ins-only guard test; eas bin helper
+- [ ] **#164 T11.3** — extract promote/rollout/backport/release inline logic to scripts/eas/*.js; adopt Slack built-in in promote
+- [ ] **#165 T11.4** — supply chain — pin GitHub Actions to SHAs, pin gitleaks, replace Maestro curl|bash with versioned download + cache
+- [ ] **#166 T11.5** — lefthook — sequential fixers, oxlint first, wider glob, drop env-check from pre-push
+- [ ] **#167 T11.6** — ci.yml shape — PR-only cancel-in-progress, web-only dependency for Maestro web, preview-web label gating
+- [ ] **#168 T11.7** — config hygiene — lightningcss override, .gitignore, bunfig, i18n parser input, bundle-budget unit, package.json aliases
+- [ ] **#169 T11.8** — tests for bundle-budget, reassure-gate, serve-web resolveFile, e2e-run selection
+- [ ] **#170 T11.9** — .claude/settings.json allowlist + ship-next skill corrections
+
+### E12 — Docs consolidation (tracker #152)
+
+- [ ] **#171 T12.1** — ADR-0009 docs site supersedes decision 14; reconcile ADR-0001/PLAN.md; auto-build ADR sidebar
+- [ ] **#172 T12.2** — docs/owner-checklist.md — one page for every human-owed setup step
+- [ ] **#173 T12.3** — slim CLAUDE.md into an agent brief; move the command reference to docs/commands.md; dedupe pipeline content
+- [ ] **#174 T12.4** — onboarding.md, SECURITY.md, PR template, issue-template contact links, 'not included and why'
+
+### E13 — App layer polish and examples (tracker #153)
+
+- [ ] **#175 T13.1** — app cleanup — prod-guard the Sentry test button, drop unused assets and animated-icon, fix jest transformIgnore
+- [ ] **#176 T13.2** — Zod-validate the posts API and serve a fixture for the Maestro web fetch flow
+- [ ] **#177 T13.3** — navigation theme from the same tokens as global.css
+- [ ] **#178 T13.4** — +not-found route with EmptyState + web flow; ITSAppUsesNonExemptEncryption
+- [ ] **#179 T13.5** — test gaps + small consistency fixes (env, query-provider, use-update-info, apply-error copy, Link role, @assets alias)
+- [ ] **#180 T13.6** — Stack.Protected sign-in example backed by a tiny session store
+- [ ] **#181 T13.7** — analytics track() over Observe.logEvent, typed storage module, pinned emulator locale for tab selection
+
 ## RUN LOG
 
 - 2026-09-03 — Repo created, 66 tickets + 10 epic trackers filed from PLAN.md.
@@ -173,3 +216,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-13 — #63 | t63-flashlight | https://github.com/seandillon1224/expo-boilerplate/pull/147 | merged | 2026-09-13 (ADR-0007; Flashlight as an informational `after_maestro_tests` hook of maestro_android behind the FLASHLIGHT constant, `bun run perf:flashlight`, profiles flows/fetch.yaml ×5; e2e.yml at 14726 B of 16384. Unverified on EAS (adb/maestro on PATH in hooks, installer on the nested-virt worker). Flashlight maintenance: human commits to 2026-04 but no npm release since 2024-07 — revisit mid-2027.)
 - 2026-09-13 — #61 | t61-ota-backports | https://github.com/seandillon1224/expo-boilerplate/pull/148 | merged | 2026-09-13 (ADR-0008; manual backport.yml resolve → approve → loop over tags: checkout tag + cherry-pick fix (or prepared branch), fingerprint must equal the tag's store build, `eas update --channel production` with rollout — the one sanctioned ladder skip; runbook section in release-ladder.md. Unverified until the first store release. E9 complete: every deferred ticket shipped. Remaining pending: #145 T5.8 EAS built-ins.)
 - 2026-09-13 — #145 | t145-eas-builtins | https://github.com/seandillon1224/expo-boilerplate/pull/149 | merged | 2026-09-13 (release.yml submit_ios → `testflight` job with `Internal` group constant; Slack posts in deploy-staging/release/rollout via `eas/send_slack_message` (expression URL accepted by validator); new rollout.yml (`update-rollout`, choice 25/50/75/100 since the param is integer-typed; promote.yml untouched at cap, keeps its fetch-based Slack). Human owes: create TestFlight group `Internal` (auto-distribute off) before enabling IOS_RELEASE; first runs unverified. Queue fully drained: no pending, deferred or blocked items.)
+- 2026-09-14 — Repo audit (4 parallel audits + CI/GitHub state). Filed E10–E13: trackers #150–#153, tickets #154–#181. Headline defects: env deploy policy rejects tag refs (#155), e2e maestro jobs read `needs.*` for `after:` deps (#154), release-please PR #136 red on CHANGELOG (#156), no expo-dev-client (#158), `Docs` not required (#159), Renovate app never installed.
