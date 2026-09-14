@@ -143,6 +143,16 @@ describe('applyRules (fixture strings)', () => {
     expect(counts).toEqual([{ id: 'expo.dev project URL', count: 1, min: 1 }]);
   });
 
+  it('rewrites the expo.dev project URL in the rollout Slack message', () => {
+    const fixture =
+      '• *Update*: <https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/updates/${{ inputs.update_group_id }}|x> on `production`';
+    const { content, counts } = applyRules(fixture, rulesFor('.eas/workflows/rollout.yml'));
+    expect(content).toContain(
+      'https://expo.dev/accounts/acme-team/projects/acme-mobile/updates/${{ inputs.update_group_id }}',
+    );
+    expect(counts).toEqual([{ id: 'expo.dev project URL', count: 1, min: 1 }]);
+  });
+
   it('splits the credentials table between Android package and iOS bundle id', () => {
     const fixture = [
       '| Android  | `staging` | `com.seandillon.expoboilerplate.staging` | k |',

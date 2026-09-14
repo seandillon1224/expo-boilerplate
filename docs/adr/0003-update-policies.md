@@ -30,9 +30,10 @@ rollouts, and a rule for the very common case of an app that is never cold-start
    downloaded, reload into it. Applies to every policy. A check also runs on every foreground, not
    only on launch.
 4. **Staged rollouts.** `rollout_percentage` input on `promote.yml` (default 100, honoured only for
-   `target=production`, passed to `eas update:republish --rollout-percentage`). The runbook
-   documents ramp-up (`eas update:edit --rollout-percentage`) and ending a bad rollout
-   (`eas update:rollback`). UAT is always 100. (#137)
+   `target=production`, passed to `eas update:republish --rollout-percentage`). Ramp-up is
+   `rollout.yml` (EAS `update-rollout` job behind an approval, #145), with `eas update:edit` as
+   the CLI fallback; the runbook documents ending a bad rollout (`eas update:rollback`). UAT is
+   always 100. (#137)
 5. **App-level policy from env.** `EXPO_PUBLIC_UPDATE_POLICY` in the Zod schema: `silent`
    (default) | `opt-in` | `forced`. Set per EAS environment; recommended `forced` on `preview`
    (staging / UAT testers always run the newest) and `silent` on `production`. Build-level

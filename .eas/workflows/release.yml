@@ -1,8 +1,8 @@
 # Store rung of the delivery ladder (PLAN.md decisions 3, 12, 13): a `vX.Y.Z` tag becomes
 # production store builds for both platforms, submitted to the Play internal track and to
-# TestFlight (internal group — an iOS submit without a release lands there).
+# TestFlight (EAS's `testflight` job: internal group `Internal`, "What to Test" = the tag).
 # version check → fingerprint → get_build (production, store) → gate (unchanged fingerprint =
-# skip, green) → build → submit → Slack.  Runbook: docs/release-ladder.md → Store release (tag).
+# skip, green) → build → testflight / submit → Slack.  Runbook: docs/release-ladder.md → Store release (tag).
 #
 # Trigger: `workflow_dispatch` ONLY — never `push: tags`, although EAS supports it. The tag push
 # lands in .github/workflows/release.yml, whose `environment: production` waits for the GitHub
@@ -43,7 +43,7 @@ on:
         options: [enabled, disabled]
         default: disabled
         required: false
-        description: enabled = iOS store build + TestFlight submit (needs App Store credentials, ASC API key, ascAppId).
+        description: enabled = iOS store build + TestFlight upload (needs App Store credentials, ASC API key, ascAppId, the `Internal` group).
       play_submit:
         type: choice
         options: [enabled, disabled]
@@ -180,17 +180,24 @@ jobs:
       profile: production
       message: release ${{ inputs.tag }} (${{ needs.version_check.outputs.version }})
 
-  # --- Submit: eas.json submit.production. iOS with no release = TestFlight (internal group,
-  # automatic distribution); Android track: internal.
+  # --- Submit: eas.json submit.production. iOS = the `testflight` job (upload + add to a named
+  # internal group, no Beta App Review); Android = `submit`, track: internal.
 
-  submit_ios:
-    name: Submit (ios → TestFlight)
-    type: submit
+  testflight_ios:
+    name: TestFlight (ios → group Internal)
+    type: testflight
     needs: [build_ios]
     if: ${{ (inputs.ios_release || 'disabled') == 'enabled' }}
     params:
       build_id: ${{ needs.build_ios.outputs.build_id }}
       profile: production
+      # TESTFLIGHT_GROUP — an App Store Connect internal group named `Internal` WITHOUT automatic
+      # distribution (the job adds the build to it; auto-distributed groups get every upload anyway).
+      # Create it once: docs/environments-and-secrets.md → iOS runbook, step 6. Unverified until the
+      # first iOS release (IOS_RELEASE).
+      internal_groups: ['Internal']
+      changelog: Release ${{ inputs.tag }}
+      submit_beta_review: false
 
   submit_android:
     name: Submit (android → Play internal)
@@ -202,30 +209,31 @@ jobs:
       build_id: ${{ needs.build_android.outputs.build_id }}
       profile: production
 
-  # --- Slack (same custom job as deploy-staging.yml; skips itself without SLACK_WEBHOOK_URL)
+  # --- Slack (same shape as deploy-staging.yml: compose → guard → eas/send_slack_message)
 
   notify:
     name: Slack
-    after: [version_check, fingerprint, gate, build_ios, build_android, submit_ios, submit_android]
+    after:
+      [version_check, fingerprint, gate, build_ios, build_android, testflight_ios, submit_android]
     environment: production
     steps:
-      - name: Compose message
+      - id: compose
+        name: Compose message
         run: |
           cat > slack.txt <<'__SLACK_MSG__'
-          *Release ${{ inputs.tag }}* · ${{ after.version_check.status == 'failure' ? '❌ tag does not match app version' : after.gate.status != 'success' ? '❌ fingerprint / gate failed' : (after.build_ios.status == 'failure' || after.build_android.status == 'failure') ? '❌ build failed' : (after.submit_ios.status == 'failure' || after.submit_android.status == 'failure') ? '❌ submit failed' : (after.build_ios.status == 'success' || after.build_android.status == 'success') ? '✅ store builds cut' : '⏭️ skipped — fingerprint unchanged since last store build (force=yes to override)' }}
-          • *iOS*: ${{ after.build_ios.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_ios.outputs.build_id + '|build> · ' + (after.submit_ios.status == 'success' ? 'submitted → TestFlight internal group' : after.submit_ios.status == 'failure' ? '❌ submit failed (ASC API key / ascAppId?)' : 'submit skipped') : after.build_ios.status == 'failure' ? '❌ build failed (credentials?)' : after.gate.outputs.release_ios == 'true' ? '⏭️ IOS_RELEASE disabled' : '⏭️ nothing to release' }}
+          *Release ${{ inputs.tag }}* · ${{ after.version_check.status == 'failure' ? '❌ tag does not match app version' : after.gate.status != 'success' ? '❌ fingerprint / gate failed' : (after.build_ios.status == 'failure' || after.build_android.status == 'failure') ? '❌ build failed' : (after.testflight_ios.status == 'failure' || after.submit_android.status == 'failure') ? '❌ submit failed' : (after.build_ios.status == 'success' || after.build_android.status == 'success') ? '✅ store builds cut' : '⏭️ skipped — fingerprint unchanged since last store build (force=yes to override)' }}
+          • *iOS*: ${{ after.build_ios.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_ios.outputs.build_id + '|build> · ' + (after.testflight_ios.status == 'success' ? 'uploaded → TestFlight group `Internal`' : after.testflight_ios.status == 'failure' ? '❌ TestFlight failed (ASC API key / ascAppId / `Internal` group?)' : 'TestFlight skipped') : after.build_ios.status == 'failure' ? '❌ build failed (credentials?)' : after.gate.outputs.release_ios == 'true' ? '⏭️ IOS_RELEASE disabled' : '⏭️ nothing to release' }}
           • *Android*: ${{ after.build_android.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_android.outputs.build_id + '|build> · ' + (after.submit_android.status == 'success' ? 'submitted → Play internal track' : after.submit_android.status == 'failure' ? '❌ submit failed (service account?)' : '⏭️ submit skipped (PLAY_SUBMIT disabled) — upload the AAB by hand') : after.build_android.status == 'failure' ? '❌ build failed' : '⏭️ nothing to release' }}
           • *Fingerprint*: ios `${{ substring(after.fingerprint.outputs.ios_fingerprint_hash || '', 0, 12) }}` · android `${{ substring(after.fingerprint.outputs.android_fingerprint_hash || '', 0, 12) }}` · <${{ workflow.url }}|workflow run>
           __SLACK_MSG__
-      - name: Post to Slack
+          set-output text "$(cat slack.txt)"
+      - id: guard
+        name: Skip without webhook
         run: |
-          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
-            echo "SLACK_WEBHOOK_URL is not set in the production environment — skipping (docs/release-ladder.md → Enable)."
-            exit 0
-          fi
-          node -e '
-            const text = require("node:fs").readFileSync("slack.txt", "utf8").trim();
-            fetch(process.env.SLACK_WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) })
-              .then((r) => r.ok ? console.log("posted") : Promise.reject(new Error("Slack " + r.status)))
-              .catch((e) => { console.error(e.message); process.exit(1); });
-          '
+          if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then set-output has_slack true
+          else echo "SLACK_WEBHOOK_URL is not set in the production environment — skipping (docs/release-ladder.md → Enable)."; set-output has_slack false; fi
+      - uses: eas/send_slack_message
+        if: ${{ steps.guard.outputs.has_slack == 'true' }}
+        with:
+          message: ${{ steps.compose.outputs.text }}
+          slack_hook_url: ${{ env.SLACK_WEBHOOK_URL }}

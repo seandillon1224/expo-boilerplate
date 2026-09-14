@@ -35,12 +35,15 @@ pushed to people by two jobs: `slack` (staging / uat / production / release runs
 
 The `slack` jobs are **custom steps**, not `type: slack` — eas-cli's validator rejects an
 expression in that job's `webhook_url`, and a webhook is a secret. Each job composes Slack
-mrkdwn from `after.<job>` outputs into `slack.txt` and `POST`s it with Node's `fetch`; the URL
-never reaches the log. The only configuration is one variable:
+mrkdwn from `after.<job>` outputs into `slack.txt`, reads it into a step output, and a guard step
+decides whether the `eas/send_slack_message` step runs (that built-in _does_ take
+`slack_hook_url: ${{ env.SLACK_WEBHOOK_URL }}`); `promote.yml` still `POST`s with Node's `fetch`
+because it is at the 16 KiB file cap. The URL never reaches the log. The only configuration is one
+variable:
 
-| Variable            | Where                                                                           | Read by                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `SLACK_WEBHOOK_URL` | EAS environment variable, `secret`, environments `preview` **and** `production` | `deploy-staging.yml` + `promote.yml` (`environment: preview`), `release.yml` (`environment: production`) |
+| Variable            | Where                                                                           | Read by                                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `SLACK_WEBHOOK_URL` | EAS environment variable, `secret`, environments `preview` **and** `production` | `deploy-staging.yml` + `promote.yml` (`environment: preview`), `release.yml` + `rollout.yml` (`environment: production`) |
 
 While it is unset the job prints `SLACK_WEBHOOK_URL is not set … skipping` and exits 0, so a run
 stays green without it; no repo constant to flip. It is never stored in GitHub or in the repo.
@@ -101,7 +104,8 @@ Line by line:
 
 `promote.yml` posts the same shape for `uat` / `production` (verdict, group ids, install links,
 reinstall flag when uat builds were cut); `release.yml` posts the verdict, build links and where
-each platform landed (TestFlight internal group / Play internal track). The `expo.dev` account/slug
+each platform landed (TestFlight group `Internal` / Play internal track); `rollout.yml` posts the
+ramp verdict and the new percentage. The `expo.dev` account/slug
 prefix in the links is a literal in each workflow; `bun run init` (T7.1) rewrites it.
 
 ### Test it
