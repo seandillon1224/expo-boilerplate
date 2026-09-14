@@ -43,7 +43,9 @@ The human-readable version of these rules, with the reasoning, is `docs/conventi
 
 - **Conventional Commits** are enforced by commitlint (commit-msg hook) and the PR-title check.
   Subject must be lowercase; PR titles become the squash commit message.
-- Lefthook runs eslint/prettier on staged files (pre-commit) and typecheck + knip + env/i18n checks (pre-push).
+- Lefthook pre-commit runs oxlint → eslint --fix → prettier --write on staged files, sequentially
+  (`piped: true`, glob `*.{js,cjs,mjs,ts,mts,tsx}`); pre-push runs typecheck + knip + i18n:check
+  (`LEFTHOOK_EXCLUDE=knip git push` skips the slow one; `env:check` is CI-only).
 - Source lives in `src/`; routes in `src/app/` (Expo Router, typed routes on). Path alias `@/` → `src/`.
 - Every script in `scripts/` parses its command line with `scripts/lib/args.js` (one option table,
   `util.parseArgs`, uniform `--help`), exposes `main(argv)` returning an exit code, and ends with

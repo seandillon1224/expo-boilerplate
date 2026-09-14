@@ -1,14 +1,20 @@
 # https://lefthook.dev — installed via the `prepare` script on `bun install`.
 # Fast, changed-files-only checks locally; the full gate runs in CI.
 pre-commit:
-  parallel: true
+  # Sequential, not parallel: eslint and prettier both rewrite the same files and re-stage them,
+  # so running them at once can lose one tool's fix. `piped` also stops at the first failure,
+  # which puts the cheap oxlint pass in front of the expensive fixers (ADR-0004).
+  piped: true
   jobs:
+    - name: oxlint
+      glob: '*.{js,cjs,mjs,ts,mts,tsx}'
+      run: bunx oxlint {staged_files}
     - name: eslint
-      glob: '*.{js,ts,tsx}'
+      glob: '*.{js,cjs,mjs,ts,mts,tsx}'
       run: bunx eslint --fix {staged_files}
       stage_fixed: true
     - name: prettier
-      glob: '*.{js,ts,tsx,json,jsonc,md,yml,yaml,css}'
+      glob: '*.{js,cjs,mjs,ts,mts,tsx,json,jsonc,md,yml,yaml,css}'
       run: bunx prettier --write {staged_files}
       stage_fixed: true
 
@@ -21,9 +27,8 @@ pre-push:
   jobs:
     - name: typecheck
       run: bun run typecheck
+    # The slowest job here; skip a single push with `LEFTHOOK_EXCLUDE=knip git push` (CI runs it).
     - name: knip
       run: bun run knip
-    - name: env-check
-      run: bun run env:check
     - name: i18n-check
       run: bun run i18n:check

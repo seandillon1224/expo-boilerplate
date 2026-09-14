@@ -8,8 +8,14 @@ const unusedImports = require('eslint-plugin-unused-imports');
 const oxlint = require('eslint-plugin-oxlint');
 const local = require('./eslint-rules');
 
+// `eslint-config-expo/flat` only matches `**/*.ts` / `**/*.tsx`, so `.mts` / `.cts` files would be
+// reported as "no matching configuration". Re-apply its TypeScript block to those extensions too,
+// which is what lets the pre-commit glob cover every module flavour (`lefthook.yml`).
+const expoTypeScript = expoConfig.find((entry) => entry.files?.includes('**/*.ts'));
+
 module.exports = defineConfig([
   expoConfig,
+  { ...expoTypeScript, name: 'expo/typescript/mts-cts', files: ['**/*.mts', '**/*.cts'] },
   {
     plugins: {
       // eslintrc-style plugin; only its rule set is reused under flat config.
