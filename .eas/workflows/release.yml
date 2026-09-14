@@ -25,7 +25,7 @@ on:
       tag:
         type: string
         required: true
-        description: The pushed tag, vX.Y.Z. Must equal `v` + app.config.ts `version`.
+        description: The tag release-please pushed, vX.Y.Z. Must equal `v` + package.json `version`.
       platforms:
         type: choice
         options: [both, ios, android]
@@ -70,13 +70,14 @@ jobs:
         run: |
           case "$TAG" in
             v[0-9]*.[0-9]*.[0-9]*) ;;
-            *) echo "Tag '$TAG' is not vX.Y.Z — release tags are semver with a v prefix (git tag v1.2.3)."; exit 1 ;;
+            *) echo "Tag '$TAG' is not vX.Y.Z — release tags are semver with a v prefix, cut by release-please."; exit 1 ;;
           esac
           version="$(bunx expo config --json --type public | node -e 'let s="";process.stdin.on("data",(d)=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).version ?? ""))')"
           if [ "v$version" != "$TAG" ]; then
-            echo "Tag '$TAG' does not match app.config.ts version '$version'."
-            echo "  Bump \`version\` in app.config.ts via a PR, merge, then tag that commit: git tag v$version && git push origin v$version"
-            echo "  (or delete the tag: git push origin :refs/tags/$TAG)."
+            echo "Tag '$TAG' does not match the app version '$version'."
+            echo "  Don't hand-edit \`version\` or push tags: merge the open release-please PR (\`chore(main): release x.y.z\`), which tags vX.Y.Z."
+            echo "  For a specific version, land a commit with a \`Release-As: x.y.z\` footer first."
+            echo "  (or delete this tag: git push origin :refs/tags/$TAG)."
             exit 1
           fi
           echo "Tag $TAG matches app.config.ts version $version."

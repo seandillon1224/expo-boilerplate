@@ -497,4 +497,5 @@ whether the PR check appears. Record what you find in ADR-0006's follow-ups.
 
 ## Update → approval → submit
 
-_Placeholder — E5/E6: OTA to `staging` on merge, manual approval-gated promotion to UAT / production._
+The rungs past the E2E check — OTA to `staging` on merge, approval-gated promotion to UAT and
+production, and the store release — are the [release ladder](release-ladder.md).

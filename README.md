@@ -45,7 +45,7 @@ flowchart LR
   MERGE --> STAGING["Deploy staging: build on fingerprint miss, OTA to staging, web staging alias"]
   STAGING -->|"promote.yml, approval"| UAT["UAT: same update group republished, web uat alias"]
   UAT -->|"promote.yml, approval, fingerprint gate"| PROD["Production: same update group republished, web production URL"]
-  MERGE -->|"version bump, vX.Y.Z tag, production reviewer"| RELEASE["Release: store builds to TestFlight + Play internal, skipped if fingerprint unchanged"]
+  MERGE -->|"release-please PR merged, vX.Y.Z tag, production reviewer"| RELEASE["Release: store builds to TestFlight + Play internal, skipped if fingerprint unchanged"]
 ```
 
 Who runs what:
@@ -62,17 +62,17 @@ Two rules hold on the ladder: what UAT signed off is byte-for-byte what producti
 
 The most-used scripts; the full list with flags is in `CLAUDE.md`.
 
-| Task       | Command                                                                                              |
-| ---------- | ---------------------------------------------------------------------------------------------------- |
-| Dev server | `bun run ios` / `bun run android` / `bun run web`                                                    |
-| Local gate | `bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check`            |
-| Env        | `bun run env:check`, `bun run env:pull` (`env:pull:preview` / `env:pull:production`)                 |
-| E2E web    | `bun run export:web`, `bun run serve:web`, then `bun run e2e:web`                                    |
-| E2E native | `bun run e2e:build` → `bun run e2e:repack` → `bun run e2e:ios` / `bun run e2e:android`               |
-| Perf       | `bun run perf:baseline` then `bun run perf`; `bun run export:web && bun run budget`; `bun run atlas` |
-| Release    | `bun run fingerprint`; `bun run eas workflow:run promote.yml -F target=uat`; push a `vX.Y.Z` tag     |
-| Devices    | `bun run devices:add` / `bun run devices:list`                                                       |
-| Template   | `bun run doctor`, `bun run repo:settings:apply` / `repo:settings:check`                              |
+| Task       | Command                                                                                                  |
+| ---------- | -------------------------------------------------------------------------------------------------------- |
+| Dev server | `bun run ios` / `bun run android` / `bun run web`                                                        |
+| Local gate | `bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check`                |
+| Env        | `bun run env:check`, `bun run env:pull` (`env:pull:preview` / `env:pull:production`)                     |
+| E2E web    | `bun run export:web`, `bun run serve:web`, then `bun run e2e:web`                                        |
+| E2E native | `bun run e2e:build` → `bun run e2e:repack` → `bun run e2e:ios` / `bun run e2e:android`                   |
+| Perf       | `bun run perf:baseline` then `bun run perf`; `bun run export:web && bun run budget`; `bun run atlas`     |
+| Release    | `bun run fingerprint`; `bun run eas workflow:run promote.yml -F target=uat`; merge the release-please PR |
+| Devices    | `bun run devices:add` / `bun run devices:list`                                                           |
+| Template   | `bun run doctor`, `bun run repo:settings:apply` / `repo:settings:check`                                  |
 
 ## Commonly added next
 

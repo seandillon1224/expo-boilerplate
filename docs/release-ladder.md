@@ -15,7 +15,7 @@ setup are in [Environments and secrets](environments-and-secrets.md); how tester
 | **`main` → staging** | the squash-merge (push to `main`)                         | OTA to channel `staging` (+ staging builds on a fingerprint miss), web `staging` alias, Slack post                      | none — automatic                                                                           | [Staging](#staging-automatic)                                                               |
 | **staging → UAT**    | `workflow:run promote.yml -F target=uat` (by hand)        | The chosen **staging update group** republished to `uat`, unchanged (+ uat builds on a miss), web `uat` alias, Slack    | `require-approval` on expo.dev; fingerprint gate                                           | [UAT and production](#uat-and-production-manual)                                            |
 | **UAT → production** | `workflow:run promote.yml -F target=production` (by hand) | The **same** group republished to `production`, web production URL, Slack                                               | `require-approval` on expo.dev; fingerprint gate **refuses** a runtime with no store build | [UAT and production](#uat-and-production-manual)                                            |
-| **Store release**    | push a `vX.Y.Z` tag (after a `version` bump PR)           | Production store builds → TestFlight internal group + Play internal track; skipped when the fingerprint is unchanged    | GitHub `production` Environment reviewer (`.github/workflows/release.yml`)                 | [Store release](#store-release-tag)                                                         |
+| **Store release**    | merge the release-please PR (it tags `vX.Y.Z`)            | Production store builds → TestFlight internal group + Play internal track; skipped when the fingerprint is unchanged    | GitHub `production` Environment reviewer (`.github/workflows/release.yml`)                 | [Store release](#store-release-tag)                                                         |
 | **Back down**        | by hand                                                   | An earlier group republished on the channel, or a roll-back-to-embedded; web alias re-pointed                           | same gates as going up when done through `promote.yml`; none from the CLI                  | [Rollback](#rollback)                                                                       |
 | **Backport**         | `workflow:run backport.yml -F tags=… -F fix=…` (by hand)  | A `main` fix cherry-picked onto older store release tags, published to `production` under each tag's runtime            | `require-approval` on expo.dev; fingerprint gate **refuses** a tag + fix whose hash moved  | [Backports](#backports-older-runtimes)                                                      |
 
@@ -112,9 +112,11 @@ consequences. Those consequences are the rest of this page:
   reinstalled because the OTA cannot reach them ([Reinstall-required rule](#staging-automatic)).
 - **Promotion to production is refused** until a store build carries the new hash
   ([Fingerprint gate](#uat-and-production-manual), PLAN.md decision 13).
-- **A store release is required:** bump `version` in `app.config.ts`, push `vX.Y.Z` →
-  `.github/workflows/release.yml` → `.eas/workflows/release.yml` ([Store release](#store-release-tag)),
-  then promote the staging group again.
+- **A store release is required:** merge the open release-please PR (`chore(main): release x.y.z`),
+  which tags `vX.Y.Z` → `.github/workflows/release.yml` → `.eas/workflows/release.yml`
+  ([Store release](#store-release-tag)), then promote the staging group again. Never hand-edit
+  `version` or push a tag ([ADR-0002](adr/0002-release-please-versioning.md)); to force a specific
+  version, land a commit with a `Release-As: x.y.z` footer.
 
 Drift you did not intend (a dependency bump that pulled a native module, a `package.json` `scripts`
 edit, a changed icon) shows up the same way; `APP_VARIANT=production bun run fingerprint --debug`
@@ -434,7 +436,9 @@ by itself. `version` tracks every release, OTA-only ones included: the unchanged
 below turns a tag without native changes into a green no-op store step. Build numbers stay on EAS
 (`appVersionSource: remote`, `autoIncrement`); nobody hand-edits `version` anywhere.
 
-**Cutting a release** — two human steps, neither automated:
+**Cutting a release** — two human steps, neither automated. Nobody bumps `version` or pushes a tag
+by hand; to force a particular number, land a commit whose footer is `Release-As: x.y.z` and
+release-please cuts that version next.
 
 1. **Merge the release PR.** release-please tags the squash commit `vX.Y.Z` (label →
    `autorelease: tagged`) and the tag starts `.github/workflows/release.yml`. The staging deploy
@@ -450,13 +454,13 @@ bun run eas workflow:run .eas/workflows/release.yml -F tag=v1.2.3 -F force=yes -
 bun run eas workflow:validate .eas/workflows/release.yml                          # after editing (cap: 16 KiB)
 ```
 
-| Input         | Values                       | Default    | Meaning                                                                              |
-| ------------- | ---------------------------- | ---------- | ------------------------------------------------------------------------------------ |
-| `tag`         | `vX.Y.Z`                     | (required) | Must equal `v` + `app.config.ts` `version`; anything else fails `version_check`.     |
-| `platforms`   | `both` \| `ios` \| `android` | `both`     | Platforms to release.                                                                |
-| `force`       | `no` \| `yes`                | `no`       | `yes` = build + submit even when a store build with this fingerprint already exists. |
-| `ios_release` | `enabled` \| `disabled`      | `disabled` | `IOS_RELEASE` repo constant (below).                                                 |
-| `play_submit` | `enabled` \| `disabled`      | `disabled` | `PLAY_SUBMIT` repo constant (below).                                                 |
+| Input         | Values                       | Default    | Meaning                                                                                                        |
+| ------------- | ---------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------- |
+| `tag`         | `vX.Y.Z`                     | (required) | The tag release-please pushed; must equal `v` + `package.json` `version`, anything else fails `version_check`. |
+| `platforms`   | `both` \| `ios` \| `android` | `both`     | Platforms to release.                                                                                          |
+| `force`       | `no` \| `yes`                | `no`       | `yes` = build + submit even when a store build with this fingerprint already exists.                           |
+| `ios_release` | `enabled` \| `disabled`      | `disabled` | `IOS_RELEASE` repo constant (below).                                                                           |
+| `play_submit` | `enabled` \| `disabled`      | `disabled` | `PLAY_SUBMIT` repo constant (below).                                                                           |
 
 ```text
 version_check ── fingerprint ─┬─ check_ios ─────┐
@@ -467,7 +471,7 @@ version_check ── fingerprint ─┬─ check_ios ─────┐
 
 | Job              | Type          | What it does                                                                                                                                                                                                                                                                                 |
 | ---------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `version_check`  | custom steps  | Refuses a tag that is not `vX.Y.Z` or does not equal `v` + `expo config` `version` (`APP_VARIANT=production`), with the fix printed (bump + retag, or delete the tag). Outputs `version`.                                                                                                    |
+| `version_check`  | custom steps  | Refuses a tag that is not `vX.Y.Z` or does not equal `v` + `expo config` `version` (`APP_VARIANT=production`), with the fix printed (merge the release-please PR, or delete the tag). Outputs `version`.                                                                                     |
 | `fingerprint`    | `fingerprint` | `environment: production`, `APP_VARIANT=production` — must equal the `production` build profile.                                                                                                                                                                                             |
 | `check_<p>`      | `get-build`   | Newest finished **store** build of the `production` profile with this fingerprint (`wait_for_in_progress`, so a release already building counts). Skipped for an unselected platform.                                                                                                        |
 | `gate`           | custom steps  | Per selected platform: hit + `force=no` → **skip** with `fingerprint unchanged since last store build <id>; nothing to release — bump native deps or use force=yes`, **exit 0** (the run stays green); miss or `force=yes` → `release_<p>=true`.                                             |
@@ -607,8 +611,8 @@ A binary cannot be un-shipped. What you can do, per store, and the OTA lane stil
   new release with the previous AAB. Same scope: internal testers only until a human promotes.
 - **Already in production on a store:** users on the bad binary are still on the `production`
   channel, so a JS-caused regression is fixed by an OTA rollback above (or a hotfix update). A
-  native regression needs a **fix release**: bump `version`, merge, tag `vX.Y.Z+1` ([Store
-  release](#store-release-tag)). The gate skips a tag whose fingerprint already has a store build —
+  native regression needs a **fix release**: merge the `fix:` PR, then merge the release-please PR
+  it opens, which tags the next patch ([Store release](#store-release-tag)). The gate skips a tag whose fingerprint already has a store build —
   if the fix did not change the native surface, it was OTA-able; if you need a store build anyway
   (store-side rejection, listing changes) re-run with `-F force=yes`.
 - `roll-back-to-embedded` on `production` puts users on the JS the **store build** embedded; on a
@@ -669,7 +673,7 @@ what production gets".
    - **JS-only:** `bun run eas workflow:run .eas/workflows/promote.yml -F target=production
 -F update_group_id=<the fix's staging group>` (via `uat` first if the change is not trivial),
      approve on expo.dev. Because the fix group is the newest on `staging`, the id can be omitted.
-   - **Native:** bump `version` in the same or a follow-up PR, tag `vX.Y.Z`, approve the
+   - **Native:** merge the release-please PR the fix opened (it tags `vX.Y.Z`), approve the
      `production` Environment, wait for `release.yml` to cut the store build, then promote the
      staging group — the fingerprint gate now hits. Until users install the new binary they are on
      the rolled-back OTA from step 1.
