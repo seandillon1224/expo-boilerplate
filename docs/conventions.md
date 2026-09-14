@@ -54,11 +54,23 @@ or "hook-enforced", the enforcement is the source of truth and this page is the 
 
 `lefthook.yml` is installed by the `prepare` script on `bun install`:
 
-| Hook         | Runs                                                                           | Why it is here and not only in CI                                          |
-| ------------ | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| `pre-commit` | `eslint --fix` and `prettier --write` on staged files (fixes are re-staged)    | Formatting never reaches a PR diff                                         |
-| `commit-msg` | `commitlint --edit`                                                            | A bad subject fails before it exists                                       |
-| `pre-push`   | `bun run typecheck`, `bun run knip`, `bun run env:check`, `bun run i18n:check` | The fast half of the gate; tests stay local-on-demand to keep pushes short |
+| Hook         | Runs                                                                   | Why it is here and not only in CI                                          |
+| ------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `pre-commit` | `oxlint`, then `eslint --fix`, then `prettier --write` on staged files | Formatting never reaches a PR diff                                         |
+| `commit-msg` | `commitlint --edit`                                                    | A bad subject fails before it exists                                       |
+| `pre-push`   | `bun run typecheck`, `bun run knip`, `bun run i18n:check`              | The fast half of the gate; tests stay local-on-demand to keep pushes short |
+
+`pre-commit` is `piped: true`, not parallel: eslint and prettier rewrite and re-stage the same
+files, so running them at once can drop one tool's fix. Piping also means the first failure stops
+the chain, which is why the cheap oxlint pass (ADR-0004) runs first — the same front pass as
+`bun run lint`, read-only here so the fixers own every rewrite. The fixer glob is
+`*.{js,cjs,mjs,ts,mts,tsx}` (prettier adds the data/doc extensions), and `eslint.config.js`
+re-applies the Expo TypeScript block to `.mts` / `.cts` so those lint instead of being skipped.
+
+`pre-push` deliberately does **not** run `env:check`: it validates the developer's own `.env.local`,
+which says nothing about the commit being pushed — the required `Env check` CI job is the real gate.
+`knip` stays (it is the one check a PR routinely trips) but is the slowest job here; skip it for a
+single push with `LEFTHOOK_EXCLUDE=knip git push` — lefthook's own job filter, so no extra wiring.
 
 Skip a hook only for a `chore(queue)` ledger commit or an emergency (`LEFTHOOK=0 git push`); CI
 runs the same checks anyway.
