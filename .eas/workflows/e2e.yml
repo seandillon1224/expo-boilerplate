@@ -131,6 +131,18 @@ jobs:
             type: other
             name: Device logs (ios)
             path: device-logs
+        # Informational a11y audit (ADR-0005). Whether maestro + the device are still reachable
+        # from a hook is unverified, hence --no-fail: the script skips with a notice, never red.
+        - name: A11y audit
+          if: ${{ always() }}
+          run: node scripts/a11y-audit.js --platform ios --no-fail --out a11y-audit
+        - name: Upload a11y audit
+          if: ${{ always() }}
+          uses: eas/upload_artifact
+          with:
+            type: other
+            name: A11y audit (ios)
+            path: a11y-audit
 
   # --- Android -----------------------------------------------------------------------------
 
@@ -198,6 +210,16 @@ jobs:
             type: other
             name: Device logs (android)
             path: device-logs
+        - name: A11y audit
+          if: ${{ always() }}
+          run: node scripts/a11y-audit.js --platform android --no-fail --out a11y-audit
+        - name: Upload a11y audit
+          if: ${{ always() }}
+          uses: eas/upload_artifact
+          with:
+            type: other
+            name: A11y audit (android)
+            path: a11y-audit
 
   # --- PR comment --------------------------------------------------------------------------
 

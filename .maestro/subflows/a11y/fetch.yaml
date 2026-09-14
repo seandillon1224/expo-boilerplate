@@ -1,0 +1,17 @@
+# A11y audit landing flow (ADR-0005): Home -> /fetch, loaded (so `fetch-refetch` is dumped in its
+# enabled state, same wait as subflows/steps/fetch.yaml). Run via `bun run e2e:a11y`.
+appId: ${MAESTRO_APP_ID}
+---
+- runFlow: ../launch.yaml
+- assertVisible:
+    id: home-screen
+- tapOn:
+    id: home-fetch-link
+- assertVisible:
+    id: fetch-screen
+- extendedWaitUntil:
+    notVisible:
+      id: fetch-loading
+    timeout: 20000
+- assertVisible:
+    id: fetch-refetch

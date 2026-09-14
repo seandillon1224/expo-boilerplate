@@ -176,6 +176,23 @@ appId: ${MAESTRO_APP_ID}
     id: settings-screen
 ```
 
+### Accessibility audit
+
+`bun run e2e:a11y --platform <p>` is the runtime half of the a11y story
+([ADR-0005](adr/0005-a11y-hierarchy-audit.md); the static half is ESLint's react-native-a11y
+rules). Maestro cannot turn VoiceOver / TalkBack on, so the script drives the app to each screen
+(`.maestro/subflows/a11y/<screen>.yaml`), dumps `maestro hierarchy` — the tree the platform's
+accessibility API exposes — and checks every interactive element (the literal `testID`s on the
+elements `local/require-testid` enforces, read from `src/**/*.tsx`) for a non-empty label that is
+not the raw testID and is unique on the screen. Dynamic `testID={…}` props are listed as unaudited.
+
+Run it against a device that still has the e2e build: `bun run e2e:<p> --keep && bun run e2e:a11y
+--platform <p>`. Output: a table, `maestro-<p>/a11y/<screen>.json` (the dumps) and
+`maestro-<p>/a11y/report.json`; exit 1 on a finding or a failed landing flow (`--no-fail` to only
+report, which is how the `E2E (native)` hook runs it — informational, uploaded as **A11y audit
+(<p>)**). Adding a screen = one landing subflow that ends in `assertVisible` of the screen id, plus
+one line in `SCREENS` in `scripts/a11y-audit.js`.
+
 ## The template end-to-end test
 
 `bun run template:e2e` copies the checkout to a temp directory, runs the documented headless
@@ -187,14 +204,15 @@ slug, bundle id or account except where `scripts/init.js` rewrites them:
 
 ## What runs where
 
-| Moment                 | What                                                                                                                                       | Wired in                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `git commit`           | ESLint `--fix` and Prettier on staged files; commitlint on the message                                                                     | `lefthook.yml` (`pre-commit`, `commit-msg`)                   |
-| `git push`             | `typecheck`, `knip`, `env:check`, `i18n:check` — no tests, to keep pushes fast                                                             | `lefthook.yml` (`pre-push`)                                   |
-| Before a PR            | `bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check`; `bun run e2e:web` when a flow or screen changed | you                                                           |
-| PR / push to `main`    | `Unit tests` (with coverage), `Maestro web`, `Template init`, the rest of the gate; `Perf (Reassure)` on PRs; `E2E (native)` on EAS        | [CI overview](ci-overview.md)                                 |
-| Before a costly change | `bun run perf:baseline` on `main`, `bun run perf` on the branch                                                                            | [Render-perf tests](perf-tests.md)                            |
-| Native lane red        | `bun run e2e:build` / `e2e:repack` / `e2e:<p>` on a laptop                                                                                 | [Native E2E → Local reproduce](native-e2e.md#local-reproduce) |
+| Moment                 | What                                                                                                                                           | Wired in                                                      |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `git commit`           | ESLint `--fix` and Prettier on staged files; commitlint on the message                                                                         | `lefthook.yml` (`pre-commit`, `commit-msg`)                   |
+| `git push`             | `typecheck`, `knip`, `env:check`, `i18n:check` — no tests, to keep pushes fast                                                                 | `lefthook.yml` (`pre-push`)                                   |
+| Before a PR            | `bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check`; `bun run e2e:web` when a flow or screen changed     | you                                                           |
+| PR / push to `main`    | `Unit tests` (with coverage), `Maestro web`, `Template init`, the rest of the gate; `Perf (Reassure)` on PRs; `E2E (native)` on EAS            | [CI overview](ci-overview.md)                                 |
+| Before a costly change | `bun run perf:baseline` on `main`, `bun run perf` on the branch                                                                                | [Render-perf tests](perf-tests.md)                            |
+| Native lane red        | `bun run e2e:build` / `e2e:repack` / `e2e:<p>` on a laptop                                                                                     | [Native E2E → Local reproduce](native-e2e.md#local-reproduce) |
+| After a screen change  | `bun run e2e:<p> --keep && bun run e2e:a11y --platform <p>` — screen-reader labels on the real build; informational in the `E2E (native)` hook | [Accessibility audit](#accessibility-audit)                   |
 
 What is deliberately not here: snapshot tests (they assert markup, not behaviour, and churn with
 every styling change), Storybook (PLAN.md decision 14), Playwright (Maestro covers web), and a

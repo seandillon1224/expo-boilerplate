@@ -10,6 +10,8 @@
 #   subflows/launch-web.yaml web launchApp (opens the entry's `url`)
 #   subflows/select-tab.yaml the only per-platform selector (tab bar; see below)
 #   subflows/steps/<name>.yaml  the shared steps every entry runs after launching
+#   subflows/a11y/<screen>.yaml  launch + land on one screen for the a11y hierarchy audit
+#                            (scripts/a11y-audit.js, `bun run e2e:a11y`, ADR-0005); never a gate flow
 #   Only `flows/*` and `flows/web/*` are flows; subflows are never discovered on their own.
 #
 # Why two entry files: Maestro picks the Chromium driver from a `url:` header alone (`url` beats

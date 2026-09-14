@@ -89,7 +89,6 @@ Deliberately not in the template (PLAN.md decision 5: no auth, backend or forms)
 - **Update policies** — forced / opt-in / silent updates and rollout % on top of `useUpdatePolicy` ([#62](https://github.com/seandillon1224/expo-boilerplate/issues/62)).
 - **Flashlight** — Android performance scores in the native E2E lane ([#63](https://github.com/seandillon1224/expo-boilerplate/issues/63)).
 - **oxlint** — a fast first pass in front of ESLint ([#64](https://github.com/seandillon1224/expo-boilerplate/issues/64)).
-- **Accessibility E2E** — a Maestro flow with the screen reader on ([#65](https://github.com/seandillon1224/expo-boilerplate/issues/65)).
 - **Maestro Cloud** — an optional device-farm job ([#66](https://github.com/seandillon1224/expo-boilerplate/issues/66)).
 
 ## Docs

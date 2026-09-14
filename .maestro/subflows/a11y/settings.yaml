@@ -1,0 +1,13 @@
+# A11y audit landing flow (ADR-0005): Home -> Settings tab. Run via `bun run e2e:a11y`.
+appId: ${MAESTRO_APP_ID}
+---
+- runFlow: ../launch.yaml
+- assertVisible:
+    id: home-screen
+- runFlow:
+    file: ../select-tab.yaml
+    env:
+      TAB: settings
+      TAB_LABEL: Settings
+- assertVisible:
+    id: settings-screen
