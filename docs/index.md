@@ -55,7 +55,7 @@ flowchart LR
   MERGE --> STAGING["Deploy staging: build on fingerprint miss, OTA to staging, web staging alias"]
   STAGING -->|"promote.yml, approval"| UAT["UAT: same update group republished, web uat alias"]
   UAT -->|"promote.yml, approval, fingerprint gate"| PROD["Production: same update group republished, web production URL"]
-  MERGE -->|"version bump, vX.Y.Z tag, production reviewer"| RELEASE["Release: store builds to TestFlight + Play internal, skipped if fingerprint unchanged"]
+  MERGE -->|"release-please PR merged, vX.Y.Z tag, production reviewer"| RELEASE["Release: store builds to TestFlight + Play internal, skipped if fingerprint unchanged"]
 ```
 
 [CI overview](ci-overview.md) is the legend for this picture: every job and workflow, what

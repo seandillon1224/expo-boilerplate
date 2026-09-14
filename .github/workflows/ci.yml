@@ -378,7 +378,7 @@ jobs:
                   '',
                   `- **On merge:** \`deploy-staging.yml\` misses its build cache and cuts new staging builds (paid; iOS only with \`IOS_BUILDS\`). Installed staging apps must be reinstalled — the OTA cannot reach them.`,
                   `- **Promotion to production** (\`promote.yml\`) will be **refused** until a store build carries this fingerprint (PLAN.md decision 13).`,
-                  `- **Store release required:** bump \`version\` in \`app.config.ts\`, push a \`vX.Y.Z\` tag → \`.github/workflows/release.yml\` → \`.eas/workflows/release.yml\` (TestFlight / Play internal), then promote the staging group again.`,
+                  `- **Store release required:** merge the open release-please PR (\`chore(main): release x.y.z\`), which tags \`vX.Y.Z\` → \`.github/workflows/release.yml\` → \`.eas/workflows/release.yml\` (TestFlight / Play internal), then promote the staging group again. Need a specific version? Land a commit with a \`Release-As: x.y.z\` footer.`,
                   `- Not intended? \`APP_VARIANT=production bun run fingerprint --debug\` on both branches lists every source that fed the hash.`,
                   '',
                   `_Informational — this check never blocks merge. Updated in place on every push; see docs/release-ladder.md → Fingerprint drift on PRs._`,
