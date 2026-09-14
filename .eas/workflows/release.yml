@@ -139,24 +139,12 @@ jobs:
       IOS_BUILD: ${{ after.check_ios.outputs.build_id }}
       ANDROID_BUILD: ${{ after.check_android.outputs.build_id }}
     steps:
+      - uses: eas/checkout
       - id: decide
         name: Hit or miss, per platform
         run: |
-          releasing=0
-          decide() {
-            p="$1"; fp="$2"; build="$3"; verdict=false
-            if [ "$PLATFORMS" != both ] && [ "$PLATFORMS" != "$p" ]; then echo "$p: not selected (platforms=$PLATFORMS) — skipped"
-            elif [ -n "$build" ] && [ "$FORCE" != yes ]; then
-              echo "$p: fingerprint $fp unchanged since last store build $build; nothing to release."
-              echo "  Bump a native dependency / config plugin to change the fingerprint, or re-run with force=yes."
-            elif [ -n "$build" ]; then echo "$p: store build $build already has fingerprint $fp — force=yes, releasing $TAG anyway"; verdict=true; releasing=1
-            else echo "$p: MISS — no store build with fingerprint $fp; releasing $TAG"; verdict=true; releasing=1
-            fi
-            set-output "release_$p" "$verdict"
-          }
-          decide ios "$IOS_FP" "$IOS_BUILD"
-          decide android "$ANDROID_FP" "$ANDROID_BUILD"
-          [ "$releasing" = 1 ] || echo "Release $TAG skipped: fingerprint unchanged on every selected platform. Run is green; nothing was built or submitted."
+          node scripts/eas/fingerprint-gate.js --mode release
+          while IFS=$'\t' read -r key value; do set-output "$key" "$value"; done < outputs.txt
 
   # --- Store builds (production profile: distribution store, autoIncrement, channel production)
 
@@ -187,8 +175,8 @@ jobs:
   testflight_ios:
     name: TestFlight (ios → group Internal)
     type: testflight
+    # No `if`: IOS_RELEASE already gates `build_ios`, and `needs` skips this with it.
     needs: [build_ios]
-    if: ${{ (inputs.ios_release || 'disabled') == 'enabled' }}
     params:
       build_id: ${{ needs.build_ios.outputs.build_id }}
       profile: production
@@ -217,17 +205,25 @@ jobs:
     after:
       [version_check, fingerprint, gate, build_ios, build_android, testflight_ios, submit_android]
     environment: production
+    env:
+      TAG: ${{ inputs.tag }}
+      WORKFLOW_URL: ${{ workflow.url }}
+      VERSION_CHECK_STATUS: ${{ after.version_check.status }}
+      GATE_STATUS: ${{ after.gate.status }}
+      GATE_RELEASE_IOS: ${{ after.gate.outputs.release_ios }}
+      IOS_FP: ${{ after.fingerprint.outputs.ios_fingerprint_hash }}
+      ANDROID_FP: ${{ after.fingerprint.outputs.android_fingerprint_hash }}
+      BUILD_IOS_STATUS: ${{ after.build_ios.status }}
+      BUILD_IOS_ID: ${{ after.build_ios.outputs.build_id }}
+      BUILD_ANDROID_STATUS: ${{ after.build_android.status }}
+      BUILD_ANDROID_ID: ${{ after.build_android.outputs.build_id }}
+      TESTFLIGHT_STATUS: ${{ after.testflight_ios.status }}
+      SUBMIT_STATUS: ${{ after.submit_android.status }}
     steps:
+      - uses: eas/checkout
       - id: compose
         name: Compose message
-        run: |
-          cat > slack.txt <<'__SLACK_MSG__'
-          *Release ${{ inputs.tag }}* · ${{ after.version_check.status == 'failure' ? '❌ tag does not match app version' : after.gate.status != 'success' ? '❌ fingerprint / gate failed' : (after.build_ios.status == 'failure' || after.build_android.status == 'failure') ? '❌ build failed' : (after.testflight_ios.status == 'failure' || after.submit_android.status == 'failure') ? '❌ submit failed' : (after.build_ios.status == 'success' || after.build_android.status == 'success') ? '✅ store builds cut' : '⏭️ skipped — fingerprint unchanged since last store build (force=yes to override)' }}
-          • *iOS*: ${{ after.build_ios.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_ios.outputs.build_id + '|build> · ' + (after.testflight_ios.status == 'success' ? 'uploaded → TestFlight group `Internal`' : after.testflight_ios.status == 'failure' ? '❌ TestFlight failed (ASC API key / ascAppId / `Internal` group?)' : 'TestFlight skipped') : after.build_ios.status == 'failure' ? '❌ build failed (credentials?)' : after.gate.outputs.release_ios == 'true' ? '⏭️ IOS_RELEASE disabled' : '⏭️ nothing to release' }}
-          • *Android*: ${{ after.build_android.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_android.outputs.build_id + '|build> · ' + (after.submit_android.status == 'success' ? 'submitted → Play internal track' : after.submit_android.status == 'failure' ? '❌ submit failed (service account?)' : '⏭️ submit skipped (PLAY_SUBMIT disabled) — upload the AAB by hand') : after.build_android.status == 'failure' ? '❌ build failed' : '⏭️ nothing to release' }}
-          • *Fingerprint*: ios `${{ substring(after.fingerprint.outputs.ios_fingerprint_hash || '', 0, 12) }}` · android `${{ substring(after.fingerprint.outputs.android_fingerprint_hash || '', 0, 12) }}` · <${{ workflow.url }}|workflow run>
-          __SLACK_MSG__
-          set-output text "$(cat slack.txt)"
+        run: set-output text "$(node scripts/eas/slack-compose.js release)"
       - id: guard
         name: Skip without webhook
         run: |

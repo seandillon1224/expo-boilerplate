@@ -21,6 +21,11 @@ const ENTRY_POINTS = [
   'a11y-audit.js',
   'flashlight.js',
   'e2e-common.js',
+  // Every job script of an EAS workflow (.eas/workflows/*.yml run them with plain `node`).
+  ...fs
+    .readdirSync(path.join(SCRIPTS, 'eas'))
+    .filter((f: string) => f.endsWith('.js'))
+    .map((f: string) => path.join('eas', f)),
   ...fs
     .readdirSync(path.join(SCRIPTS, 'lib'))
     .filter((f: string) => f.endsWith('.js'))

@@ -4,9 +4,11 @@
 # republish (staged rollout for production, ADR-0003) → web redeploy → Slack. Runbook, gate matrix,
 # rollout ramp and critical updates: docs/release-ladder.md.
 # Run:      bun run eas workflow:run .eas/workflows/promote.yml -F target=uat [-F update_group_id=<id>]
-# Validate: bun run eas workflow:validate .eas/workflows/promote.yml   (cap: 16 KiB — near it, trim comments)
+# Validate: bun run eas workflow:validate .eas/workflows/promote.yml   (cap: 16 KiB)
 # Repo constants as in deploy-staging.yml: IOS_BUILDS → build_ios, HOSTING → promote_web_*. Custom
 # jobs export EXPO_TOKEN from `${ eas.job.secrets.robotAccessToken }` (the run's own robot token).
+# The resolve / gate / Slack logic lives in scripts/eas/ (docs/ci-overview.md → Where the job
+# logic lives), which is why every custom job checks the repo out first.
 name: Promote
 
 on:
@@ -66,32 +68,7 @@ jobs:
           CRITICAL: ${{ inputs.critical || 'no' }}
         run: |
           export EXPO_TOKEN="${ eas.job.secrets.robotAccessToken }"
-          cat > resolve.js <<'__JS__'
-          const { execFileSync } = require('node:child_process');
-          const eas = (...args) => JSON.parse(execFileSync('bun', ['run', 'eas', ...args, '--json', '--non-interactive'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }));
-          let group = (process.env.INPUT_GROUP || '').trim();
-          if (!group) {
-            group = eas('update:list', '--branch', 'staging', '--limit', '1').currentPage?.[0]?.group ?? '';
-            if (!group) { console.error('No update group on `staging` yet (deploy-staging.yml).'); process.exit(1); }
-          }
-          const updates = eas('update:view', group);
-          if (!Array.isArray(updates) || updates.length === 0) { console.error(`Update group ${group} not found.`); process.exit(1); }
-          if (updates[0].branch !== 'staging') { console.error(`Update group ${group} is on branch "${updates[0].branch}", not staging — promote only what staging has run.`); process.exit(1); }
-          const rt = (p) => updates.find((u) => u.platform === p)?.runtimeVersion ?? '';
-          const out = { group_id: group, ios_runtime: rt('ios'), android_runtime: rt('android'), commit: updates[0].gitCommitHash ?? '', message: (updates[0].message ?? '').slice(0, 120) };
-          console.log(JSON.stringify(out, null, 2));
-          require('node:fs').writeFileSync('outputs.txt', Object.entries(out).map(([k, v]) => `${k}\t${v}`).join('\n'));
-          // Critical (ADR-0003) lives in the manifest, which a republish carries unchanged: critical=yes
-          // verifies the flag is there; it can never add it.
-          (async () => {
-            const read = (u) => fetch(u.manifestPermalink, { headers: { accept: 'application/json' } }).then((r) => r.json()).then((m) => m?.extra?.expoClient?.extra?.updatePolicy ?? 'silent', (e) => `unreadable: ${e.message}`);
-            const policies = await Promise.all(updates.map(async (u) => `${u.platform}=${await read(u)}`));
-            const critical = policies.every((p) => p.endsWith('=forced'));
-            console.log(`updatePolicy ${policies.join(' ')} → ${critical ? 'CRITICAL' : 'not critical'}`);
-            if (process.env.CRITICAL === 'yes' && !critical) { console.error(`critical=yes but group ${group} is not critical — publish to staging with critical=yes and promote that group.`); process.exit(1); }
-          })();
-          __JS__
-          node resolve.js
+          node scripts/eas/promote-resolve.js --group "$INPUT_GROUP" --critical "$CRITICAL"
           while IFS=$'\t' read -r key value; do set-output "$key" "$value"; done < outputs.txt
 
   approve:
@@ -164,27 +141,15 @@ jobs:
       IOS_BUILD: ${{ after.get_build_ios.outputs.build_id }}
       ANDROID_BUILD: ${{ after.get_build_android.outputs.build_id }}
     steps:
+      - uses: eas/checkout
       - id: decide
         name: Hit or miss, per platform
         # uat miss: build only when checkout fingerprint == group runtime; production miss: fail.
+        # The outputs are set even on a refusal (the Slack post reads them), so the exit is deferred.
         run: |
-          fail=0
-          decide() {
-            p="$1"; runtime="$2"; fp="$3"; build="$4"; verdict=false
-            if [ -z "$runtime" ]; then echo "$p: not in the group — skipped"; set-output "build_$p" false; return; fi
-            if [ -n "$build" ]; then echo "$p: HIT — $TARGET build $build runs $runtime"
-            elif [ "$TARGET" = "production" ]; then
-              echo "$p: MISS — no production store build runs runtime $runtime (checkout: $fp). Tag a release (release.yml), then promote again."; fail=1
-            elif [ "$fp" = "$runtime" ]; then echo "$p: MISS — cutting a uat build from this checkout ($fp)"; verdict=true
-            else
-              echo "$p: MISS — checkout fingerprint $fp != group runtime $runtime; re-run from the group's commit:"
-              echo "  bun run eas workflow:run .eas/workflows/promote.yml --ref ${COMMIT:-<commit>} -F target=uat -F update_group_id=$GROUP"; fail=1
-            fi
-            set-output "build_$p" "$verdict"
-          }
-          decide ios "$IOS_RUNTIME" "$IOS_FP" "$IOS_BUILD"
-          decide android "$ANDROID_RUNTIME" "$ANDROID_FP" "$ANDROID_BUILD"
-          [ "$fail" = 0 ] || { echo "Fingerprint gate: refusing $GROUP → $TARGET."; exit 1; }
+          node scripts/eas/fingerprint-gate.js --mode "$TARGET" || refused=1
+          while IFS=$'\t' read -r key value; do set-output "$key" "$value"; done < outputs.txt
+          [ -z "${refused:-}" ] || exit 1
 
   # --- uat builds on a miss
 
@@ -270,23 +235,42 @@ jobs:
 
   slack:
     name: Slack
-    # As in deploy-staging.yml (`type: slack` cannot take an expression as webhook_url).
+    # As in deploy-staging.yml (`type: slack` cannot take an expression as webhook_url): compose →
+    # guard → `eas/send_slack_message`. `after` on everything so the post goes out on a red run too;
+    # the wording lives in scripts/eas/slack-compose.js, which reads this env block.
     # prettier-ignore
     after: [resolve, approve, gate, build_ios, build_android, republish, promote_web_uat, promote_web_production]
     environment: preview
+    env:
+      TARGET: ${{ inputs.target }}
+      WORKFLOW_URL: ${{ workflow.url }}
+      APPROVE_STATUS: ${{ after.approve.status }}
+      GATE_STATUS: ${{ after.gate.status }}
+      GATE_BUILD_IOS: ${{ after.gate.outputs.build_ios }}
+      GROUP_ID: ${{ after.resolve.outputs.group_id }}
+      GROUP_MESSAGE: ${{ after.resolve.outputs.message }}
+      REPUBLISH_STATUS: ${{ after.republish.status }}
+      REPUBLISH_GROUP_ID: ${{ after.republish.outputs.group_id }}
+      BUILD_IOS_STATUS: ${{ after.build_ios.status }}
+      BUILD_IOS_ID: ${{ after.build_ios.outputs.build_id }}
+      BUILD_ANDROID_STATUS: ${{ after.build_android.status }}
+      BUILD_ANDROID_ID: ${{ after.build_android.outputs.build_id }}
+      WEB_UAT_STATUS: ${{ after.promote_web_uat.status }}
+      WEB_UAT_URL: ${{ after.promote_web_uat.outputs.deploy_url }}
+      WEB_PROD_STATUS: ${{ after.promote_web_production.status }}
+      WEB_PROD_URL: ${{ after.promote_web_production.outputs.deploy_url }}
     steps:
-      - name: Compose message
+      - uses: eas/checkout
+      - id: compose
+        name: Compose message
+        run: set-output text "$(node scripts/eas/slack-compose.js promote)"
+      - id: guard
+        name: Skip without webhook
         run: |
-          cat > slack.txt <<'__SLACK_MSG__'
-          *Promote → ${{ inputs.target }}* · ${{ after.republish.status == 'success' ? '✅ promoted' : after.approve.status == 'failure' ? '🚫 rejected' : after.gate.status == 'failure' ? '⛔ gate refused' : after.republish.status == 'failure' ? '❌ republish failed' : '⏭️ nothing published' }} · group `${{ substring(after.resolve.outputs.group_id || '', 0, 8) }}` ${{ after.resolve.outputs.message ? '— ' + after.resolve.outputs.message : '' }}
-          ${{ (after.build_ios.status == 'success' || after.build_android.status == 'success') ? ':warning: *Reinstall required* — new uat builds cut; installed uat apps will not get this update.' : after.republish.status == 'success' ? 'Installed ' + inputs.target + ' apps pick it up on next launch.' : 'See the run log.' }}
-          • *Update*: ${{ after.republish.outputs.group_id ? '<@P@/updates/' + after.republish.outputs.group_id + '|' + substring(after.republish.outputs.group_id || '', 0, 8) + '> on `' + inputs.target + '`' : 'none' }} · <${{ workflow.url }}|workflow run>
-          • *iOS*: ${{ after.build_ios.outputs.build_id ? '<@P@/builds/' + after.build_ios.outputs.build_id + '|new uat build>' : after.build_ios.status == 'failure' ? '❌ build failed (credentials?)' : after.gate.outputs.build_ios == 'true' ? '⏭️ IOS_BUILDS disabled' : 'existing build' }}
-          • *Android*: ${{ after.build_android.outputs.build_id ? '<@P@/builds/' + after.build_android.outputs.build_id + '|new uat build>' : after.build_android.status == 'failure' ? '❌ build failed' : 'existing build' }}
-          • *Web*: ${{ after.promote_web_uat.outputs.deploy_url || after.promote_web_production.outputs.deploy_url ? '<' + (after.promote_web_uat.outputs.deploy_url || after.promote_web_production.outputs.deploy_url) + '>' : (after.promote_web_uat.status == 'failure' || after.promote_web_production.status == 'failure') ? '❌ deploy failed' : '⏭️ skipped' }}
-          __SLACK_MSG__
-          sed -i "s#@P@#https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate#g" slack.txt
-      - name: Post to Slack
-        run: |
-          [ -n "${SLACK_WEBHOOK_URL:-}" ] || { echo "SLACK_WEBHOOK_URL is not set (preview environment) — skipping."; exit 0; }
-          node -e 'fetch(process.env.SLACK_WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: require("node:fs").readFileSync("slack.txt", "utf8").trim() }) }).then((r) => r.ok ? console.log("posted") : Promise.reject(new Error("Slack " + r.status))).catch((e) => { console.error(e.message); process.exit(1); })'
+          if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then set-output has_slack true
+          else echo "SLACK_WEBHOOK_URL is not set in the preview environment — skipping (docs/release-ladder.md → Enable)."; set-output has_slack false; fi
+      - uses: eas/send_slack_message
+        if: ${{ steps.guard.outputs.has_slack == 'true' }}
+        with:
+          message: ${{ steps.compose.outputs.text }}
+          slack_hook_url: ${{ env.SLACK_WEBHOOK_URL }}

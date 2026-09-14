@@ -299,11 +299,10 @@ function buildManifest(id) {
     // Same two MAESTRO_APP_ID values; the `proj_REPLACE_ME` Maestro Cloud project id placeholder is
     // not a template identity and stays (docs/native-e2e.md → Maestro Cloud).
     { file: '.eas/workflows/e2e-cloud.yml', rules: maestroAppId },
-    { file: '.eas/workflows/deploy-staging.yml', rules: workflowUrls },
-    { file: '.eas/workflows/promote.yml', rules: workflowUrls },
-    { file: '.eas/workflows/release.yml', rules: workflowUrls },
-    { file: '.eas/workflows/rollout.yml', rules: workflowUrls },
-    { file: '.eas/workflows/backport.yml', rules: workflowUrls },
+    // The OTA / release workflows no longer carry the URL themselves: their job logic lives in
+    // scripts/eas/ (T11.3), so the two files below are where the project URL is written now.
+    { file: 'scripts/eas/slack-compose.js', rules: workflowUrls },
+    { file: 'scripts/eas/backport.js', rules: workflowUrls },
     {
       file: 'docs/environments-and-secrets.md',
       rules: [

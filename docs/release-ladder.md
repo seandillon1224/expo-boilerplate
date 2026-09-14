@@ -250,7 +250,7 @@ resolve ── approve ─┬─ fingerprint_<target> ──┐
 | `build_<p>`            | `build`            | uat only, on a miss: an internal-distribution `uat` build from this checkout (install page + QR). iOS also needs `IOS_BUILDS`.                                                                                                                                                                                                                                                                                                                      |
 | `republish`            | custom steps       | `eas update:republish --group <id> --destination-channel <target> --non-interactive`, plus `--rollout-percentage <n>` when `target=production` and `rollout_percentage` < 100 (the log prints what was applied); `after:` the builds, so a failed uat build never blocks the OTA (it is keyed by runtime and harmless for a platform without a matching build). Message: `promote <id8> (staging → <target>): <original message>`.                  |
 | `promote_web_<target>` | `deploy`           | Exports web from this checkout and deploys it to the `uat` alias / to production (`prod: true`). See _Web_ below.                                                                                                                                                                                                                                                                                                                                   |
-| `slack`                | custom steps       | Same message shape as staging: verdict, group ids, install links, "reinstall required" when uat builds were cut; still posts with Node `fetch` (the file is at the 16 KiB cap). Exits 0 while `SLACK_WEBHOOK_URL` is unset.                                                                                                                                                                                                                         |
+| `slack`                | custom steps       | Same message shape as staging: verdict, group ids, install links, "reinstall required" when uat builds were cut (`scripts/eas/slack-compose.js promote`). Exits 0 while `SLACK_WEBHOOK_URL` is unset.                                                                                                                                                                                                                                               |
 
 **Fingerprint gate** (PLAN.md decision 13). `runtimeVersion` is the fingerprint, so an update
 only ever runs on a build with the same hash. Per platform in the group:
@@ -352,7 +352,7 @@ not promote another group on top of an open rollout — finish it (100) or end i
 `update:rollback` on a rollout group republishes the group the other users were on, so the whole
 channel converges on the old code (it is exactly the [Rollback](#rollback) mechanism, one command).
 **Ramping** is `.eas/workflows/rollout.yml` (`Rollout`, `workflow_dispatch` only; not in
-`promote.yml`, which is at the 16 KiB cap): `resolve` looks the group up (`update:view --json`)
+`promote.yml`, a different rung): `resolve` looks the group up (`scripts/eas/rollout-resolve.js`)
 and refuses a group that is not on `production`, has no in-progress rollout, or would go _down_;
 `approve` (`require-approval`) shows the approver the current percentage; then EAS's own
 `update-rollout` job raises it; `slack` posts the result (same webhook as the promotion). The
