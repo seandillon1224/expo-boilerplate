@@ -164,7 +164,9 @@ a required context is missing or red).
 > **Status: wired, not required.** `.eas/workflows/e2e.yml` (`E2E (native)`) runs on every PR to
 > `main` and posts one PR comment per run. Its check context is deliberately **not** in
 > `REQUIRED_CHECKS`: making it required needs the Expo GitHub App linked and one paid first run
-> to read the exact context string from. How to do that is at the end of this section.
+> to read the exact context string from ([Owner checklist → Make `E2E (native)` a required
+> check](owner-checklist.md#make-e2e-native-a-required-check)). How to do that is at the end of
+> this section.
 
 The native lane runs on EAS Workflows, not GitHub Actions: `fingerprint` → per platform
 `get_build` (hit: `repack` this commit's JS into the cached base | miss: paid full `build`) →

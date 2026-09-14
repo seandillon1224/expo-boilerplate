@@ -28,7 +28,7 @@ bun run init   # new app from the template: rewrites name / slug / ids, resets t
 bun run ios    # or android / web
 ```
 
-Then push to GitHub and run `bun run repo:settings:apply` once: it makes every JS-gate job a required check on `main` and sets squash-only merging with auto-merge for Renovate ([JS gate](docs/js-gate.md#how-merging-works)). Create the EAS project, channels and environments as described in [Environments and secrets](docs/environments-and-secrets.md); from there every merge to `main` lands on staging by itself.
+Then push to GitHub and work [the owner checklist](docs/owner-checklist.md) — one page for every step only a human can do (GitHub settings and environments, the Expo GitHub App, Slack, Hosting, signing credentials, store accounts), grouped by what each unlocks, with the command, the repo constant to flip and the check that proves it. The first item is `bun run repo:settings:apply`: it makes every JS-gate job a required check on `main` and sets squash-only merging with auto-merge for Renovate ([JS gate](docs/js-gate.md#how-merging-works)). Create the EAS project, channels and environments as described in [Environments and secrets](docs/environments-and-secrets.md); from there every merge to `main` lands on staging by itself.
 
 First release: [Release ladder → Store release](docs/release-ladder.md#store-release-tag) (merge the release-please PR, which tags `vX.Y.Z`; approve the GitHub `production` Environment).
 

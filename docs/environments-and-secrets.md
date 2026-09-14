@@ -181,110 +181,25 @@ written out.
   environment; `eas-cli` honours it and skips the interactive login.
 - GitHub repository secrets therefore hold exactly three things: `EXPO_TOKEN` (an EAS
   [robot / personal access token](https://docs.expo.dev/accounts/programmatic-access/)),
-  `RELEASE_PLEASE_TOKEN` (a GitHub token for `.github/workflows/release-please.yml`, checklist
-  below) and `SENTRY_AUTH_TOKEN` (for `bun run sentry:sourcemaps` after a web export, if that ever
+  `RELEASE_PLEASE_TOKEN` (a GitHub token for `.github/workflows/release-please.yml`,
+  [owner checklist](owner-checklist.md#github-repository-secrets)) and
+  `SENTRY_AUTH_TOKEN` (for `bun run sentry:sourcemaps` after a web export, if that ever
   runs from GitHub rather than EAS). Everything else lives on EAS.
 
 ### Human setup checklist (owner)
 
-The template creates only the two `EXPO_PUBLIC_*` variables above. Sentry is opt-in: until the DSN
-exists, `src/lib/sentry.ts` is a no-op and source-map upload is skipped. When you are ready, run these
-once from the project root (each `--environment` flag may be repeated to set one value in several
-environments):
+Moved: every human-owed setup step — EAS variables, Slack, Hosting, credentials, GitHub secrets,
+environments and labels — lives on one page, grouped by what it unlocks, with the command, the repo
+constant to flip and the check that proves it: **[Owner checklist](owner-checklist.md)**.
 
-```sh
-# Runtime DSN — one DSN per environment, or the same one three times.
-bun run eas env:set --scope project --environment development --environment preview --environment production \
-  --name EXPO_PUBLIC_SENTRY_DSN --value https://<key>@o<org>.ingest.sentry.io/<project> \
-  --visibility plaintext --type string --non-interactive
+What is relevant here: the template creates only the two `EXPO_PUBLIC_*` variables above, and Sentry
+is opt-in — until `EXPO_PUBLIC_SENTRY_DSN` exists, `src/lib/sentry.ts` is a no-op and source-map
+upload is skipped ([Owner checklist → Sentry](owner-checklist.md#sentry-dsn-and-source-maps)). The
+GitHub repository secrets the pipeline needs are `EXPO_TOKEN`, `RELEASE_PLEASE_TOKEN` and
+(optionally) `SENTRY_AUTH_TOKEN`; everything else lives on EAS.
 
-# Build-time source-map upload (NOT EXPO_PUBLIC_; never reaches the bundle).
-bun run eas env:set --scope project --environment development --environment preview --environment production \
-  --name SENTRY_ORG --value <sentry-org-slug> --visibility plaintext --type string --non-interactive
-bun run eas env:set --scope project --environment development --environment preview --environment production \
-  --name SENTRY_PROJECT --value <sentry-project-slug> --visibility plaintext --type string --non-interactive
-bun run eas env:set --scope project --environment development --environment preview --environment production \
-  --name SENTRY_AUTH_TOKEN --value <token> --visibility secret --type string --non-interactive
-
-# Confirm
-bun run eas env:list --environment production --format long
-```
-
-Then add `SENTRY_AUTH_TOKEN`, `EXPO_TOKEN` and `RELEASE_PLEASE_TOKEN` (below) as GitHub repository
-secrets. To point a real backend at
-`staging` / `uat` / `production`, update `EXPO_PUBLIC_API_URL` per environment with the same
-`env:set` command (it creates or updates in place).
-
-Delivery ladder (`docs/release-ladder.md`) — everything the `deploy-staging` workflow needs that only
-the owner can provide. Until each is done the matching job skips itself and the run stays green:
-
-- [ ] **Expo GitHub App** linked to the repository (expo.dev → project → Settings → GitHub) so
-      `push` / `pull_request` triggers fire at all (`e2e.yml`, `preview-web.yml`, `deploy-staging.yml`).
-- [ ] **Slack incoming webhook** for the release channel ([Build sharing → Slack channel](build-sharing.md#slack-channel)), stored on EAS as
-      `SLACK_WEBHOOK_URL` (command below) — never in GitHub or the repo.
-- [ ] **First EAS Hosting deployment** by hand (claims the dev-domain; interactive):
-      `bun run export:web && bun run eas deploy --environment preview --export-dir dist-web --dev-domain expo-boilerplate --alias staging`,
-      then flip `HOSTING` to `enabled` in `deploy-staging.yml` **and** `preview-web.yml` (T5.4, PR
-      previews on the `pr-<number>` alias) in one PR.
-- [ ] **iOS ad hoc credentials** for `staging` (iOS runbook below, steps 1–3), then flip `IOS_BUILDS`
-      to `enabled` in `deploy-staging.yml`.
-- [ ] Sentry variables above, then set `upload_sentry_sourcemaps: true` on the `update` job.
-- [ ] **GitHub Environments `uat` / `production`** (required reviewer = repo owner) — run
-      `bun run repo:settings:apply` again; `scripts/repo-settings.js` now carries them (T5.2). They
-      gate GitHub Actions jobs that declare `environment:` (`release.yml`, T5.3); the EAS-side
-      `promote.yml` is gated by its `require-approval` job. Apply also installs each environment's
-      deployment branch policies — `production`: branch `main` + tag `v*`, `uat`: branch `main` —
-      without which a tag-triggered `release.yml` deployment is refused before the reviewer prompt.
-      `bun run repo:settings:check` reports `environments.<name>: missing` until this is done.
-- [ ] iOS ad hoc credentials for `uat` (iOS runbook, step 3), then run `promote.yml` with
-      `-F ios_builds=enabled` when a uat build is needed.
-- [ ] **`EXPO_TOKEN` GitHub repository secret** (EAS robot token) — `.github/workflows/release.yml`
-      (T5.3) starts the EAS release with it and fails early with a readable error while it is missing.
-- [ ] **`RELEASE_PLEASE_TOKEN` GitHub repository secret** — `.github/workflows/release-please.yml`
-      ([ADR-0002](adr/0002-release-please-versioning.md)) opens the release PR and pushes the
-      `vX.Y.Z` tag with it, and fails early while it is missing. The built-in `GITHUB_TOKEN` cannot
-      be used: events it creates never trigger other workflows, so the release PR would have no
-      required checks and the tag would never start `release.yml`. Two options:
-  - **GitHub App (recommended, no expiry, no personal account):** create an App on the owning
-    account with repository permissions **Contents: read & write** and **Pull requests: read &
-    write**, install it on this repo, store its App id and private key as the secrets
-    `RELEASE_PLEASE_APP_ID` / `RELEASE_PLEASE_APP_PRIVATE_KEY`, and add an
-    `actions/create-github-app-token` step before release-please that turns them into the
-    `RELEASE_PLEASE_TOKEN` value (the workflow keeps reading one token input).
-  - **Fine-grained PAT (quick path):** Settings → Developer settings → Fine-grained tokens, scoped to
-    this repository only, permissions **Contents: read & write** and **Pull requests: read & write**;
-    set an expiry reminder — the workflow starts failing at its `Require RELEASE_PLEASE_TOKEN`
-    step when it lapses.
-- [ ] **`autorelease: pending` / `autorelease: tagged` labels** — `bun run repo:settings:apply --only labels`
-      (release-please puts them on the release PR; `repo:settings:check` reports them missing until
-      then).
-- [ ] App Store credentials + ASC API key on EAS and `ascAppId` in `eas.json` (below), then flip
-      `IOS_RELEASE` to `enabled` in `.eas/workflows/release.yml`.
-- [ ] _Optional_ — **Maestro Cloud** (device farm, own plan): `MAESTRO_CLOUD_API_KEY` as a `secret` on
-      `development`, the project id in `.eas/workflows/e2e-cloud.yml` and `MAESTRO_CLOUD` flipped to
-      `enabled` there, plus the `e2e:cloud` label (`bun run repo:settings:apply --only labels`) —
-      [Native E2E → Maestro Cloud](native-e2e.md#maestro-cloud-optional).
-- [ ] Play service-account key on EAS after the first manual AAB upload (below), then flip
-      `PLAY_SUBMIT` to `enabled` in `.eas/workflows/release.yml`.
-
-```sh
-bun run eas env:set --scope project --environment preview --environment production \
-  --name SLACK_WEBHOOK_URL --value https://hooks.slack.com/services/... \
-  --visibility secret --type string --non-interactive
-```
-
-Signing / store credentials (details and exact commands in [Credentials](#credentials)):
-
-- [ ] Apple Developer Program membership active for the team that owns `com.seandillon.expoboilerplate`.
-- [ ] iOS ad hoc credentials for `development`, `staging` and `uat` (`bun run eas credentials -p ios`,
-      after at least one device is registered — T3.5 / #32).
-- [ ] iOS App Store credentials for `production`.
-- [ ] App Store Connect API key stored on EAS (so `eas submit` and `release.yml` run with `EXPO_TOKEN`
-      only).
-- [ ] App Store Connect app record created; `ascAppId` added to `submit.production.ios` in a PR.
-- [ ] Google Play app created, first AAB uploaded by hand, service account created and its JSON
-      key uploaded to EAS.
-- [x] Android keystores for all four application ids — generated by EAS in T3.4, nothing to do.
+The signing and store credentials this page documents below have their checklist entries under
+[Store release](owner-checklist.md#store-release); the runbooks stay here.
 
 ## Credentials
 

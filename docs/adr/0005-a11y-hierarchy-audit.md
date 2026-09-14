@@ -34,7 +34,8 @@ testIDs are listed as unaudited. Native only. It runs locally after `bun run e2e
 - Adding a screen to the audit is one landing subflow plus one line in the script's manifest.
 - The EAS hook is informational: whether `maestro` and the device are still reachable from a hook
   is unverified, so the script skips with a notice rather than failing the job. Flip it to gating
-  (drop `--no-fail`) after the first green run shows real reports in the artifact.
+  (drop `--no-fail`) after the first green run shows real reports in the artifact
+  ([Owner checklist → Make the a11y audit gating](../owner-checklist.md#make-the-a11y-audit-gating)).
 - PLAN.md D6 and the README's "not yet" list are reworded to match; the local reproduce runbook in
   `docs/native-e2e.md` gains a row.
 
