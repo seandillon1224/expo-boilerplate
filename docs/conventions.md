@@ -335,6 +335,26 @@ whole dependency tree — cannot publish to Pages or mint an OIDC token even if 
   fails on any leftover. Prefer `<owner>/<repo>` placeholders or a link to the doc that already
   carries the rewritten value ([Template init → What it rewrites](template-init.md#what-it-rewrites)).
 
+## Not included, and why
+
+Things that look missing and are missing on purpose. Every one of them is a product decision that a
+template would have to guess at, and guessing wrong costs more than the afternoon it takes to add
+the real thing. [ADR-0001](adr/0001-locked-architecture-decisions.md) has the decisions these come
+from (decision 5: no auth, backend or forms; decision 14: no Storybook); the README's "Commonly
+added next" section lists the starting points.
+
+| Not included              | Why                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Push notifications**    | `expo-notifications` needs an APNs key, an FCM service account and a credential per variant before it does anything, and the whole design (who registers a token, where it is stored, what a tap deep-links to) is product-shaped. It is also a native change, so adding it forces a build — cheap to do deliberately, noisy to carry unused.                                             |
+| **Feature flags**         | The vendor is the decision (LaunchDarkly, PostHog, Statsig, a JSON file on Hosting) and each has a different SDK, caching model and cost. Note that `expo-updates` already gives you a kill switch per channel and a staged rollout per update ([release ladder → Staged rollouts](release-ladder.md#staged-rollouts-production)); a flag system is for things the ladder cannot express. |
+| **Form library**          | Zod is already a dependency (the env schema uses it) and `react-hook-form` + `@hookform/resolvers` is a two-line install. Wiring a form layer with no forms to hold means inventing field components, and the demo app deliberately has no data entry.                                                                                                                                    |
+| **Offline / NetInfo**     | TanStack Query is already persisted to AsyncStorage, so reads survive a cold start without a network layer. Real offline support is mutation queueing and conflict resolution, which is entirely about your backend's semantics. Add `@react-native-community/netinfo` and the Query `onlineManager` binding when you know what "offline" has to mean.                                    |
+| **Universal / app links** | The per-variant `scheme` in `app.config.ts` already handles deep links. Universal links need `ios.associatedDomains` plus an `apple-app-site-association` file served from a domain you own (and `assetlinks.json` with your Play signing fingerprint on Android) — none of which a template can supply, and all of which are a native change.                                            |
+| **MMKV**                  | `react-native-mmkv` is faster than AsyncStorage, but AsyncStorage is what `@tanstack/query-async-storage-persister` and most of the ecosystem expect, it works on web without a shim, and the persisted query cache is small. Swap it when a profile ([Performance](performance.md)) says storage is the cost — not before.                                                               |
+
+The same rule applies to anything you are tempted to add here: if the template cannot pick the
+right answer for every project, it ships the seam, not the choice.
+
 ## Changing a locked decision
 
 The "Locked decisions" table in [ADR-0001](adr/0001-locked-architecture-decisions.md) is what

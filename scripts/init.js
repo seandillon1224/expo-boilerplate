@@ -272,6 +272,18 @@ function buildManifest(id) {
       ],
     },
     {
+      // The issue-form chooser's `contact_links` point at the docs source on GitHub (T12.4).
+      file: '.github/ISSUE_TEMPLATE/config.yml',
+      rules: [
+        rule(
+          'contact_links repo',
+          `github.com/${TEMPLATE.githubRepo}/blob`,
+          `github.com/${id.githubRepo}/blob`,
+          4,
+        ),
+      ],
+    },
+    {
       file: '.gitleaks.toml',
       rules: [rule('title', /^(title = ")[^"]*(")$/m, between(id.slug))],
     },

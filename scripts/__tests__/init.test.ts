@@ -318,6 +318,27 @@ describe('diffLines / scanLeftovers', () => {
     expect(scanLeftovers({ [file]: `see ${TEMPLATE.githubRepo}` })).toEqual([]);
   });
 
+  it('ships the onboarding docs, SECURITY.md and the PR template into the new project (#174)', () => {
+    // Project-shaped, not template-shaped: they survive init untouched. They also carry no
+    // template identity, so — unlike docs/owner-checklist.md — they need no KEEP entry and the
+    // leftover scan has nothing to report.
+    for (const file of ['docs/onboarding.md', 'SECURITY.md', '.github/PULL_REQUEST_TEMPLATE.md']) {
+      expect(fs.existsSync(path.join(ROOT, file))).toBe(true);
+      expect(KEEP[file]).toBeUndefined();
+      expect((buildManifest(ACME) as { file: string }[]).map((e) => e.file)).not.toContain(file);
+      expect(REMOVAL.files).not.toContain(file);
+      expect(REMOVAL.edits.map((e: { file: string }) => e.file)).not.toContain(file);
+      expect(scanLeftovers({ [file]: fs.readFileSync(path.join(ROOT, file), 'utf8') })).toEqual([]);
+    }
+  });
+
+  it('rewrites the issue-chooser contact links to the new repo (#174)', () => {
+    const file = '.github/ISSUE_TEMPLATE/config.yml';
+    const entry = (buildManifest(ACME) as { file: string }[]).find((e) => e.file === file);
+    expect(entry).toBeDefined();
+    expect(REMOVAL.files).not.toContain(file);
+  });
+
   it('orders the steps: rewrites, ledger / plan / changelog / versioning, self-delete, fresh git, repo settings last', () => {
     expect(steps.map((s: { id: string }) => s.id)).toEqual([
       'doctor',
