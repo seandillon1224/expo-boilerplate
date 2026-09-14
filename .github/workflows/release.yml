@@ -34,7 +34,7 @@ jobs:
             echo "::error::EXPO_TOKEN is not set as a repository secret — add an EAS robot token (docs/environments-and-secrets.md → Human setup checklist) and re-run."
             exit 1
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/setup
       - name: Start EAS release workflow
         # Uploads this checkout (the tagged tree) rather than `--ref`, which needs the Expo GitHub

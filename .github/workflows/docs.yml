@@ -9,19 +9,19 @@ on:
   push:
     branches: [main]
     paths:
+      # The site is built from `docs/` only — VitePress reads no file outside it (the landing page
+      # is `docs/index.md`, the config `docs/.vitepress/config.mts`), so `README.md`, `PLAN.md`,
+      # `package.json` and `bun.lock` cannot change what gets published and used to trigger a
+      # no-op deploy on every dependency bump. Plus the two paths that decide how it is built.
       - 'docs/**'
-      - 'README.md'
-      - 'PLAN.md'
-      - 'package.json'
-      - 'bun.lock'
       - '.github/workflows/docs.yml'
       - '.github/actions/setup/**'
   workflow_dispatch:
 
+# Workflow default: read-only. `pages: write` + `id-token: write` are granted on the `deploy` job
+# alone, so the `build` job — the one that runs repo code and third-party actions — cannot deploy.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One deployment at a time, never cancelled: a cancelled Pages deploy can leave the site stale.
 concurrency:
@@ -33,17 +33,22 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # `actions/configure-pages` only reads the Pages settings here (`enablement` defaults to
+    # false), so the build job needs `pages: read` and never `pages: write`.
+    permissions:
+      contents: read
+      pages: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/setup
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - run: bun run docs:build
         env:
           # Project site: served at https://<owner>.github.io/<repo-name>/.
           DOCS_BASE: /${{ github.event.repository.name }}/
           # `owner/name`, for the GitHub social link and "Edit this page" (docs/.vitepress/config.mts).
           DOCS_REPO: ${{ github.repository }}
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: docs/.vitepress/dist
 
@@ -52,9 +57,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: build
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
