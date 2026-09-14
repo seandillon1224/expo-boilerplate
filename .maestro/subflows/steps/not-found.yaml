@@ -1,0 +1,13 @@
+# Not found: an unresolvable URL lands on `src/app/+not-found.tsx`, and its link goes Home.
+#
+# The entry opens the unknown path itself (its `url:` header), so these steps start on the 404
+# screen. Web-only for now: on native there is no "unknown URL" without publishing a deep link
+# that resolves to nothing, which is a different thing to test (docs/testing.md → Flow catalogue).
+appId: ${MAESTRO_APP_ID}
+---
+- assertVisible:
+    id: not-found-screen
+- tapOn:
+    id: not-found-home-link
+- assertVisible:
+    id: home-screen

@@ -15,7 +15,8 @@
  *   1. the exact file (`/_expo/static/js/...`, `/favicon.ico`)
  *   2. `<path>.html`            (`/fetch` -> `fetch.html`)
  *   3. `<path>/index.html`      (`/` -> `index.html`)
- *   4. SPA fallback to `index.html` so client-side navigation survives a reload.
+ *   4. nothing matched: `+not-found.html` with a 404 status (T13.4), the same thing a real
+ *      static host does with the export; `index.html` only if the app has no `+not-found` route.
  *
  * Bun-only on purpose: `Bun.serve` needs no dependency and the repo is Bun-only anyway.
  */
@@ -79,6 +80,18 @@ function resolveFixture(pathname, fixtures = FIXTURES) {
   return isFile(target) ? target : null;
 }
 
+/**
+ * What to serve when nothing matched. `expo export` writes `src/app/+not-found.tsx` out as
+ * `+not-found.html`, so an unknown path gets the app's own 404 screen with a 404 status — which
+ * is what EAS Hosting and any other static host do, and what the `web/not-found` Maestro flow
+ * asserts. Falling back to `index.html` (200) would silently serve Home for a typo.
+ */
+function resolveFallback(dist = DIST) {
+  const notFound = path.join(dist, '+not-found.html');
+  if (isFile(notFound)) return { file: notFound, status: 404 };
+  return { file: path.join(dist, 'index.html'), status: 200 };
+}
+
 function serve() {
   if (!fs.existsSync(path.join(DIST, 'index.html'))) {
     console.error(`serve-web: ${DIST}/index.html not found. Run \`bun run export:web\` first.`);
@@ -97,8 +110,10 @@ function serve() {
         if (!fixture) return new Response('fixture not found', { status: 404, headers });
         return new Response(Bun.file(fixture), { headers });
       }
-      const file = resolveFile(pathname) ?? path.join(DIST, 'index.html');
-      return new Response(Bun.file(file), { headers });
+      const file = resolveFile(pathname);
+      if (file) return new Response(Bun.file(file), { headers });
+      const fallback = resolveFallback();
+      return new Response(Bun.file(fallback.file), { headers, status: fallback.status });
     },
   });
   console.log(
@@ -107,6 +122,6 @@ function serve() {
   );
 }
 
-module.exports = { resolveFile, resolveFixture };
+module.exports = { resolveFallback, resolveFile, resolveFixture };
 
 if (require.main === module) serve();

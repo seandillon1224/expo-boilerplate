@@ -100,6 +100,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: `${BASE.bundleId}${v.id}`,
     icon: './assets/expo.icon',
     supportsTablet: false,
+    infoPlist: {
+      // We ship no encryption beyond Apple's exempt HTTPS, so declare it up front. Without this
+      // key every TestFlight build stops at "Missing Compliance" waiting for a human to answer
+      // the export-compliance question, which would block the unattended `testflight` job in
+      // .eas/workflows/release.yml. Flip it to true (and file the ERN/exemption) only if the app
+      // ever adds non-exempt cryptography.
+      ITSAppUsesNonExemptEncryption: false,
+    },
   },
   android: {
     package: `${BASE.androidPackage}${v.id}`,
