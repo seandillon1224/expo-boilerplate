@@ -97,7 +97,7 @@ jobs:
     # `after`, not `needs`: exactly one of the two is skipped by design. The `if` keeps this job
     # from starting with an empty build id (the one that ran failed, or iOS is tiered off).
     after: [repack_ios, build_ios]
-    if: ${{ needs.repack_ios.outputs.build_id || needs.build_ios.outputs.build_id }}
+    if: ${{ after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id }}
     environment: development
     env:
       # Flows read `${MAESTRO_APP_ID}`: the bundle id / package app.config.ts derives for
@@ -105,7 +105,7 @@ jobs:
       # run `expo config`. `bun run init` (T7.1) rewrites it with app.config.ts.
       MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev
     params:
-      build_id: ${{ needs.repack_ios.outputs.build_id || needs.build_ios.outputs.build_id }}
+      build_id: ${{ after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id }}
       # The workspace directory (config.yaml + include_tags), same invocation as `bun run e2e:ios`.
       flow_path: .maestro
       include_tags: [ios]
@@ -188,14 +188,14 @@ jobs:
     name: Maestro (android)
     type: maestro
     after: [repack_android, build_android]
-    if: ${{ needs.repack_android.outputs.build_id || needs.build_android.outputs.build_id }}
+    if: ${{ after.repack_android.outputs.build_id || after.build_android.outputs.build_id }}
     environment: development
     # The emulator needs a nested-virtualization worker; `large` because record_screen is on.
     runs_on: linux-large-nested-virtualization
     env:
       MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev
     params:
-      build_id: ${{ needs.repack_android.outputs.build_id || needs.build_android.outputs.build_id }}
+      build_id: ${{ after.repack_android.outputs.build_id || after.build_android.outputs.build_id }}
       flow_path: .maestro
       include_tags: [android]
       exclude_tags: [quarantine]

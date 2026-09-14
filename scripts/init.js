@@ -220,12 +220,14 @@ function buildManifest(id) {
   const maestroAppId = [
     rule(
       'MAESTRO_APP_ID (iOS job)',
-      /(MAESTRO_APP_ID: )\S+(\n\s+params:\n\s+build_id: \$\{\{ needs\.repack_ios)/g,
+      // `after.` in e2e.yml / e2e-quarantine.yml (their maestro jobs depend via `after:`),
+      // `needs.` in e2e-cloud.yml (`needs: [repack_ios]`) — both spellings match.
+      /(MAESTRO_APP_ID: )\S+(\n\s+params:\n\s+build_id: \$\{\{ (?:needs|after)\.repack_ios)/g,
       between(`${id.bundleId}.dev`),
     ),
     rule(
       'MAESTRO_APP_ID (Android job)',
-      /(MAESTRO_APP_ID: )\S+(\n\s+params:\n\s+build_id: \$\{\{ needs\.repack_android)/g,
+      /(MAESTRO_APP_ID: )\S+(\n\s+params:\n\s+build_id: \$\{\{ (?:needs|after)\.repack_android)/g,
       between(`${id.package}.dev`),
     ),
   ];

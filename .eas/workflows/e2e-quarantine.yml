@@ -69,13 +69,13 @@ jobs:
     name: Maestro quarantine (ios)
     type: maestro
     after: [repack_ios, build_ios]
-    if: ${{ needs.repack_ios.outputs.build_id || needs.build_ios.outputs.build_id }}
+    if: ${{ after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id }}
     environment: development
     env:
       # Same value as e2e.yml (`bun run init` rewrites both).
       MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev
     params:
-      build_id: ${{ needs.repack_ios.outputs.build_id || needs.build_ios.outputs.build_id }}
+      build_id: ${{ after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id }}
       flow_path: .maestro
       include_tags: [quarantine]
       exclude_tags: [web]
@@ -121,13 +121,13 @@ jobs:
     name: Maestro quarantine (android)
     type: maestro
     after: [repack_android, build_android]
-    if: ${{ needs.repack_android.outputs.build_id || needs.build_android.outputs.build_id }}
+    if: ${{ after.repack_android.outputs.build_id || after.build_android.outputs.build_id }}
     environment: development
     runs_on: linux-large-nested-virtualization
     env:
       MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev
     params:
-      build_id: ${{ needs.repack_android.outputs.build_id || needs.build_android.outputs.build_id }}
+      build_id: ${{ after.repack_android.outputs.build_id || after.build_android.outputs.build_id }}
       flow_path: .maestro
       include_tags: [quarantine]
       exclude_tags: [web]
