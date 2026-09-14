@@ -1,7 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { QueryClient } from '@tanstack/react-query';
 import Constants from 'expo-constants';
+
+import { storageDriver } from '@/lib/storage';
 
 /** How long cached queries survive in memory and on disk. Must be >= persister maxAge. */
 export const QUERY_GC_TIME = 1000 * 60 * 60 * 24; // 24 hours
@@ -21,11 +22,12 @@ export const queryClient = new QueryClient({
 });
 
 /**
- * AsyncStorage-backed persister. On web AsyncStorage is backed by localStorage,
- * so the same persister works across every platform.
+ * Disk-backed persister. It serialises the cache itself, so it takes the raw string driver from
+ * `@/lib/storage` rather than the typed helpers — swapping the backend there swaps it here too.
+ * On web the driver is backed by localStorage, so the same persister works on every platform.
  */
 export const queryPersister = createAsyncStoragePersister({
-  storage: AsyncStorage,
+  storage: storageDriver,
   key: 'expo-boilerplate-query-cache',
   throttleTime: 1000,
 });

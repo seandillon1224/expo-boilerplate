@@ -18,6 +18,7 @@ const SCRIPTS = path.resolve(__dirname, '..');
 /** Entry points run by an EAS hook (or reachable from one). */
 const ENTRY_POINTS = [
   'e2e-device-logs.js',
+  'e2e-pin-locale.js',
   'a11y-audit.js',
   'flashlight.js',
   'e2e-common.js',

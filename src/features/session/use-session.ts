@@ -30,15 +30,17 @@
  * Same reason as `use-update-policy.ts`: the flag lives in a module-level snapshot and is read
  * with `useSyncExternalStore`, so flipping it re-renders only the components that read it — and
  * `signIn()` / `signOut()` are plain functions any module can call without a hook or a provider
- * in the tree. The persisted flag goes through AsyncStorage, the same storage the query cache
- * persister uses (`src/lib/query-client.ts`), so it works unchanged on web (localStorage).
+ * in the tree. The persisted flag goes through `@/lib/storage` — the app's one storage module,
+ * the same backend the query cache persister uses (`src/lib/query-client.ts`) — so it works
+ * unchanged on web (localStorage) and follows any future swap of that backend.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useSyncExternalStore } from 'react';
+import { z } from 'zod';
 
 import { captureException } from '@/lib/sentry';
+import { storage } from '@/lib/storage';
 
-/** AsyncStorage key holding the demo flag. Namespaced like the query cache key. */
+/** Storage key holding the demo flag. Namespaced like the query cache key. */
 export const SESSION_STORAGE_KEY = 'expo-boilerplate-session';
 
 type SessionSnapshot = {
@@ -104,11 +106,12 @@ export function resetSessionState(): void {
  * it just means "signed out".
  */
 export function hydrateSession(): Promise<void> {
-  hydration ??= AsyncStorage.getItem(SESSION_STORAGE_KEY)
+  hydration ??= storage
+    .get(SESSION_STORAGE_KEY, z.boolean())
     .then((value) => {
       // A sign-in that raced the read wins: never demote a session the user just created.
       if (snapshot.isHydrated) return;
-      setSnapshot({ isSignedIn: value === 'true', isHydrated: true });
+      setSnapshot({ isSignedIn: value === true, isHydrated: true });
     })
     .catch((error: unknown) => {
       captureException(error, { source: 'session-hydrate' });
@@ -120,8 +123,8 @@ export function hydrateSession(): Promise<void> {
 /** Fire-and-forget: the UI follows the in-memory flag, so a slow disk write never blocks it. */
 async function persist(isSignedIn: boolean): Promise<void> {
   try {
-    if (isSignedIn) await AsyncStorage.setItem(SESSION_STORAGE_KEY, 'true');
-    else await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
+    if (isSignedIn) await storage.set(SESSION_STORAGE_KEY, true);
+    else await storage.remove(SESSION_STORAGE_KEY);
   } catch (error) {
     captureException(error, { source: 'session-persist' });
   }

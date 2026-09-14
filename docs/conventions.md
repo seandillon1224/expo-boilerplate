@@ -90,7 +90,7 @@ src/
   app/            Expo Router routes only (typed routes on). _layout.tsx files own providers and error boundaries.
   components/     Shared UI; components/states = LoadingState / EmptyState / ErrorState; error boundaries.
   features/       One folder per domain (posts, updates): API clients, hooks, feature-local components.
-  lib/            App-wide infrastructure: env, sentry, observe, query-client, devtools.
+  lib/            App-wide infrastructure: env, sentry, observe, analytics, storage, query-client, devtools.
   providers/      React providers composed by the root layout.
   i18n/           i18next setup + locales/<lang>/common.json (typed keys via i18next.d.ts).
   tw/             Styling primitives (NativeWind) — the View / Text every screen imports.
@@ -295,6 +295,39 @@ the one you missed. Components never hardcode a hex value.
   ([EAS Observe → The `markInteractive` contract](observe.md#the-markinteractive-contract-what-tti-means-for-this-app)).
 - Sentry is errors only (`src/lib/sentry.ts`, no-op without `EXPO_PUBLIC_SENTRY_DSN`, tracing off);
   production performance is Observe's job ([Performance](performance.md)).
+- Product events go through `track()` from `@/lib/analytics`, never a vendor SDK in a screen. One
+  call fans out to both systems the template already has: `Observe.logEvent` (the event lands on
+  the session next to its launch / TTR / TTI metrics) and a Sentry breadcrumb (so a crash report
+  carries the last few things the user did). Both drop the call when unconfigured — Observe
+  without `extra.eas.projectId`, Sentry without a DSN — so `track()` has no "is telemetry on?"
+  branch and is safe to call from a bare checkout. Event names are stable `snake_case`, past
+  tense, `<object>_<verb>`, and never carry a value: `track('fetch_retried', { source:
+'error-state' })`, not `fetch_retried_from_error_state`. Props are attributes, not PII. Adding a
+  third sink is an edit to `src/lib/analytics.ts` and nothing else; the one shipped call site is
+  the retry in `src/app/(tabs)/(home)/fetch.tsx`.
+
+### Persistence goes through `@/lib/storage`
+
+`src/lib/storage.ts` is the only file that imports
+`@react-native-async-storage/async-storage`, which is what makes the backend swappable. It has
+two surfaces because the app needs both:
+
+- `storage.get(key, schema)` / `storage.set(key, value)` / `storage.remove(key)` — typed,
+  JSON-encoded, validated with a Zod schema on the way out. Everything the app persists itself
+  uses these (`use-session.ts` stores its flag as `storage.get(KEY, z.boolean())`).
+- `storageDriver` — the raw string `getItem` / `setItem` / `removeItem` object, for libraries that
+  serialise for themselves. The TanStack Query persister in `query-client.ts` is the only consumer.
+
+Reads never throw on bad data: absent, non-JSON and off-schema all come back as `null`, because
+all three mean "written by a version of the app that is gone" and every caller already handles
+"not stored yet". A storage _failure_ — a full or unavailable disk — does reject, and the caller
+decides what it means.
+
+Moving to `expo-sqlite/kv-store` (the better default once persisted data outgrows AsyncStorage's
+single 6 MB Android row) is one import line in that file: it implements the same async method
+names, plus synchronous variants. Nothing above it changes. Neither backend is a secret store —
+tokens and anything else that must not be readable from a rooted device belong in
+`expo-secure-store`.
 
 ## CI
 

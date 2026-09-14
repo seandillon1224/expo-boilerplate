@@ -206,6 +206,12 @@ jobs:
       record_screen: true
       output_format: junit
     hooks:
+      # The Android tab tap selects by visible label (NativeTabs gives Maestro no id on Android),
+      # so the emulator's language has to be ours rather than whatever the worker image ships.
+      # Same script `bun run e2e:android` runs; a no-op on an image already in English.
+      before_maestro_tests:
+        - name: Pin the emulator locale
+          run: node scripts/e2e-pin-locale.js
       # Same as maestro_ios: `adb logcat -d` of the emulator into its own artifact.
       after_maestro_tests:
         - name: Collect logcat

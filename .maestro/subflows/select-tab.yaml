@@ -4,8 +4,12 @@
 # This is the one place a flow may select by something other than a testID:
 #   iOS      NativeTabs.Trigger `testID` becomes the UITabBarItem accessibilityIdentifier
 #            (`tab-<name>` in src/app/(tabs)/_layout.tsx), so `id:` works.
-#   Android  the same `testID` is only a view tag, which Maestro does not read, and the
-#            accessibilityLabel is what TalkBack announces — so match the visible label.
+#   Android  the same `testID` is only the item's view tag, which Espresso-based drivers read but
+#            Maestro does not. The only selectable string is `accessibilityLabel` (the item's
+#            contentDescription), which defaults to the visible label and is what TalkBack
+#            announces — so match the label rather than make screen readers read "tab-settings".
+#            That makes the tap language-sensitive, so the Android lane pins the device locale
+#            (scripts/e2e-pin-locale.js); docs/native-e2e.md → Device locale.
 #   web      NativeTabs renders Radix tabs: <button role="tab" id="radix-<uid>-trigger-(<name>)-<nanoid>">
 #            with no testID hook, so match the generated id by regex.
 appId: ${MAESTRO_APP_ID}

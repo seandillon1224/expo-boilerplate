@@ -5,6 +5,7 @@ import { FlatList } from 'react-native';
 
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { type Post, usePosts } from '@/features/posts/api';
+import { track } from '@/lib/analytics';
 import { Pressable, Text, View } from '@/tw';
 
 function PostRow({ post }: { post: Post }) {
@@ -40,7 +41,13 @@ export default function FetchScreen() {
         retryTestID="fetch-retry"
         error={error}
         title={t('fetch.errorTitle')}
-        onRetry={() => refetch()}
+        // The template's one `track()` example: how often users hit a failed request hard
+        // enough to retry it is a product question, and the event rides along with this
+        // session's Observe metrics. Screens call `track`, never a vendor SDK.
+        onRetry={() => {
+          track('fetch_retried', { source: 'error-state' });
+          void refetch();
+        }}
       />
     );
   } else if (data.length === 0) {
