@@ -8,7 +8,7 @@ const {
   LEDGER_LEGEND,
   LEDGER_PATH,
   LEDGER_RULE,
-  PLAN_DECISIONS_HEADING,
+  DECISIONS_ADR,
   RELEASE_PLEASE_CONFIG,
   RELEASE_PLEASE_MANIFEST,
   REMOVAL,
@@ -356,32 +356,15 @@ describe('reset templates', () => {
     expect(ledger).not.toMatch(/^### E\d/m);
   });
 
-  it('stubs PLAN.md with the inherited decisions and a link upstream', () => {
-    const template = [
-      '# Plan',
-      '',
-      '## Goal',
-      '',
-      'template goal',
-      '',
-      '## Locked decisions',
-      '',
-      '| # | Area | Decision |',
-      '| 1 | CI | GitHub Actions |',
-      '',
-      '## Epics and tickets',
-      '',
-      '- **T7.1** init',
-    ].join('\n');
-    const stub = buildPlanStub(ACME, template);
+  it('stubs PLAN.md with pointers to the inherited decisions and upstream', () => {
+    const stub = buildPlanStub(ACME);
     expect(stub.startsWith('# Plan — Acme Mobile\n')).toBe(true);
-    expect(stub).toContain('https://github.com/seandillon1224/expo-boilerplate/blob/main/PLAN.md');
-    expect(stub).toContain(
-      '## Locked decisions (inherited)\n\n| # | Area | Decision |\n| 1 | CI | GitHub Actions |\n',
-    );
-    expect(stub).not.toContain('template goal');
-    expect(stub).not.toContain('T7.1');
-    expect(() => buildPlanStub(ACME, '# Plan\n\n## Goal\n')).toThrow(/Locked decisions/);
+    expect(stub).toContain('https://github.com/seandillon1224/expo-boilerplate');
+    expect(stub).toContain(`[ADR-0001](${DECISIONS_ADR})`);
+    expect(stub).toContain('"PLAN.md decision N"');
+    expect(stub).toContain('`.claude/execution-queue.md`');
+    // The table itself is not copied any more (#171): ADR-0001 is the only canonical copy.
+    expect(stub).not.toContain('## Locked decisions');
   });
 
   it('builds a fresh changelog header and a lowercase initial-commit subject', () => {
@@ -558,15 +541,18 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
     expect(read('app.config.ts')).not.toMatch(/version: '\d/);
   });
 
-  it("the reset ledger keeps the live ledger's legend and rule, and PLAN.md has the decisions", () => {
+  it("the reset ledger keeps the live ledger's legend and rule, and ADR-0001 has the decisions", () => {
     const live = read(LEDGER_PATH) as string;
     expect(live).toContain(`\n${LEDGER_LEGEND}\n`);
     expect(live).toContain(`\n${LEDGER_RULE}\n`);
     expect(live).toContain('## OPEN QUEUE (dependency order)');
     expect(live).toContain('## RUN LOG');
-    const stub = buildPlanStub(ACME, read('PLAN.md') as string);
-    expect(stub).toContain(`${PLAN_DECISIONS_HEADING} (inherited)\n\n| #`);
-    expect(stub).not.toContain('## Epics and tickets');
+    // The stub's pointer must resolve in the generated project: ADR-0001 ships in docs/adr/ and
+    // still carries the decisions table the docs cite by row number.
+    const decisions = read(DECISIONS_ADR) as string;
+    expect(decisions).toContain('# ADR-0001: Locked architecture decisions');
+    expect(decisions).toMatch(/^\| 14 +\|/m);
+    expect(buildPlanStub(ACME)).toContain(`[ADR-0001](${DECISIONS_ADR})`);
   });
 
   it('CLI --dry-run --yes exits 0 and writes nothing', () => {
