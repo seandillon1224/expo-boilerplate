@@ -5,33 +5,40 @@
 @import 'nativewind/theme';
 
 /*
- * Semantic theme tokens — the single source of truth for app colour. Raw values live
- * on :root (light) and are overridden for dark mode via prefers-color-scheme, which
- * NativeWind maps to the Appearance API on native and to the real media query on web.
- * Consume them as Tailwind classes (bg-background, text-foreground, ...) via the
- * @theme inline block below; navigation chrome comes from React Navigation's
- * DefaultTheme/DarkTheme in src/app/_layout.tsx. There is no parallel TS palette:
- * add a token here rather than hardcoding a hex value in a component.
+ * Semantic theme tokens. The values below are a mirror of src/tw/tokens.ts, which is the
+ * single source of truth: the same tokens feed React Navigation through navigationTheme()
+ * (src/tw/navigation-theme.ts), so headers and tab bars match what the screens paint.
+ * src/tw/__tests__/tokens.test.ts parses this file and fails if the two disagree — keep
+ * every edit in lockstep across tokens.ts, both :root blocks and the @theme inline block.
+ *
+ * Light values live on :root and are overridden for dark mode via prefers-color-scheme,
+ * which NativeWind maps to the Appearance API on native and to the real media query on web.
+ * Consume them as Tailwind classes (bg-background, text-foreground, ...) via the @theme
+ * inline block below, rather than hardcoding a hex value in a component.
  */
 :root {
   --background: #ffffff;
   --foreground: #000000;
+  --card: #ffffff;
   --muted: #f0f0f3;
   --muted-foreground: #60646c;
   --primary: #3c87f7;
   --primary-foreground: #ffffff;
   --border: #e0e1e6;
+  --notification: #ff3b30;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #000000;
     --foreground: #ffffff;
+    --card: #121212;
     --muted: #212225;
     --muted-foreground: #b0b4ba;
     --primary: #3c87f7;
     --primary-foreground: #ffffff;
     --border: #2e3135;
+    --notification: #ff453a;
   }
 }
 
@@ -39,11 +46,13 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-border: var(--border);
+  --color-notification: var(--notification);
 }
 
 /* Web font stacks; native platforms get theirs from nativewind/theme.

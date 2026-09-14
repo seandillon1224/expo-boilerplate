@@ -242,6 +242,23 @@ caught by `ErrorBoundary` (`@/components/error-boundary`) around a subtree, and 
 `RouteErrorBoundary` through the root layout's `ErrorBoundary` export (a route can export its own
 to override). Both report to Sentry through `captureException`.
 
+### Colour comes from one token set
+
+`src/tw/tokens.ts` is the single source of truth for app colour (light and dark). Two consumers
+read it, and neither is allowed its own palette:
+
+- `src/global.css` mirrors every token as a CSS custom property — `:root` for light, the
+  `prefers-color-scheme: dark` media query for dark — and registers it in `@theme inline`, which
+  is what makes `bg-background`, `text-foreground`, `border-border` compile.
+- `navigationTheme(colorScheme)` (`src/tw/navigation-theme.ts`) maps the same tokens onto React
+  Navigation's `Theme` for the root `ThemeProvider`, so headers, tab bars and screen backgrounds
+  agree with what the screens paint. Only `colors` is ours; `fonts` stays the platform default.
+
+The CSS mirror is hand-written rather than generated, and `src/tw/__tests__/tokens.test.ts` parses
+`global.css` and fails if any value, key or `@theme inline` line drifts from the TS. Adding a token
+is three edits — `tokens.ts`, both `:root` blocks, the `@theme inline` block — and the test names
+the one you missed. Components never hardcode a hex value.
+
 ### Telemetry contracts
 
 - Every screen that loads data calls `markInteractive` from `useObserve()` once its content is
