@@ -133,6 +133,16 @@ describe('applyRules (fixture strings)', () => {
     }
   });
 
+  it('rewrites the expo.dev project URL in the OTA workflows (backport.yml prints an update link)', () => {
+    const fixture =
+      'echo "$t: PUBLISHED group $group https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/updates/$group"';
+    const { content, counts } = applyRules(fixture, rulesFor('.eas/workflows/backport.yml'));
+    expect(content).toContain(
+      'https://expo.dev/accounts/acme-team/projects/acme-mobile/updates/$group',
+    );
+    expect(counts).toEqual([{ id: 'expo.dev project URL', count: 1, min: 1 }]);
+  });
+
   it('splits the credentials table between Android package and iOS bundle id', () => {
     const fixture = [
       '| Android  | `staging` | `com.seandillon.expoboilerplate.staging` | k |',

@@ -1,0 +1,172 @@
+# Backport (PLAN.md D2, ADR-0008): publish an OTA-safe fix from `main` to the runtime of one or
+# more OLDER store releases — users still on an old binary whose fingerprint the newest group
+# does not match. runtimeVersion = fingerprint (app.config.ts), and `eas update` cannot override
+# it, so the only way to reach an old runtime is to publish from a tree whose fingerprint equals
+# it: the tag's tree + the fix, cherry-picked. resolve (prints the plan) → approve → backport.
+#
+# THE ONE SANCTIONED LADDER SKIP: this publishes straight to `production`. No staging / UAT build
+# of an old runtime exists, so the ladder cannot verify a backport; the net is the fingerprint
+# gate (tag tree == tag + fix, per platform, and a store build runs that hash), the expo.dev
+# approval with the resolved facts printed first, `rollout_percentage`, and the CLI rollback path.
+# Runbook: docs/release-ladder.md → Backports (older runtimes).
+#
+# One custom job loops over the tags (EAS has no matrix): every tag is attempted, a per-tag
+# summary is printed, and the job fails at the END if any tag failed — one bad tag never blocks
+# the others. Not a pre-packaged `update` job: that publishes the triggering ref only.
+# Run:      bun run eas workflow:run .eas/workflows/backport.yml -F tags=v1.2.0,v1.1.0 -F fix=<sha> [-F rollout_percentage=10]
+#           bun run eas workflow:run .eas/workflows/backport.yml -F tags=v1.2.0 -F ref=backport/v1.2.0   (prepared branch, no cherry-pick)
+# Validate: bun run eas workflow:validate .eas/workflows/backport.yml   (cap: 16 KiB)
+# UNVERIFIED: the repo has no store release yet, so this has only passed the validator (ADR-0008
+# lists what the first real run must confirm). Custom jobs export EXPO_TOKEN from the run's own
+# robot token, as in promote.yml.
+name: Backport
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        type: string
+        required: true
+        description: Comma-separated store release tags to backport onto, e.g. v1.2.0,v1.1.0. Each names a runtime (its store build's fingerprint).
+      fix:
+        type: string
+        description: Commit SHA on `main` to cherry-pick onto each tag. Empty only with `ref`.
+      ref:
+        type: string
+        description: Prepared branch that already contains the fix on top of the tag (e.g. backport/v1.2.0). Exactly one tag; no cherry-pick.
+      rollout_percentage:
+        type: string
+        default: '100'
+        description: Integer 1–100 — share of production installs on that runtime served at once (ramp with eas update:edit).
+      platforms:
+        type: choice
+        options: [both, ios, android]
+        default: both
+        description: Platforms to publish.
+      message:
+        type: string
+        description: Optional suffix for the update message.
+
+jobs:
+  resolve:
+    name: Resolve targets
+    # Before the approval: inputs validated, fix subject, and per tag the tag commit + each
+    # platform's fingerprint of the CLEAN tag tree + the store build that runs it (by hash — a tag
+    # whose fingerprint was unchanged never got its own build, release.yml skipped it).
+    environment: production
+    env:
+      APP_VARIANT: production
+      TAGS: ${{ inputs.tags }}
+      FIX: ${{ inputs.fix || '' }}
+      REF: ${{ inputs.ref || '' }}
+      ROLLOUT: ${{ inputs.rollout_percentage || '100' }}
+      PLATFORMS: ${{ inputs.platforms || 'both' }}
+    outputs:
+      plan: ${{ steps.plan.outputs.plan }}
+      fix_subject: ${{ steps.plan.outputs.fix_subject }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - id: plan
+        name: Plan (tags → store builds, fix)
+        run: |
+          export EXPO_TOKEN="${ eas.job.secrets.robotAccessToken }"
+          [[ "$ROLLOUT" =~ ^[0-9]+$ ]] && [ "$ROLLOUT" -ge 1 ] && [ "$ROLLOUT" -le 100 ] || { echo "rollout_percentage must be an integer 1–100, got '$ROLLOUT'"; exit 1; }
+          tags=$(echo "$TAGS" | tr ',' ' '); n=$(echo $tags | wc -w)
+          [ "$n" -ge 1 ] || { echo "tags is empty"; exit 1; }
+          if [ -n "$REF" ]; then [ "$n" = 1 ] || { echo "ref=$REF needs exactly one tag, got $n"; exit 1; }
+          elif [ -z "$FIX" ]; then echo "fix is required unless ref is set"; exit 1; fi
+          for t in $tags; do git fetch -q origin "refs/tags/$t:refs/tags/$t" || { echo "$t: tag not on origin"; exit 1; }; done
+          if [ -n "$FIX" ]; then
+            git fetch -q origin main && git merge-base --is-ancestor "$FIX" FETCH_HEAD || { echo "fix $FIX is not a commit on origin/main"; exit 1; }
+            subject=$(git log -1 --format='%h %s' "$FIX"); echo "fix: $subject"; set-output fix_subject "$subject"
+          else git fetch -q origin "$REF" || { echo "ref $REF not on origin"; exit 1; }; echo "ref: $REF $(git log -1 --format='%h %s' FETCH_HEAD)"; set-output fix_subject "$REF"; fi
+          plan=""
+          for t in $tags; do
+            git checkout -q --detach "$t" && bun install --frozen-lockfile --silent
+            echo "== $t ($(git rev-parse --short HEAD))"
+            for p in ios android; do
+              [ "$PLATFORMS" = both ] || [ "$PLATFORMS" = "$p" ] || continue
+              fp=$(bun run --silent fingerprint --platform "$p")
+              build=$(bun run --silent eas build:list -p "$p" -e production --distribution store --status finished --fingerprint-hash "$fp" --limit 1 --json --non-interactive | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s)[0]?.id??""))')
+              echo "   $p: fingerprint $fp → store build ${build:-NONE}"
+              plan="$plan$t/$p=$fp:${build:-none};"
+            done
+          done
+          echo "plan: $plan (rollout $ROLLOUT%, platforms $PLATFORMS)"; set-output plan "$plan"
+
+  approve:
+    name: Approve backport
+    type: require-approval
+    # Approve / reject on the run page after reading the `resolve` log: a platform with build NONE
+    # will be refused by the gate below.
+    needs: [resolve]
+
+  backport:
+    name: Cherry-pick, gate, publish
+    needs: [approve, resolve]
+    environment: production
+    env:
+      APP_VARIANT: production
+      TAGS: ${{ inputs.tags }}
+      FIX: ${{ inputs.fix || '' }}
+      REF: ${{ inputs.ref || '' }}
+      ROLLOUT: ${{ inputs.rollout_percentage || '100' }}
+      PLATFORMS: ${{ inputs.platforms || 'both' }}
+      MESSAGE: ${{ inputs.message || '' }}
+      PLAN: ${{ needs.resolve.outputs.plan }}
+      SUBJECT: ${{ needs.resolve.outputs.fix_subject }}
+    steps:
+      - uses: eas/checkout
+      - uses: eas/install_node_modules
+      - name: Loop over the tags
+        # Per tag: tag tree (+ cherry-pick, or the prepared ref) → bun install → fingerprint per
+        # platform must equal the plan's (clean tag) hash AND that hash must have a store build →
+        # `eas update --channel production` for the passing platforms only. Never on a mismatch.
+        run: |
+          export EXPO_TOKEN="${ eas.job.secrets.robotAccessToken }"
+          git config user.name backport; git config user.email backport@eas
+          failed=""; summary=""
+          for t in $(echo "$TAGS" | tr ',' ' '); do
+            echo "=================== $t"
+            git fetch -q origin "refs/tags/$t:refs/tags/$t"
+            if [ -n "$REF" ]; then
+              git fetch -q origin "$REF" && git checkout -q --detach FETCH_HEAD
+              git merge-base --is-ancestor "$t" HEAD || { echo "$t: FAIL — $REF does not contain tag $t; branch from the tag: git checkout -b $REF $t"; failed="$failed $t"; summary="$summary\n$t: FAIL (ref)"; continue; }
+              fix7="$REF"
+            else
+              git fetch -q origin main; git checkout -q --detach "$t"; fix7=$(git rev-parse --short "$FIX")
+              if ! git cherry-pick -x "$FIX"; then
+                git cherry-pick --abort || true
+                echo "$t: FAIL — cherry-pick of $FIX conflicts. Resolve it locally and re-run with a prepared branch:"
+                echo "  git fetch origin --tags && git checkout -b backport/$t $t"
+                echo "  git cherry-pick -x $FIX      # resolve, keep the change OTA-safe (JS/assets only)"
+                echo "  bun run fingerprint --platform ios && bun run fingerprint --platform android   # must equal the tag's"
+                echo "  git push -u origin backport/$t"
+                echo "  bun run eas workflow:run .eas/workflows/backport.yml -F tags=$t -F ref=backport/$t -F rollout_percentage=$ROLLOUT"
+                failed="$failed $t"; summary="$summary\n$t: FAIL (conflict)"; continue
+              fi
+            fi
+            bun install --frozen-lockfile --silent || { echo "$t: FAIL — bun install failed on the backport tree (lockfile drift?)"; failed="$failed $t"; summary="$summary\n$t: FAIL (install)"; continue; }
+            ok=""
+            for p in ios android; do
+              [ "$PLATFORMS" = both ] || [ "$PLATFORMS" = "$p" ] || continue
+              want=$(echo "$PLAN" | tr ';' '\n' | sed -n "s#^$t/$p=##p"); expected="${want%%:*}"; build="${want##*:}"
+              fp=$(bun run --silent fingerprint --platform "$p")
+              if [ "$build" = none ] || [ -z "$expected" ]; then echo "$t/$p: REFUSED — no production store build runs fingerprint ${expected:-?}; nothing to backport to (bun run eas build:list -p $p -e production --distribution store)"
+              elif [ "$fp" != "$expected" ]; then echo "$t/$p: REFUSED — fingerprint $fp != $expected: this fix is not OTA-safe for $t on $p; it needs a fix release (docs/release-ladder.md → Store release)"
+              else echo "$t/$p: OK — fingerprint $fp == store build $build"; ok="$ok $p"; fi
+            done
+            case "$(echo $ok)" in "") failed="$failed $t"; summary="$summary\n$t: REFUSED"; continue ;; "ios android") plat=all ;; *) plat=$(echo $ok) ;; esac
+            rollout=(); [ "$ROLLOUT" -lt 100 ] && rollout=(--rollout-percentage "$ROLLOUT")
+            if bun run eas update --channel production --environment production -p "$plat" "${rollout[@]}" \
+                 -m "backport $fix7 onto $t: ${MESSAGE:-$SUBJECT}" --json --non-interactive > "update-$t.json"; then
+              group=$(node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write((Array.isArray(r)?r[0]:r)?.group??"")' "update-$t.json")
+              echo "$t: PUBLISHED group $group ($plat, $ROLLOUT%) https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/updates/$group — ramp: bun run eas update:edit $group --rollout-percentage <n>"
+              summary="$summary\n$t: published $group ($plat, $ROLLOUT%)"
+              # Source maps, best-effort as in deploy-staging.yml (skips without SENTRY_* on production).
+              bun run sentry:sourcemaps || echo "$t: sentry:sourcemaps skipped/failed — best-effort"
+            else echo "$t: FAIL — eas update failed"; failed="$failed $t"; summary="$summary\n$t: FAIL (publish)"; fi
+          done
+          printf '\n%b\n' "=== Backport summary (fix: $SUBJECT)$summary"
+          [ -z "$failed" ] || { echo "Backport failed for:$failed — see above; the other tags were still published."; exit 1; }
