@@ -292,6 +292,9 @@ function buildManifest(id) {
     },
     { file: '.eas/workflows/e2e.yml', rules: [...maestroAppId, ...workflowUrls] },
     { file: '.eas/workflows/e2e-quarantine.yml', rules: maestroAppId },
+    // Same two MAESTRO_APP_ID values; the `proj_REPLACE_ME` Maestro Cloud project id placeholder is
+    // not a template identity and stays (docs/native-e2e.md → Maestro Cloud).
+    { file: '.eas/workflows/e2e-cloud.yml', rules: maestroAppId },
     { file: '.eas/workflows/deploy-staging.yml', rules: workflowUrls },
     { file: '.eas/workflows/promote.yml', rules: workflowUrls },
     { file: '.eas/workflows/release.yml', rules: workflowUrls },

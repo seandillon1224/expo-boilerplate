@@ -122,9 +122,15 @@ describe('applyRules (fixture strings)', () => {
       '    params:',
       '      build_id: ${{ needs.repack_android.outputs.build_id }}',
     ].join('\n');
-    const { content } = applyRules(fixture, rulesFor('.eas/workflows/e2e-quarantine.yml'));
-    const ids = [...content.matchAll(/MAESTRO_APP_ID: (\S+)/g)].map((m) => m[1]);
-    expect(ids).toEqual(['com.acme.mobile.dev', 'com.acme.mobile_android.dev']);
+    // The three Maestro workflows share the rule pair; e2e-cloud.yml has no expo.dev URL to rewrite.
+    for (const file of ['.eas/workflows/e2e-quarantine.yml', '.eas/workflows/e2e-cloud.yml']) {
+      const { content } = applyRules(fixture, rulesFor(file));
+      const ids = [...content.matchAll(/MAESTRO_APP_ID: (\S+)/g)].map((m) => m[1]);
+      expect({ file, ids }).toEqual({
+        file,
+        ids: ['com.acme.mobile.dev', 'com.acme.mobile_android.dev'],
+      });
+    }
   });
 
   it('splits the credentials table between Android package and iOS bundle id', () => {

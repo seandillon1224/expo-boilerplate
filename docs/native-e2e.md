@@ -431,6 +431,55 @@ test` exits 1 when no flow matches, so a weekly cron with nothing to run is a we
 - **Quarantine size and age**: `grep -rn '# quarantine:' .maestro/flows` — the issue number in
   each comment dates it. Anything older than 2 weeks is overdue.
 
+## Maestro Cloud (optional)
+
+`.eas/workflows/e2e-cloud.yml` (PLAN.md D7, [ADR-0006](adr/0006-maestro-cloud-optional-job.md))
+runs the same native flows on [Maestro Cloud](https://docs.maestro.dev/maestro-cloud/run-tests-on-maestro-cloud),
+mobile.dev's hosted device farm, through EAS's pre-packaged `maestro-cloud` job. It is **not** the
+`maestro` job of `e2e.yml`: that one runs Maestro on the EAS worker's own simulator / emulator and
+costs EAS minutes only; Maestro Cloud runs on real devices, in parallel, and bills its own plan.
+Use it when a project already pays for Maestro Cloud, needs real-device coverage (permissions,
+keyboards, OEM quirks) or has more flows than one worker shards comfortably. Everything else stays
+on `e2e.yml`.
+
+**Shape.** `fingerprint → get_build_<p> → repack_<p> (cache hit only) → cloud_<p>` per platform,
+both platforms as independent jobs, plus a `refuse` job. The `maestro-cloud` job fetches the repack
+(this commit's JS on the cached base), installs Maestro `2.10.0` and uploads with
+`--include-tags <p> --exclude-tags quarantine`, `MAESTRO_APP_ID` in the job `env` and
+`name: <p> <sha>`. Device model / OS are Maestro Cloud's defaults; set `device_model` / `device_os`
+on a `cloud_<p>` job (`maestro list-cloud-devices` lists the values) to pin them.
+
+**What it refuses.** There is no `build_<p>` job. On a fingerprint miss the platform is skipped and
+`refuse` prints the fix: run `E2E (native)` on the PR (or `bun run e2e:build --platform <p> --build`)
+so a base build exists, then re-add the label. A label click must never cost a native build.
+
+**Enable (owner, once).** Off by default so a labelled PR on a fresh project is skipped green.
+
+1. Maestro Cloud → Settings: create an API key and copy the project id (`proj_…`).
+2. `bun run eas env:create --scope project --environment development --name MAESTRO_CLOUD_API_KEY --value <key> --visibility secret --type string --non-interactive`
+   — `development` is the e2e lane's environment; the job reads it as the default of
+   `maestro_api_key`. It is never a literal in the file.
+3. In one PR: replace `proj_REPLACE_ME` in **both** `cloud_<p>` jobs and flip `MAESTRO_CLOUD` to
+   `enabled` (the `if:` literal on `cloud_ios`, `cloud_android`, `refuse` **and** the
+   `maestro_cloud` input default — [Repo constants](ci-overview.md#repo-constants)).
+4. `bun run repo:settings:apply --only labels` creates the `e2e:cloud` label.
+
+**Run.** Add the `e2e:cloud` label to a PR (each add is a run), or by hand:
+`bun run eas workflow:run .eas/workflows/e2e-cloud.yml -F maestro_cloud=enabled` (the input beats
+the file constant, so a run is possible before the flip).
+
+**Results.** The Maestro Cloud console has the recordings and per-flow logs; the run page's
+`cloud_<p>` job outputs carry `maestro_cloud_url` and the flow counts
+(`total_flows_count`, `failed_flows_count`, `failed_flow_names_json`). Maestro Cloud posts its own
+PR check when the upload is tied to a PR — there is no `github-comment` job here. The job fails
+when a flow fails (unless `async: true` is added, which only reports the upload).
+
+**Unverified.** The template has no Maestro Cloud account, so this workflow has passed
+`eas workflow:validate` only. The first real run confirms that job `env` reaches the flows as
+`${MAESTRO_APP_ID}` (documented for `MAESTRO_*` names), that `flows: .maestro` (the workspace with
+`config.yaml`) is accepted rather than needing `flows: .maestro/flows` + `maestro_config`, and
+whether the PR check appears. Record what you find in ADR-0006's follow-ups.
+
 ## Update → approval → submit
 
 _Placeholder — E5/E6: OTA to `staging` on merge, manual approval-gated promotion to UAT / production._

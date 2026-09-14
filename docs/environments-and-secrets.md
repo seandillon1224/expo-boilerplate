@@ -123,6 +123,7 @@ must set `environment:` explicitly to stay in sync with the profile it pairs wit
 | `SENTRY_PROJECT`            | `plaintext` | all three                                     | **Owner**                  | Same as `SENTRY_ORG`.                                                                                                                                                                   |
 | `SENTRY_AUTH_TOKEN`         | `secret`    | all three                                     | **Owner**                  | Same as `SENTRY_ORG`; `secret` so it is never readable outside EAS servers and is redacted in job logs.                                                                                 |
 | `SLACK_WEBHOOK_URL`         | `secret`    | `preview`, `production`                       | **Owner** (see checklist)  | The `slack` job of `deploy-staging.yml` (T5.1), `promote.yml` (T5.2) and `release.yml` (T5.3); absent → the job logs and skips. Setup: [Build sharing](build-sharing.md#slack-channel). |
+| `MAESTRO_CLOUD_API_KEY`     | `secret`    | `development`                                 | **Owner** (optional)       | The `maestro-cloud` jobs of `e2e-cloud.yml` (ADR-0006), off until `MAESTRO_CLOUD` is flipped there. Setup: [Native E2E → Maestro Cloud](native-e2e.md#maestro-cloud-optional).          |
 
 All variables are `--scope project`. `APP_VARIANT` itself is deliberately **not** an EAS variable: it
 is owned by the build profile (`eas.json` → `env`), which is the only thing that distinguishes
@@ -253,6 +254,10 @@ the owner can provide. Until each is done the matching job skips itself and the 
       then).
 - [ ] App Store credentials + ASC API key on EAS and `ascAppId` in `eas.json` (below), then flip
       `IOS_RELEASE` to `enabled` in `.eas/workflows/release.yml`.
+- [ ] _Optional_ — **Maestro Cloud** (device farm, own plan): `MAESTRO_CLOUD_API_KEY` as a `secret` on
+      `development`, the project id in `.eas/workflows/e2e-cloud.yml` and `MAESTRO_CLOUD` flipped to
+      `enabled` there, plus the `e2e:cloud` label (`bun run repo:settings:apply --only labels`) —
+      [Native E2E → Maestro Cloud](native-e2e.md#maestro-cloud-optional).
 - [ ] Play service-account key on EAS after the first manual AAB upload (below), then flip
       `PLAY_SUBMIT` to `enabled` in `.eas/workflows/release.yml`.
 

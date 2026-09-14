@@ -73,6 +73,7 @@ const REQUIRED_CHECKS = [
 //   deep-dive         deferred research tickets (PLAN.md E9)
 //   flaky-flow, e2e   `.github/ISSUE_TEMPLATE/flaky-flow.yml` (docs/native-e2e.md → Flake budget)
 //   e2e:ios           `.eas/workflows/e2e.yml` (`IOS_MODE=label` runs the iOS lane on labelled PRs)
+//   e2e:cloud         `.eas/workflows/e2e-cloud.yml` (opt-in Maestro Cloud run; docs/native-e2e.md → Maestro Cloud)
 //   fingerprint-drift `.github/workflows/ci.yml` (`Fingerprint drift` job; docs/release-ladder.md)
 //   dependencies      `.github/renovate.json5` (`labels`)
 // Colors are 6-hex without `#`, as the API expects.
@@ -110,6 +111,11 @@ const LABELS = [
   },
   { name: 'e2e', color: '0e8a16', description: 'Maestro E2E lanes (native + web)' },
   { name: 'e2e:ios', color: '5319e7', description: 'Run the iOS Maestro lane on this PR' },
+  {
+    name: 'e2e:cloud',
+    color: '5319e7',
+    description: 'Run the Maestro flows on Maestro Cloud for this PR (opt-in, paid)',
+  },
   {
     name: 'fingerprint-drift',
     color: 'e99695',

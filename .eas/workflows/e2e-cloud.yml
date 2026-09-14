@@ -1,0 +1,166 @@
+# Maestro Cloud — optional device-farm lane (PLAN.md decision D7, ADR-0006). Sibling of e2e.yml:
+# the same fingerprint → get-build → repack chain, but the flows run on mobile.dev's Maestro Cloud
+# (real devices, parallel) through EAS's pre-packaged `maestro-cloud` job instead of on the EAS
+# worker's simulator / emulator. Opt-in and paid twice over (EAS minutes + a Maestro Cloud plan):
+#   - Triggers: the `e2e:cloud` PR label or a manual dispatch. Never every PR, never a schedule.
+#   - Refuse-on-miss: no `build_<p>` job. A fingerprint with no cached e2e base build skips that
+#     platform and the `refuse` job prints how to get one (run `E2E (native)` on the PR, or
+#     `bun run e2e:build --platform <p> --build`); a label click must never cost a native build.
+#   - Off by default: a labelled PR on a project that has not enabled it is skipped green.
+#
+# Two repo constants live in this file (same idiom as deploy-staging.yml: the `workflow_dispatch`
+# input `default` equals the `|| '<literal>'` fallback on the job `if`, inputs being empty outside
+# a dispatch; flip = change the literal AND the input default in one PR):
+#   MAESTRO_CLOUD             cloud_<p>.if / refuse.if   disabled until the owner has a Maestro Cloud plan
+#   MAESTRO_CLOUD_PROJECT_ID  cloud_<p>.params           `proj_REPLACE_ME` placeholder (both jobs) — the
+#                             project id from app.maestro.dev → Settings. A plain param, so it cannot
+#                             come from an EAS env var; it is not a template identity, `bun run init`
+#                             leaves it alone.
+# The API key is NOT in the file: `maestro_api_key` defaults to `$MAESTRO_CLOUD_API_KEY` from the
+# job environment, so it lives as an EAS secret on `development` (docs/native-e2e.md → Enable).
+#
+# UNVERIFIED: no run has happened yet — the template has no Maestro Cloud account. Validated with
+# `eas workflow:validate` only. Confirmed on the first real run: that job `env` reaches the flows as
+# `${MAESTRO_APP_ID}` (documented for `MAESTRO_*` names), that `flows: .maestro` (the workspace with
+# config.yaml) is accepted, and whether Maestro Cloud posts its own PR check. Device model / OS: add
+# `device_model` / `device_os` to a `cloud_<p>` job (`maestro list-cloud-devices` for the values).
+#
+# Run by hand:  bun run eas workflow:run .eas/workflows/e2e-cloud.yml -F maestro_cloud=enabled
+# Validate:     bun run eas workflow:validate .eas/workflows/e2e-cloud.yml   (file cap: 16 KiB)
+name: E2E (Maestro Cloud)
+
+on:
+  pull_request_labeled: [e2e:cloud]
+  workflow_dispatch:
+    inputs:
+      # MAESTRO_CLOUD 1/2 — the dispatch-time override. Keep `default` equal to the repo constant.
+      maestro_cloud:
+        type: choice
+        options: [enabled, disabled]
+        default: disabled
+        required: false
+        description: enabled = upload the cached e2e builds to Maestro Cloud (needs MAESTRO_CLOUD_API_KEY on EAS and the project id in this file); disabled = skip every cloud job.
+
+concurrency:
+  cancel_in_progress: true
+  group: ${{ workflow.filename }}-${{ github.ref }}
+
+jobs:
+  fingerprint:
+    name: Fingerprint
+    type: fingerprint
+    # Must match the e2e build profiles in eas.json, or the hash never matches a cached build.
+    environment: development
+    env:
+      APP_VARIANT: development
+
+  # --- iOS ---------------------------------------------------------------------------------
+
+  get_build_ios:
+    name: Get build (ios)
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: ios
+      profile: e2e-ios-sim
+      simulator: true
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  repack_ios:
+    name: Repack (ios)
+    type: repack
+    needs: [get_build_ios]
+    # Cache hit only — a miss skips the chain (see `refuse`). Repack so the flows test THIS
+    # commit's JS on the cached base, exactly like e2e.yml.
+    if: ${{ needs.get_build_ios.outputs.build_id }}
+    params:
+      build_id: ${{ needs.get_build_ios.outputs.build_id }}
+      # Spelled out because eas-cli 23's `workflow:validate` crashes on a repack without one.
+      profile: e2e-ios-sim
+      message: e2e cloud repack of ${{ github.sha }}
+
+  cloud_ios:
+    name: Maestro Cloud (ios)
+    type: maestro-cloud
+    needs: [repack_ios]
+    # MAESTRO_CLOUD 2/2 — the repo-level constant is the `|| 'disabled'` fallback.
+    if: ${{ (inputs.maestro_cloud || 'disabled') == 'enabled' && needs.repack_ios.outputs.build_id }}
+    # `development`: where MAESTRO_CLOUD_API_KEY lives (the default of `maestro_api_key`).
+    environment: development
+    env:
+      # Flows read `${MAESTRO_APP_ID}`; Maestro forwards `MAESTRO_*` env vars to the cloud run.
+      # Same value as e2e.yml (`bun run init` rewrites both).
+      MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev
+    params:
+      build_id: ${{ needs.repack_ios.outputs.build_id }}
+      # MAESTRO_CLOUD_PROJECT_ID — replace in both cloud jobs.
+      maestro_project_id: proj_REPLACE_ME
+      # The workspace directory (config.yaml + include_tags), same selection as e2e.yml.
+      flows: .maestro
+      include_tags: [ios]
+      exclude_tags: [quarantine]
+      # Pinned to the version the JS gate, e2e.yml and the local scripts use.
+      maestro_version: 2.10.0
+      name: ios ${{ github.sha }}
+
+  # --- Android -----------------------------------------------------------------------------
+
+  get_build_android:
+    name: Get build (android)
+    type: get-build
+    needs: [fingerprint]
+    params:
+      platform: android
+      profile: e2e-android-apk
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      wait_for_in_progress: true
+
+  repack_android:
+    name: Repack (android)
+    type: repack
+    needs: [get_build_android]
+    if: ${{ needs.get_build_android.outputs.build_id }}
+    params:
+      build_id: ${{ needs.get_build_android.outputs.build_id }}
+      profile: e2e-android-apk
+      message: e2e cloud repack of ${{ github.sha }}
+
+  cloud_android:
+    name: Maestro Cloud (android)
+    type: maestro-cloud
+    needs: [repack_android]
+    if: ${{ (inputs.maestro_cloud || 'disabled') == 'enabled' && needs.repack_android.outputs.build_id }}
+    environment: development
+    env:
+      MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev
+    params:
+      build_id: ${{ needs.repack_android.outputs.build_id }}
+      # MAESTRO_CLOUD_PROJECT_ID — replace in both cloud jobs.
+      maestro_project_id: proj_REPLACE_ME
+      flows: .maestro
+      include_tags: [android]
+      exclude_tags: [quarantine]
+      maestro_version: 2.10.0
+      name: android ${{ github.sha }}
+
+  # --- Refuse-on-miss notice ---------------------------------------------------------------
+
+  refuse:
+    name: No cached build (notice)
+    needs: [get_build_ios, get_build_android]
+    # Enabled runs where at least one platform has no e2e base build for this fingerprint. That
+    # platform's chain is already skipped; this job is the log line that says why and what to do.
+    if: ${{ (inputs.maestro_cloud || 'disabled') == 'enabled' && (!needs.get_build_ios.outputs.build_id || !needs.get_build_android.outputs.build_id) }}
+    env:
+      IOS_BUILD_ID: ${{ needs.get_build_ios.outputs.build_id || '' }}
+      ANDROID_BUILD_ID: ${{ needs.get_build_android.outputs.build_id || '' }}
+    steps:
+      - name: Explain the skip
+        run: |
+          for p in ios android; do
+            if [ "$p" = ios ]; then id="$IOS_BUILD_ID"; else id="$ANDROID_BUILD_ID"; fi
+            [ -n "$id" ] && continue
+            echo "$p: no e2e base build for this fingerprint — Maestro Cloud refuses to cut one (a label click must not cost a native build)."
+            echo "$p: run the 'E2E (native)' workflow on this PR (or 'bun run e2e:build --platform $p --build'), then re-add the e2e:cloud label."
+          done
