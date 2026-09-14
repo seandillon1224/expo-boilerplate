@@ -5,11 +5,12 @@
 //   base.app | base.apk        the EAS build matched by fingerprint (`e2e:build`)
 //   base.json                  which build that is (id, fingerprint, profile, app identifier)
 //   repacked.app | repacked.apk  base + the current tree's JS bundle (`e2e:repack`)
-const { spawnSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const { ScriptError } = require('./lib/args');
+const { which } = require('./lib/device');
 
 const projectRoot = path.join(__dirname, '..');
 const buildsRoot = path.join(projectRoot, 'e2e', 'builds');
@@ -34,9 +35,7 @@ function fail(name, message, code = 1) {
 
 // Resolves a CLI on PATH (with optional fallbacks) or fails with an install hint.
 function requireBinary(name, { fallbacks = [], hint }) {
-  const which = spawnSync('which', [name], { encoding: 'utf8' });
-  if (which.status === 0) return which.stdout.trim();
-  const found = fallbacks.find((candidate) => fs.existsSync(candidate));
+  const found = which(name, fallbacks);
   if (found) return found;
   throw new ScriptError(
     [

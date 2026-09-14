@@ -24,6 +24,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { parseArgs: parseCli, runMain } = require('./lib/args');
+const { easBin } = require('./lib/bin');
 
 const ROOT = path.resolve(__dirname, '..');
 const BUDGET_FILE = 'observe-budget.json';
@@ -178,9 +179,9 @@ function formatRow(row) {
   }
 }
 
-/** Runs the repo-pinned eas-cli; returns { status, stdout, stderr }. Never throws. */
+/** Runs the repo-pinned eas-cli (scripts/lib/bin.js); returns { status, stdout, stderr }. Never throws. */
 function runEas(args) {
-  const result = spawnSync('bun', ['run', 'eas', ...args], {
+  const result = spawnSync(easBin, args, {
     cwd: ROOT,
     encoding: 'utf8',
     env: process.env,

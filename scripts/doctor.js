@@ -19,7 +19,10 @@
  *
  * Design: every check is a pure function of `ctx` (`run`, `env`, `platform`, `exists`, `read`,
  * `home`, `root`), so `scripts/__tests__/doctor.test.ts` injects a fake `run` and never touches a
- * real binary. Plain Node/JS (no @types/node in tsconfig `types`); runs under Bun.
+ * real binary. Plain Node/JS, Node built-ins only (no @types/node in tsconfig `types`): the
+ * npm script is `node scripts/doctor.js`, and `bun run init` imports `doctorStep` from here.
+ * Tool paths and the Android SDK root come from scripts/lib/device.js so the doctor resolves
+ * them exactly like the scripts it is checking for.
  */
 const fs = require('node:fs');
 const os = require('node:os');
@@ -27,6 +30,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const { parseArgs: parseCli, runMain } = require('./lib/args');
+const { easBin } = require('./lib/bin');
+const { maestroFallback, sdkFallbacks, sdkRoot } = require('./lib/device');
 
 /* ------------------------------------------------------------------------------------------ */
 /* Expected versions — one place, with the reason for each number                              */
@@ -250,7 +255,7 @@ const CHECKS = [
       const pinned = ctx.easCliRange ?? '';
       const wanted = major(parseVersion(pinned) ?? '0');
       const expected = wanted ? `${wanted}.x (package.json eas-cli ${pinned})` : 'repo-pinned';
-      const r = ctx.run('bun', ['run', 'eas', '--version']);
+      const r = ctx.run(easBin, ['--version']);
       const found = ran(r) ? parseVersion(output(r).match(/eas-cli\/(\S+)/)?.[1]) : null;
       if (!found) return row('warn', 'not resolvable', expected, HINT.eas);
       if (wanted && major(found) !== wanted) return row('warn', found, expected, HINT.eas);
@@ -266,7 +271,7 @@ const CHECKS = [
       const expected = 'logged in (or EXPO_TOKEN)';
       if (rows.eas?.status !== 'ok') return row('skip', 'EAS CLI unavailable', expected);
       if (ctx.env.EXPO_TOKEN) return row('ok', 'EXPO_TOKEN set', expected);
-      const r = ctx.run('bun', ['run', 'eas', 'whoami', '--non-interactive']);
+      const r = ctx.run(easBin, ['whoami', '--non-interactive']);
       if (!ran(r) || r.status !== 0) return row('warn', 'logged out', expected, HINT.easLogin);
       const account = r.stdout.trim().split('\n').pop() || 'logged in';
       return row('ok', account, expected);
@@ -306,12 +311,7 @@ const CHECKS = [
     lane: 'e2e:web, e2e:ios, e2e:android',
     check(ctx) {
       const expected = `>= ${EXPECTED.maestroMin} (CI pins ${EXPECTED.maestroPinned})`;
-      const r = runWithFallbacks(
-        ctx,
-        'maestro',
-        ['--version'],
-        [path.join(ctx.home, '.maestro', 'bin', 'maestro')],
-      );
+      const r = runWithFallbacks(ctx, 'maestro', ['--version'], [maestroFallback(ctx.home)]);
       // The CLI may print JVM warnings first; the version is the last x.y.z line.
       const line = output(r)
         .split('\n')
@@ -359,17 +359,14 @@ const CHECKS = [
     required: false,
     lane: 'Android lane (e2e:repack / e2e:android, expo run:android)',
     check(ctx) {
-      const expected = 'ANDROID_HOME (or ANDROID_SDK_ROOT) + adb + emulator';
-      const sdk = ctx.env.ANDROID_HOME || ctx.env.ANDROID_SDK_ROOT || '';
+      const expected = 'ANDROID_SDK_ROOT (or ANDROID_HOME) + adb + emulator';
+      // Same precedence as scripts/lib/device.js, so a box with only ANDROID_SDK_ROOT set gets
+      // the same answer here as from `bun run e2e:android`.
+      const sdk = sdkRoot(ctx.env);
       const problems = [];
-      if (!sdk) problems.push('ANDROID_HOME unset');
-      else if (!ctx.exists(sdk)) problems.push(`ANDROID_HOME=${sdk} missing`);
-      const adb = runWithFallbacks(
-        ctx,
-        'adb',
-        ['version'],
-        sdk ? [path.join(sdk, 'platform-tools', 'adb')] : [],
-      );
+      if (!sdk) problems.push('ANDROID_SDK_ROOT unset');
+      else if (!ctx.exists(sdk)) problems.push(`ANDROID_SDK_ROOT=${sdk} missing`);
+      const adb = runWithFallbacks(ctx, 'adb', ['version'], sdkFallbacks('adb', ctx.env));
       const adbVersion = ran(adb)
         ? parseVersion(adb.stdout.match(/Bridge version (\S+)/)?.[1])
         : null;
@@ -378,7 +375,7 @@ const CHECKS = [
         ctx,
         'emulator',
         ['-version'],
-        sdk ? [path.join(sdk, 'emulator', 'emulator')] : [],
+        sdkFallbacks('emulator', ctx.env),
       );
       const emulatorVersion = ran(emulator)
         ? parseVersion(output(emulator).match(/emulator version (\S+)/)?.[1])
@@ -407,8 +404,12 @@ const CHECKS = [
   },
 ];
 
-/** Real context for the current machine; tests build their own. */
-function realContext(root = process.cwd()) {
+/**
+ * Real context for the current machine; tests build their own. `root` defaults to the repo this
+ * file lives in (never `process.cwd()`, which is wherever the operator ran the script from);
+ * `bun run init` passes the target project's root instead.
+ */
+function realContext(root = path.resolve(__dirname, '..')) {
   const read = (file) => {
     const abs = path.join(root, file);
     return fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8') : null;

@@ -17,25 +17,19 @@
 //   - from the `after_maestro_tests` hook of .eas/workflows/e2e.yml with `--no-fail`, where an
 //     unreachable maestro / device is a skip notice, never a red job.
 // Node built-ins only: the maestro job checks the project out but never installs node_modules
-// (./e2e-common is built-ins only too). Does not boot devices or install apps.
+// (./e2e-common and ./lib/device are built-ins only too, and the guard test keeps them that way).
+// Does not boot devices or install apps.
 //
 // Usage: bun run e2e:a11y --platform ios|android [--device <udid|serial>] [--out <dir>] [--no-fail]
 // `--platform` is required: this audits a device someone else booted, so a default would guess.
-const { spawnSync } = require('child_process');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const { parseArgs, runMain } = require('./lib/args');
-const { PLATFORM_OPTION, fail, projectRoot, run, runJson } = require('./e2e-common');
+const { MAESTRO_HINT, appId, display, maestroBin, pickDevice } = require('./lib/device');
+const { PLATFORM_OPTION, fail, projectRoot, run } = require('./e2e-common');
 
 const NAME = 'e2e:a11y';
-
-// Repo-relative for the default `maestro-<p>/a11y`; absolute when --out points elsewhere.
-function display(dir) {
-  const rel = path.relative(projectRoot, dir);
-  return rel && !rel.startsWith('..') ? rel : dir;
-}
 const USAGE = `Usage: bun run e2e:a11y --platform ios|android [options]   (node scripts/a11y-audit.js)
 
 Audits what a screen reader would read on each screen (ADR-0005): runs the nav subflow in
@@ -246,74 +240,6 @@ function renderTable(report) {
     .join('\n');
 }
 
-// --- Devices & tools --------------------------------------------------------------------------
-
-function which(binary, fallbacks = []) {
-  const found = spawnSync('which', [binary], { encoding: 'utf8' });
-  if (found.status === 0) return found.stdout.trim();
-  return fallbacks.find((candidate) => fs.existsSync(candidate)) ?? null;
-}
-
-// Returns { device } or { skip: reason }. Never boots anything (see the header).
-function pickDevice(platform, requested) {
-  if (platform === 'ios') {
-    const xcrun = which('xcrun');
-    if (!xcrun) return { skip: 'xcrun not found (install Xcode).' };
-    const list = run(xcrun, ['simctl', 'list', '-j', 'devices', 'booted']);
-    let booted = [];
-    try {
-      booted = Object.values(JSON.parse(list.stdout).devices).flat();
-    } catch {
-      return { skip: 'could not read `xcrun simctl list -j devices booted`.' };
-    }
-    if (requested) {
-      const found = booted.find((d) => d.udid === requested || d.name === requested);
-      return found ? { device: found.udid } : { skip: `simulator \`${requested}\` is not booted.` };
-    }
-    return booted[0]
-      ? { device: booted[0].udid }
-      : {
-          skip: 'no booted simulator. Run `bun run e2e:ios --keep` first (installs the e2e build).',
-        };
-  }
-  const sdk = process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME || '';
-  const adb = which('adb', [path.join(sdk, 'platform-tools', 'adb')]);
-  if (!adb) return { skip: 'adb not found (install Android platform-tools or set ANDROID_HOME).' };
-  const online = (run(adb, ['devices'], { timeout: 30_000 }).stdout ?? '')
-    .split('\n')
-    .slice(1)
-    .map((line) => line.trim().split(/\s+/))
-    .filter(([serial, state]) => serial && state === 'device')
-    .map(([serial]) => serial);
-  if (requested)
-    return online.includes(requested)
-      ? { device: requested }
-      : { skip: `adb device \`${requested}\` is not online.` };
-  if (online.length === 1) return { device: online[0] };
-  if (online.length === 0)
-    return {
-      skip: 'no adb device online. Run `bun run e2e:android --keep` first (installs the e2e build).',
-    };
-  return { skip: `${online.length} adb devices online; pick one with --device <serial>.` };
-}
-
-// Same derivation as scripts/e2e-run.js when node_modules exist; the EAS hook has no
-// node_modules and sets MAESTRO_APP_ID on the job instead.
-function appId(platform) {
-  const expoBin = path.join(projectRoot, 'node_modules', '.bin', 'expo');
-  if (fs.existsSync(expoBin)) {
-    const config = runJson(NAME, expoBin, ['config', '--type', 'public', '--json'], {
-      env: { ...process.env, APP_VARIANT: 'development', CI: '1' },
-    });
-    const id = platform === 'ios' ? config.ios?.bundleIdentifier : config.android?.package;
-    if (id) return { id };
-  }
-  if (process.env.MAESTRO_APP_ID) return { id: process.env.MAESTRO_APP_ID };
-  return {
-    skip: 'MAESTRO_APP_ID unknown: run `bun install` (derived from app.config.ts) or set MAESTRO_APP_ID.',
-  };
-}
-
 // --- Driver -----------------------------------------------------------------------------------
 
 function auditDevice({ platform, device, maestro, id, outDir, interactive }) {
@@ -374,11 +300,8 @@ function main(argv) {
     return 0;
   };
 
-  const maestro = which('maestro', [path.join(os.homedir(), '.maestro', 'bin', 'maestro')]);
-  if (!maestro)
-    return skip(
-      '`maestro` not found. Install: curl -Ls "https://get.maestro.mobile.dev" | bash   (CI pins 2.10.0)',
-    );
+  const maestro = maestroBin();
+  if (!maestro) return skip(`\`maestro\` not found. ${MAESTRO_HINT}`);
   const picked = pickDevice(platform, values.device);
   if (picked.skip) return skip(picked.skip);
   const app = appId(platform);
@@ -421,17 +344,13 @@ function main(argv) {
 module.exports = {
   INTERACTIVE_ELEMENTS,
   SCREENS,
-  // Shared with scripts/flashlight.js (same device / app-id preflight, ADR-0007).
-  appId,
   auditScreen,
   collectInteractiveIds,
   extractInteractiveIds,
   flattenNodes,
   labelOf,
   parseHierarchy,
-  pickDevice,
   renderTable,
-  which,
 };
 
 if (require.main === module) runMain(main);

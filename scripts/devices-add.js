@@ -2,11 +2,9 @@
 // Thin wrapper around `eas device:create` (repo-pinned eas-cli) that checks the EAS login first
 // and prints the two-line explainer engineers otherwise have to look up. Extra args pass through
 // (for example `--apple-team-id ABCDE12345`). Non-engineer walkthrough: docs/device-onboarding.md.
-const { spawnSync } = require('child_process');
-const path = require('path');
+const { spawnSync } = require('node:child_process');
 
-const projectRoot = path.join(__dirname, '..');
-const easBin = path.join(projectRoot, 'node_modules', '.bin', 'eas');
+const { easBin, projectRoot } = require('./lib/bin');
 
 function eas(args, options = {}) {
   return spawnSync(easBin, args, { cwd: projectRoot, encoding: 'utf8', ...options });

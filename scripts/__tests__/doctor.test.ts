@@ -11,6 +11,7 @@ const {
   runChecks,
   summarize,
 } = require('../doctor');
+const { easBin } = require('../lib/bin');
 
 type Result = { status: number | null; stdout: string; stderr: string };
 type Row = {
@@ -32,8 +33,9 @@ const HEALTHY: Record<string, Result> = {
   'bun --version': ok('1.3.10\n'),
   'node --version': ok('v22.13.1\n'),
   'git --version': ok('git version 2.37.1\n'),
-  'bun run eas --version': ok('eas-cli/23.2.0 darwin-arm64 node-v22.13.1\n', '$ eas --version\n'),
-  'bun run eas whoami --non-interactive': ok('dev@example.com\n'),
+  // The repo-pinned eas-cli is spawned by path (scripts/lib/bin.js), never via `bun run eas`.
+  [`${easBin} --version`]: ok('eas-cli/23.2.0 darwin-arm64 node-v22.13.1\n', '$ eas --version\n'),
+  [`${easBin} whoami --non-interactive`]: ok('dev@example.com\n'),
   'gh --version': ok('gh version 2.88.1 (2026-08-01)\n'),
   'gh auth status': ok('', 'github.com\n  ✓ Logged in to github.com account octocat (keyring)\n'),
   'maestro --version': ok(
@@ -213,7 +215,7 @@ describe('runChecks (fake run, nothing real executed)', () => {
 
   it('EAS: warns (not fails) when the CLI is unresolvable or the major drifts from package.json', () => {
     const gone = byId(
-      runChecks(makeCtx({ results: { 'bun run eas --version': absent } })) as Row[],
+      runChecks(makeCtx({ results: { [`${easBin} --version`]: absent } })) as Row[],
     );
     expect(gone.eas).toMatchObject({
       status: 'warn',
@@ -223,7 +225,7 @@ describe('runChecks (fake run, nothing real executed)', () => {
     expect(gone['eas-login']).toMatchObject({ status: 'skip', found: 'EAS CLI unavailable' });
     const old = byId(
       runChecks(
-        makeCtx({ results: { 'bun run eas --version': ok('eas-cli/16.0.0 darwin-arm64\n') } }),
+        makeCtx({ results: { [`${easBin} --version`]: ok('eas-cli/16.0.0 darwin-arm64\n') } }),
       ) as Row[],
     );
     expect(old.eas).toMatchObject({ status: 'warn', found: '16.0.0' });
@@ -231,7 +233,7 @@ describe('runChecks (fake run, nothing real executed)', () => {
 
   it('EAS login: warns when logged out, accepts EXPO_TOKEN without calling whoami', () => {
     const out = makeCtx({
-      results: { 'bun run eas whoami --non-interactive': failed('Not logged in\n') },
+      results: { [`${easBin} whoami --non-interactive`]: failed('Not logged in\n') },
     });
     const loggedOut = byId(runChecks(out) as Row[]);
     expect(loggedOut['eas-login']).toMatchObject({ status: 'warn', found: 'logged out' });
@@ -241,7 +243,7 @@ describe('runChecks (fake run, nothing real executed)', () => {
     const token = makeCtx({ env: { EXPO_TOKEN: 'abc', ANDROID_HOME: '/sdk' } });
     const withToken = byId(runChecks(token) as Row[]);
     expect(withToken['eas-login']).toMatchObject({ status: 'ok', found: 'EXPO_TOKEN set' });
-    expect(token.calls).not.toContain('bun run eas whoami --non-interactive');
+    expect(token.calls).not.toContain(`${easBin} whoami --non-interactive`);
   });
 
   it('gh: warns when missing or logged out; auth is skipped without the CLI', () => {
@@ -320,7 +322,7 @@ describe('runChecks (fake run, nothing real executed)', () => {
     );
     expect(bare.android).toMatchObject({
       status: 'warn',
-      found: 'ANDROID_HOME unset, adb missing, emulator missing',
+      found: 'ANDROID_SDK_ROOT unset, adb missing, emulator missing',
     });
     expect(bare.android.hint).toContain('android-commandlinetools');
     const viaSdk = byId(

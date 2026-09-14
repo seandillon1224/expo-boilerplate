@@ -49,6 +49,13 @@ The human-readable version of these rules, with the reasoning, is `docs/conventi
   `util.parseArgs`, uniform `--help`), exposes `main(argv)` returning an exit code, and ends with
   `runMain(main)` — never `process.exit()`. Codes: 0 ok, 1 the check failed, 2 usage / environment
   (`docs/conventions.md` → Scripts parse arguments and exit the same way).
+- Scripts run under `node` (`bun run` only looks the script up). The EAS-hook scripts
+  (`e2e-device-logs.js`, `a11y-audit.js`, `flashlight.js`), `e2e-common.js` and `scripts/lib/*` are
+  **Node built-ins only, `node:`-prefixed** — a hook has no `node_modules`, and
+  `scripts/__tests__/builtins-only.test.ts` walks the require graph to enforce it. Device / tool
+  lookup (`which`, `sdkRoot`, `maestroBin`, `adbOnline`, `pickDevice`, `appId`, `display`) lives in
+  `scripts/lib/device.js`; a repo-pinned CLI is spawned through `scripts/lib/bin.js`
+  (`binPath` / `easBin`), never `bunx`. Resolve paths from `__dirname`, never `process.cwd()`.
 - `app.config.ts` derives name / bundle id / package / scheme from `APP_VARIANT`
   (`development` | `staging` | `uat` | `production`). Never hardcode identifiers elsewhere.
 - CNG only: never commit `ios/` or `android/`. Native changes go through config plugins.

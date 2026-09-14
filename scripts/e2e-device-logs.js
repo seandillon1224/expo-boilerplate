@@ -5,7 +5,8 @@
 //   - the workflow's `maestro_<platform>` jobs run this file as a CLI from an
 //     `after_maestro_tests` hook and upload the directory as the "Device logs (<platform>)"
 //     artifact (.eas/workflows/e2e.yml).
-// Node built-ins only: the maestro job checks the project out but never installs node_modules.
+// Node built-ins only (./lib/args and ./lib/device are too): the maestro job checks the project
+// out but never installs node_modules.
 //
 //   ios      xcrun simctl spawn <udid> log show   → device.log   (unified log, app processes only:
 //            everything under /Containers/Bundle/Application/, i.e. the app under test on a fresh
@@ -17,12 +18,13 @@
 // Defaults: --device = the booted simulator / adb's only device, --out = maestro-<platform>/device,
 // --since = the last 30 minutes. Never exits non-zero for a missing device or tool: a log-collection
 // hiccup must not turn a red run into a different red, and `run` steps in the hook rely on that.
-const { spawnSync } = require('child_process');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 const { UsageError, parseArgs, runMain } = require('./lib/args');
+const { adbBin, adbOnline, which } = require('./lib/device');
 
 const NAME = 'e2e:device-logs';
 const CLI = {
@@ -45,12 +47,6 @@ Options:
     since: { type: 'string' },
   },
 };
-
-function which(binary, fallbacks = []) {
-  const found = spawnSync('which', [binary], { encoding: 'utf8' });
-  if (found.status === 0) return found.stdout.trim();
-  return fallbacks.find((candidate) => fs.existsSync(candidate)) ?? null;
-}
 
 function capture(command, args, file) {
   // A hard timeout: `adb` blocks forever with no device attached, and a hung collector would
@@ -109,16 +105,10 @@ function collectIos({ device, outDir, since, warnings }) {
 }
 
 function collectAndroid({ device, outDir, warnings }) {
-  const sdk = process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME || '';
-  const adb = which('adb', [path.join(sdk, 'platform-tools', 'adb')]);
+  const adb = adbBin();
   if (!adb) return warnings.push('adb not found; no logcat collected.');
-  const online = spawnSync(adb, ['devices'], { encoding: 'utf8', timeout: 30_000 })
-    .stdout?.split('\n')
-    .slice(1)
-    .map((line) => line.trim().split(/\s+/))
-    .filter(([serial, state]) => serial && state === 'device')
-    .map(([serial]) => serial);
-  if (!online?.length || (device && !online.includes(device)))
+  const online = adbOnline(adb);
+  if (!online.length || (device && !online.includes(device)))
     return warnings.push(`adb device ${device ?? '(any)'} is not online; no logcat collected.`);
   const target = device ? ['-s', device] : [];
   const error = capture(

@@ -127,6 +127,30 @@ Exit codes mean one thing each (the header of `scripts/lib/args.js` is the refer
 `process.exit()` is banned in scripts: under `bun run` it can drop piped stdout that has not
 flushed. Return a code from `main` and let `runMain` set `process.exitCode`.
 
+### Scripts run under `node`; only the wrapper is Bun
+
+Every `scripts/*.js` file is plain CommonJS that **runs under `node`** — the npm scripts spell it
+`node scripts/<x>.js`, and `bun run <script>` only picks the script out of `package.json`. The
+reason is not taste: the `after_maestro_tests` hooks in `.eas/workflows/e2e.yml` run
+`node scripts/e2e-device-logs.js`, `node scripts/a11y-audit.js` and `node scripts/flashlight.js`
+on a worker that checks the project out but **never installs `node_modules`**. So:
+
+- **Node built-ins only, `node:`-prefixed**, in those scripts and everything they require
+  (`scripts/e2e-common.js`, `scripts/lib/*.js`). No npm package, not even a dev dependency.
+  `scripts/__tests__/builtins-only.test.ts` walks the require graph and fails on anything else —
+  a bare `require('fs')` included, because the prefix is what makes the rule greppable.
+- Scripts that are never a hook (`e2e-build.js`, `init.js`, `repo-settings.js`, …) may import
+  packages, but still resolve **paths from `__dirname`**, never `process.cwd()`: they are run from
+  editors, hooks and temp directories, not only from the repo root.
+- Shared helpers live in `scripts/lib/`: `args.js` (command line + exit codes), `device.js`
+  (`which`, `sdkRoot`, `maestroBin`, `adbOnline`, `pickDevice`, `appId`, `display` — one answer for
+  simulators, emulators and the Android SDK root, for the doctor and the e2e scripts alike),
+  `bin.js` (`binPath(name)` / `easBin`).
+- A repo-pinned CLI is spawned through `binPath()` — `node_modules/.bin/<name>` — never `bunx`
+  (which downloads a copy when the install is missing, silently using a different version) and
+  never a `bun run <script>` hop just to reach a binary. The user-facing docs still say
+  `bun run eas …`; scripts do not.
+
 ## App-layer rules
 
 ### Every pressable and input has a `testID`

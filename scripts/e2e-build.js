@@ -3,11 +3,11 @@
 // exact hash, and downloads it to `e2e/builds/<platform>/base.(app|apk)`. Never starts a
 // (paid) `eas build` unless `--build` is passed; without it, prints the command and exits 2
 // (the usage / "change the command line" code — scripts/lib/args.js).
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
 const { createFingerprintAsync } = require('@expo/fingerprint');
 
 const { parseArgs, runMain } = require('./lib/args');
+const { easBin } = require('./lib/bin');
 const {
   PLATFORM_OPTION,
   PROFILES,
@@ -45,8 +45,6 @@ Next: bun run e2e:repack, then bun run e2e:ios | e2e:android.`,
     'build-id': { type: 'string' },
   },
 };
-
-const easBin = path.join(projectRoot, 'node_modules', '.bin', 'eas');
 
 function easJson(args) {
   return runJson(NAME, easBin, [...args, '--json', '--non-interactive']);

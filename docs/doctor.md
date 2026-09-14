@@ -17,7 +17,7 @@ step (`--skip-doctor` to skip). No network access except `eas whoami`.
 | GitHub CLI + auth | `gh` installed, `gh auth status` logged in                                               | —        | `repo:settings:*`                          |
 | Maestro           | `>= EXPECTED.maestroMin`; CI pins `EXPECTED.maestroPinned`; `~/.maestro/bin` ok          | —        | `e2e:web`, `e2e:ios`, `e2e:android`        |
 | Xcode             | `>= 16.0` + at least one iOS simulator; macOS only (`skip` elsewhere)                    | —        | iOS lane                                   |
-| Android SDK       | `ANDROID_HOME` (or `ANDROID_SDK_ROOT`) exists, `adb` and `emulator` resolvable           | —        | Android lane                               |
+| Android SDK       | `ANDROID_SDK_ROOT` (or `ANDROID_HOME`) exists, `adb` and `emulator` resolvable           | —        | Android lane                               |
 | Java              | JDK `>= 17` — what the Maestro CLI and `@expo/repack-app`'s build-tools need             | —        | Maestro, Android repack                    |
 
 Version floors live once, in `EXPECTED` at the top of `scripts/doctor.js` — this table names the

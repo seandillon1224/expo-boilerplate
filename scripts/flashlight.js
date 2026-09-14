@@ -11,19 +11,20 @@
 //     FLASHLIGHT repo constant (env `FLASHLIGHT=enabled|disabled`): a disabled constant, a missing
 //     adb / maestro / flashlight / device, or a failed run is a notice + README.txt, never a red
 //     job. Informational only — there is no budget or gate in this script.
-// Node built-ins only: the maestro job checks the project out but never installs node_modules.
+// Node built-ins only: the maestro job checks the project out but never installs node_modules
+// (the device / app-id preflight is shared with e2e:a11y through ./lib/device).
 // Android only (Flashlight has no iOS profiler). Does not boot devices or install the app.
 //
 // Usage: bun run perf:flashlight [--platform android] [--device <serial>] [--out <dir>]
 //                                [--iterations 5] [--duration 10000] [--flow <maestro flow>]
 //                                [--title <text>] [--install] [--no-fail]
-const { spawnSync } = require('child_process');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
-const { appId, pickDevice, which } = require('./a11y-audit');
 const { parseArgs, runMain } = require('./lib/args');
+const { MAESTRO_HINT, appId, display, maestroBin, pickDevice, which } = require('./lib/device');
 const { PLATFORM_OPTION, fail, projectRoot, run } = require('./e2e-common');
 
 const NAME = 'perf:flashlight';
@@ -46,11 +47,6 @@ const DEFAULTS = {
   out: 'flashlight',
 };
 
-// Repo-relative for display; absolute when --out points elsewhere.
-function display(dir) {
-  const rel = path.relative(projectRoot, dir);
-  return rel && !rel.startsWith('..') ? rel : dir;
-}
 const USAGE = `Usage: bun run perf:flashlight [--platform android] [options]   (node scripts/flashlight.js)
 
 Runs Flashlight (https://docs.flashlight.dev) against the e2e build on an online adb device:
@@ -249,11 +245,8 @@ function main(argv) {
   if (gate) return skip(gate, { exitCode: 0 });
   if (opts.platform !== 'android')
     return skip(`Flashlight profiles Android only (got --platform ${opts.platform}).`);
-  const maestro = which('maestro', [path.join(os.homedir(), '.maestro', 'bin', 'maestro')]);
-  if (!maestro)
-    return skip(
-      '`maestro` not found. Install: curl -Ls "https://get.maestro.mobile.dev" | bash   (CI pins 2.10.0)',
-    );
+  const maestro = maestroBin();
+  if (!maestro) return skip(`\`maestro\` not found. ${MAESTRO_HINT}`);
   const picked = pickDevice('android', opts.device);
   if (picked.skip) return skip(picked.skip);
   const app = appId('android');
