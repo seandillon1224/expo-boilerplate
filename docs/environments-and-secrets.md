@@ -21,6 +21,10 @@ install side by side. `appVersionSource: remote` means EAS owns `version` / `bui
 
 Notes:
 
+- `development` / `development-simulator` set `developmentClient: true`, which requires
+  `expo-dev-client` in `dependencies` (autolinked under CNG; no config-plugin entry — the defaults
+  are what we want). Without it `eas build --profile development` fails outright, so keep it
+  installed even though nothing in `src/` imports it.
 - The `e2e-*` profiles have no `channel` on purpose: the build is a native shell keyed by
   `@expo/fingerprint` and never checks for updates; the JS under test is repacked in (T4.2).
 - Channels `staging` / `uat` / `production` exist on EAS (see
