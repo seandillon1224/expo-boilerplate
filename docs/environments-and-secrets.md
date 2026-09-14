@@ -228,8 +228,10 @@ the owner can provide. Until each is done the matching job skips itself and the 
 - [ ] **GitHub Environments `uat` / `production`** (required reviewer = repo owner) — run
       `bun run repo:settings:apply` again; `scripts/repo-settings.js` now carries them (T5.2). They
       gate GitHub Actions jobs that declare `environment:` (`release.yml`, T5.3); the EAS-side
-      `promote.yml` is gated by its `require-approval` job. `bun run repo:settings:check` reports
-      `environments.<name>: missing` until this is done.
+      `promote.yml` is gated by its `require-approval` job. Apply also installs each environment's
+      deployment branch policies — `production`: branch `main` + tag `v*`, `uat`: branch `main` —
+      without which a tag-triggered `release.yml` deployment is refused before the reviewer prompt.
+      `bun run repo:settings:check` reports `environments.<name>: missing` until this is done.
 - [ ] iOS ad hoc credentials for `uat` (iOS runbook, step 3), then run `promote.yml` with
       `-F ios_builds=enabled` when a uat build is needed.
 - [ ] **`EXPO_TOKEN` GitHub repository secret** (EAS robot token) — `.github/workflows/release.yml`

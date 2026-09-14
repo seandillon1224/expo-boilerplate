@@ -101,6 +101,20 @@ labels and patches a changed color or description; it never deletes a label it d
 about, so GitHub's defaults and hand-made labels survive. New automation that adds a label goes
 into `LABELS` first, then `bun run repo:settings:apply --only labels`.
 
+`DESIRED.environments` holds the `uat` and `production` deployment environments: a required
+reviewer (the repo owner) and a **deployment branch policy** listing
+which refs may deploy. That list is `custom_branch_policies`, not "protected branches only":
+`.github/workflows/release.yml` runs on `push` of a `v*` tag, and a tag ref is not a protected
+branch, so the protected-branches setting made GitHub refuse the deployment before the reviewer
+prompt ever appeared. Each environment therefore carries a `branch_policies` array of
+`{ type: 'branch' | 'tag', name }` — `production` allows branch `main` **and** tag `v*`, `uat`
+allows branch `main`. These are a separate API resource
+(`/repos/{owner}/{repo}/environments/{env}/deployment-branch-policies`), so apply `PUT`s the
+environment first, then `POST`s the policies it is missing and `DELETE`s ones that are not in
+`DESIRED`; check reports them as
+`environments.production.branch_policies: missing ["tag:v*"]`. `--only environments` covers both
+the environment and its policies.
+
 `DESIRED.pages` sets the repo's GitHub Pages source to GitHub Actions (`build_type: workflow`),
 which `.github/workflows/docs.yml` needs to publish the docs site: apply `POST`s the Pages site
 when there is none and `PUT`s the source when it points at a branch; check reports either.

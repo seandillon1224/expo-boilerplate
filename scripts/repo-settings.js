@@ -28,6 +28,9 @@
  * gate on anything that runs on GitHub. The EAS-side promotion (`.eas/workflows/promote.yml`)
  * is gated by its own `require-approval` job on expo.dev; environments do not apply to it.
  * Reviewers are given by login and resolved to ids with `gh api users/<login>` at apply time.
+ * Each environment also carries a `branch_policies` allow-list (a separate API resource) saying
+ * which refs may deploy to it — `production` allows `main` and the `v*` release tags, `uat` only
+ * `main`. `--apply` POSTs missing policies and DELETEs ones that are not in `DESIRED` (T10.2, #155).
  *
  * Labels (T7.4, #55): `--apply` upserts every label in `DESIRED.labels` (POST when missing,
  * PATCH when the color or description differs) and never deletes labels it does not know about,
@@ -178,9 +181,18 @@ const DESIRED = {
   },
   // PUT /repos/{owner}/{repo}/environments/{name} — one entry per rung that a GitHub Actions job
   // may target with `environment:`. `reviewers` take `{ type: 'User' | 'Team', login }` here and
-  // are resolved to `{ type, id }` for the API. `deployment_branch_policy` limits deployments to
-  // protected branches (= `main`); tags are not protected branches, so a tag-triggered
-  // release.yml job must deploy from `main` (checkout the tag inside the job) — T5.3 decides.
+  // are resolved to `{ type, id }` for the API.
+  //
+  // `deployment_branch_policy` is `custom_branch_policies`, not `protected_branches` (T10.2, #155):
+  // `.github/workflows/release.yml` runs on `push: tags: ['v*']` with `environment: production`,
+  // and a tag ref is not a protected branch — GitHub refuses the deployment before the reviewer
+  // prompt. `branch_policies` below is the allow-list that replaces it; it is NOT part of the
+  // environment PUT body but a separate resource:
+  //   GET/POST /repos/{owner}/{repo}/environments/{name}/deployment-branch-policies
+  //   DELETE   .../deployment-branch-policies/{branch_policy_id}
+  // Each entry is `{ type: 'branch' | 'tag', name }` where `name` may use `*`. `production` allows
+  // both `main` (deploy-staging-style dispatches) and the `v*` release tags; `uat` only `main`.
+  //
   // The init script rewrites the login to the GitHub repo owner. If that owner is an organization
   // (organizations cannot review), change it to a member's login or a `Team` (`org/team-slug`);
   // apply fails with that hint otherwise.
@@ -189,13 +201,18 @@ const DESIRED = {
       wait_timer: 0,
       prevent_self_review: false,
       reviewers: [{ type: 'User', login: 'seandillon1224' }],
-      deployment_branch_policy: { protected_branches: true, custom_branch_policies: false },
+      deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
+      branch_policies: [{ type: 'branch', name: BRANCH }],
     },
     production: {
       wait_timer: 0,
       prevent_self_review: false,
       reviewers: [{ type: 'User', login: 'seandillon1224' }],
-      deployment_branch_policy: { protected_branches: true, custom_branch_policies: false },
+      deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
+      branch_policies: [
+        { type: 'branch', name: BRANCH },
+        { type: 'tag', name: 'v*' },
+      ],
     },
   },
   // POST /repos/{owner}/{repo}/labels (missing) or PATCH /repos/{owner}/{repo}/labels/{name}
@@ -294,8 +311,40 @@ function resolveReviewer(ctx, { type, login }) {
   return { type, id: result.body.id };
 }
 
+/** The environment's own fields, minus `branch_policies` (a separate API resource). */
+function environmentSettings(env) {
+  const { branch_policies: _policies, ...settings } = env;
+  return settings;
+}
+
 function environmentBody(ctx, env) {
-  return { ...env, reviewers: env.reviewers.map((r) => resolveReviewer(ctx, r)) };
+  const settings = environmentSettings(env);
+  return { ...settings, reviewers: settings.reviewers.map((r) => resolveReviewer(ctx, r)) };
+}
+
+/** Stable identity of a deployment-branch policy, for set comparison and call keys. */
+function policyKey({ type, name }) {
+  return `${type ?? 'branch'}:${name}`;
+}
+
+/**
+ * The environment's deployment-branch policies as `[{ type, name, id }]`, or `null` when the
+ * environment does not exist yet (apply creates it first, then POSTs every desired policy).
+ */
+function currentBranchPolicies(ctx, slug, name) {
+  const result = ghJson(ctx, [
+    'api',
+    `repos/${slug}/environments/${name}/deployment-branch-policies`,
+  ]);
+  if (!result.ok) {
+    if (result.body?.message === 'Not Found') return null;
+    throw new RepoSettingsError(
+      `repo:settings: GET environment ${name} deployment-branch policies failed\n${result.stderr}`,
+    );
+  }
+  const items = result.body?.branch_policies ?? [];
+  // `type` is absent on policies created before GitHub supported tag policies; those are branches.
+  return items.map(({ id, name: policy, type }) => ({ id, name: policy, type: type ?? 'branch' }));
 }
 
 /** Current labels, keyed by name → `{ color, description }` (paginated; the API caps at 100/page). */
@@ -348,11 +397,32 @@ function endpoints(ctx, slug, only = SECTIONS) {
   }
   if (only.includes('environments')) {
     for (const [name, env] of Object.entries(DESIRED.environments)) {
+      // The PUT comes first: a custom branch policy cannot be POSTed while the environment still
+      // has `custom_branch_policies: false` (or does not exist).
       calls[`environment:${name}`] = {
         method: 'PUT',
         path: `repos/${slug}/environments/${name}`,
         body: environmentBody(ctx, env),
       };
+      const policies = `repos/${slug}/environments/${name}/deployment-branch-policies`;
+      const want = env.branch_policies ?? [];
+      const got = currentBranchPolicies(ctx, slug, name) ?? [];
+      for (const policy of want) {
+        if (got.some((p) => policyKey(p) === policyKey(policy))) continue;
+        calls[`environment:${name}:policy:${policyKey(policy)}`] = {
+          method: 'POST',
+          path: policies,
+          body: { name: policy.name, type: policy.type },
+        };
+      }
+      for (const policy of got) {
+        if (want.some((p) => policyKey(p) === policyKey(policy))) continue;
+        calls[`environment:${name}:policy:${policyKey(policy)}:delete`] = {
+          method: 'DELETE',
+          path: `${policies}/${policy.id}`,
+          body: null,
+        };
+      }
     }
   }
   if (only.includes('labels')) {
@@ -395,23 +465,21 @@ function upToDate(only, calls) {
   return quiet;
 }
 
-function apiArgs({ method, path }) {
-  return [
-    'api',
-    '--method',
-    method,
-    '-H',
-    'Accept: application/vnd.github+json',
-    path,
-    '--input',
-    '-',
-  ];
+/** `body: null` (a DELETE) sends no payload, so no `--input -`. */
+function apiArgs({ method, path, body }) {
+  const args = ['api', '--method', method, '-H', 'Accept: application/vnd.github+json', path];
+  if (body !== null && body !== undefined) args.push('--input', '-');
+  return args;
 }
 
 function dryRun(ctx, slug, only) {
   const calls = endpoints(ctx, slug, only);
   ctx.log(`repo:settings: dry run for ${slug} (no writes; sections: ${only.join(', ')})\n`);
   for (const call of Object.values(calls)) {
+    if (call.body === null) {
+      ctx.log(`gh ${apiArgs(call).join(' ')}\n`);
+      continue;
+    }
     ctx.log(`gh ${apiArgs(call).join(' ')} <<'JSON'`);
     ctx.log(JSON.stringify(call.body, null, 2));
     ctx.log('JSON\n');
@@ -424,7 +492,11 @@ function dryRun(ctx, slug, only) {
 function apply(ctx, slug, only) {
   const calls = endpoints(ctx, slug, only);
   for (const [name, call] of Object.entries(calls)) {
-    const result = ghJson(ctx, apiArgs(call), { input: JSON.stringify(call.body) });
+    const result = ghJson(
+      ctx,
+      apiArgs(call),
+      call.body === null ? undefined : { input: JSON.stringify(call.body) },
+    );
     if (!result.ok) {
       throw new RepoSettingsError(
         `repo:settings: ${call.method} ${call.path} failed\n${result.stderr}`,
@@ -542,7 +614,14 @@ function collectDrift(ctx, slug, only = SECTIONS) {
       if (current === null) {
         drift.push(`environments.${name}: missing`);
       } else {
-        drift.push(...diff(env, current, `environments.${name}.`));
+        drift.push(...diff(environmentSettings(env), current, `environments.${name}.`));
+        const label = `environments.${name}.branch_policies`;
+        const want = (env.branch_policies ?? []).map(policyKey).sort();
+        const got = (currentBranchPolicies(ctx, slug, name) ?? []).map(policyKey).sort();
+        const missing = want.filter((p) => !got.includes(p));
+        const extra = got.filter((p) => !want.includes(p));
+        if (missing.length) drift.push(`${label}: missing ${JSON.stringify(missing)}`);
+        if (extra.length) drift.push(`${label}: extra ${JSON.stringify(extra)}`);
       }
     }
   }

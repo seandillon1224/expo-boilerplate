@@ -289,11 +289,20 @@ this workflow are in [EAS Observe](observe.md#gating-on-tti-staging-soak--check-
 
 **Approval gates, side by side.** `promote.yml` runs on EAS, so its human gate is the
 `require-approval` job on expo.dev. GitHub Environments `uat` and `production` (required
-reviewer: the repo owner; deployments only from protected branches; created by
-`bun run repo:settings:apply` from `scripts/repo-settings.js`) gate the **GitHub Actions** side
-of the same ladder: a job that declares `environment: production` — `release.yml` (T5.3) and any
-later Actions-side promotion step — waits for a reviewer before it runs. They do not apply to EAS
-workflow runs; they are created now so both halves of the ladder carry the same named rungs.
+reviewer: the repo owner; created by `bun run repo:settings:apply` from
+`scripts/repo-settings.js`) gate the **GitHub Actions** side of the same ladder: a job that
+declares `environment: production` — `release.yml` (T5.3) and any later Actions-side promotion
+step — waits for a reviewer before it runs. They do not apply to EAS workflow runs; they are
+created now so both halves of the ladder carry the same named rungs.
+
+**Which refs may deploy.** Each environment carries a deployment branch policy, and it must allow
+the ref the job runs on or GitHub refuses the deployment _before_ the reviewer prompt — the run
+fails instead of waiting. `release.yml` runs on `push` of a `v*` **tag**, which is not a protected
+branch, so `production` allows branch `main` plus tag `v*` and `uat` allows branch `main`
+(`DESIRED.environments[*].branch_policies` in `scripts/repo-settings.js`, see
+[JS gate](js-gate.md#changing-the-required-set)). A new ref pattern goes in that list first, then
+`bun run repo:settings:apply --only environments`; `bun run repo:settings:check --only environments`
+reports drift.
 
 ## Update policies
 
@@ -405,7 +414,8 @@ is `forced`; set it back afterwards. (`production` stays `silent`.)
 
 **Workflows:** two files, one gate. `.github/workflows/release.yml` (`Release`, GitHub Actions) runs
 on `push` of a `v*` tag; its single `trigger` job declares `environment: production`, so it waits
-for the required reviewer (`scripts/repo-settings.js`) and then runs
+for the required reviewer (`scripts/repo-settings.js`, whose `production` deployment branch policy
+must allow the `v*` tag for the prompt to appear at all) and then runs
 `bun run eas workflow:run .eas/workflows/release.yml -F tag=<tag>` with `EXPO_TOKEN` (fails early
 with a readable error when the secret is missing). `.eas/workflows/release.yml` (`Release`, EAS)
 is `workflow_dispatch`-only: EAS does support `on: push: tags:`, but a tag trigger there would
