@@ -20,6 +20,7 @@ describe('UpdatesScreen', () => {
     devGlobal.__DEV__ = originalDev;
     mockUpdates.isEnabled = false;
     jest.mocked(Updates.checkForUpdateAsync).mockClear();
+    jest.mocked(Updates.fetchUpdateAsync).mockClear();
   });
 
   it('renders every row from the expo-updates constants', async () => {
@@ -69,6 +70,25 @@ describe('UpdatesScreen', () => {
 
     await press('updates-apply');
     expect(Updates.fetchUpdateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a failed download through its own apply-error copy', async () => {
+    devGlobal.__DEV__ = false;
+    mockUpdates.isEnabled = true;
+    jest.mocked(Updates.checkForUpdateAsync).mockResolvedValueOnce({
+      isAvailable: true,
+    } as Awaited<ReturnType<typeof Updates.checkForUpdateAsync>>);
+    jest.mocked(Updates.fetchUpdateAsync).mockRejectedValueOnce(new Error('network down'));
+
+    await render(<UpdatesScreen />);
+    await press('updates-check');
+    await press('updates-apply');
+
+    // Distinct from `updates.status.error`, which is about the *check* failing.
+    expect(screen.getByTestId('updates-apply-error')).toHaveTextContent(
+      'Could not apply the update: network down',
+    );
+    expect(screen.getByTestId('updates-status')).toHaveTextContent(/available/i);
   });
 
   it('shows up-to-date when no update is available', async () => {

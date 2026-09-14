@@ -61,8 +61,19 @@ export function ScrollView(props: ScrollViewProps) {
 ScrollView.displayName = 'CSS(ScrollView)';
 
 export type LinkProps = WithClassName<ComponentProps<typeof RouterLink>>;
+/**
+ * A router Link is always a link to a screen reader, so the role is encoded here once
+ * instead of being repeated on every screen. Expo Router's own Link already emits
+ * `role="link"` on the rendered element and that takes precedence; this default keeps the
+ * guarantee inside `@/tw` rather than resting on a router internal, and is spread before
+ * the caller's props so an explicit `accessibilityRole` still wins where it is honoured.
+ */
 export function Link(props: LinkProps) {
-  return useCssElement(RouterLink as unknown as Styleable, props, styleMapping);
+  return useCssElement(
+    RouterLink as unknown as Styleable,
+    { accessibilityRole: 'link', ...props },
+    styleMapping,
+  );
 }
 Link.displayName = 'CSS(Link)';
 Link.Trigger = RouterLink.Trigger;
