@@ -71,6 +71,7 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [x] **#44 T5.5** — Fingerprint-drift check on PRs: comment when a PR changes the native fingerprint ("this needs a store release").
 - [x] **#45 T5.6** — Build-sharing surfaces: Slack channel wiring, Orbit setup doc, "how a designer installs the staging app" one-pager.
 - [x] **#46 T5.7** — Runbook: `docs/release-ladder.md` covering the full path, rollback (`eas update:republish` / `update:rollback`), and channel/branch mapping.
+- [ ] **#145 T5.8** — Adopt EAS built-ins: `update-rollout` in promote, `testflight` in release, `eas/send_slack_message` for the Slack jobs (audit 2026-09-13; after #66).
 
 ### E6 — Performance tooling (tracker #73)
 
@@ -101,10 +102,10 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - [D] **#61 T9.2** — D2 multi-runtime OTA backports.
 - [x] **#62 T9.3** — D3 update policies (forced / opt-in / silent) — app side (grilled 2026-09-11, spec in issue comment).
 - [x] **#137 T9.3b** — update policies pipeline side: `rollout_percentage` + `critical` workflow inputs, runbook.
-- [D] **#63 T9.4** — D4 Flashlight.
+- [~] **#63 T9.4** — D4 Flashlight (decided 2026-09-13: informational `after_maestro_tests` hook in the Android maestro job, opt-in constant, artifact only, no gate; ADR-0007).
 - [x] **#64 T9.5** — D5 oxlint (grilled 2026-09-12, spec in issue comment, ADR-0004).
 - [x] **#65 T9.6** — D6 a11y Maestro flow (grilled 2026-09-13; screen-reader E2E impossible in Maestro → hierarchy audit script, ADR-0005).
-- [D] **#66 T9.7** — D7 Maestro Cloud optional job.
+- [x] **#66 T9.7** — D7 Maestro Cloud optional job (decided 2026-09-13: EAS sibling workflow, label `e2e:cloud` + dispatch, refuses on fingerprint miss, skips without secrets; ADR-0006).
 
 ## RUN LOG
 
@@ -168,3 +169,4 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 - 2026-09-12 — #64 | t64-oxlint | https://github.com/seandillon1224/expo-boilerplate/pull/141 | merged | 2026-09-12 (grilled; ADR-0004; oxlint defaults as a front pass inside `bun run lint`, eslint-plugin-oxlint drops the overlap, oxlint + plugin pinned together in Renovate; JS-plugin bridge rejected while alpha. Found on the way: `expo lint` had never run ESLint here — Bun resolved the local `eslint/` folder before the binary — fixed by renaming it to `eslint-rules/`, so the CI Lint job is real from this merge on. Only [D] items remain.)
 - 2026-09-13 — #65 | t65-a11y-audit | https://github.com/seandillon1224/expo-boilerplate/pull/142 | merged | 2026-09-13 (grilled; ADR-0005; Maestro cannot drive VoiceOver/TalkBack and dumps the hierarchy only on failing steps, so D6 became `bun run e2e:a11y`: nav subflows in .maestro/subflows/a11y/ + `maestro hierarchy` + three label rules over source-derived interactive testIDs; informational `--no-fail` hook in e2e.yml; human owes `bun run e2e:ios --keep && bun run e2e:a11y --platform ios` (and android) to verify the subflows and the Android label field, then drop `--no-fail`. Also closed stale issues #46/#47/#48/#52/#53/#55 and epics #68–#75. Only [D] items remain: #61, #63, #66.)
 - 2026-09-13 — #143 | t143-docs-site | https://github.com/seandillon1224/expo-boilerplate/pull/144 | merged | 2026-09-13 (decided with owner: VitePress over docs/ in place, GitHub Pages via docs.yml, `Docs` CI job = dead-link audit, landing + grouped sidebar, `repo:settings --only pages`; nothing hardcodes the template identity, template:e2e builds the generated site; inline code rendered v-pre so `${{ }}` survives. Perf (Reassure) flaked +5.8% on a docs-only diff — noise. Human owes: `bun run repo:settings:apply --only pages` then `--only protection` (Docs required); site goes live on the next push to main.)
+- 2026-09-13 — #66 | t66-maestro-cloud | https://github.com/seandillon1224/expo-boilerplate/pull/146 | merged | 2026-09-13 (ADR-0006; EAS pre-packaged `maestro-cloud` job in e2e-cloud.yml, label `e2e:cloud` + dispatch, refuse-on-miss, off behind MAESTRO_CLOUD constant + `proj_REPLACE_ME` literal, API key = EAS secret MAESTRO_CLOUD_API_KEY on development; unverified until a Maestro Cloud plan exists. Built-ins audit → #145 T5.8 filed. README stale bullets #62/#64 removed.)
