@@ -36,8 +36,13 @@ or "hook-enforced", the enforcement is the source of truth and this page is the 
   `PR title` check — because the PR title becomes the squash commit subject on `main`
   ([JS gate → How merging works](js-gate.md#how-merging-works)).
 - **One ticket, one PR, one squash commit**, branched off `main`, merged as soon as the required
-  checks are green, `Closes #n` in the PR body so the issue closes on merge. `/ship-next` drives
-  the queue; `.claude/execution-queue.md` is the ledger and GitHub Issues mirror it.
+  checks are green, `Closes #n` in the **PR body** — not the commit body — so the issue closes on
+  merge; a squash commit's own body does not auto-close anything, so the merge step verifies with
+  `gh issue view <n>`. `/ship-next` drives the queue; `.claude/execution-queue.md` is the ledger and
+  GitHub Issues mirror it. Each ticket is implemented by a fresh subagent in its own **git worktree**
+  (`isolation: "worktree"`), so branch switches never race the shared checkout, and an issue labelled
+  `deep-dive` is grilled with the user and written up first — it is never auto-PR'd. Ledger
+  bookkeeping is its own `chore(queue): …` commit on `main`, never part of a ticket PR.
 - **Types decide releases** ([ADR-0002](adr/0002-release-please-versioning.md)). release-please
   reads the squash commits on `main`: `feat` → minor, `fix` / `perf` / `revert` → patch, a `!` after
   the type or a `BREAKING CHANGE:` footer → major; these four types are the changelog. `docs`,
