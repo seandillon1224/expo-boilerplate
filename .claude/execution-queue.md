@@ -111,46 +111,75 @@ Rule: one ticket per PR, branch off `main`, squash-merge immediately, close the 
 
 _Repo audit 2026-09-14 (app code, scripts, CI/EAS workflows, docs). E10 first: each item is a live defect._
 
-- [ ] **#154 T10.1** — e2e.yml maestro jobs read outputs via `needs.*` but depend via `after:` — never run
-- [ ] **#155 T10.2** — production/uat environments reject tag deploys — release.yml gate unreachable
-- [ ] **#156 T10.3** — unblock the release-please PR — CHANGELOG.md breaks Format and init tests
-- [ ] **#157 T10.4** — stabilize fetch.test.tsx flake and update-policy act() warnings
-- [ ] **#158 T10.5** — add expo-dev-client — the development EAS profile is unbuildable
-- [ ] **#159 T10.6** — `Docs` missing from REQUIRED_CHECKS + guard that every CI job is required or listed informational
-- [ ] **#160 T10.7** — Renovate config hardening (groups, release age, custom managers for Maestro/Bun)
-- [ ] **#161 T10.8** — remove stale 'bump version + push tag' instructions (contradict release-please, ADR-0002)
+- [x] **#154 T10.1** — e2e.yml maestro jobs read outputs via `needs.*` but depend via `after:` — never run
+- [x] **#155 T10.2** — production/uat environments reject tag deploys — release.yml gate unreachable
+- [x] **#156 T10.3** — unblock the release-please PR — CHANGELOG.md breaks Format and init tests
+- [x] **#157 T10.4** — stabilize fetch.test.tsx flake and update-policy act() warnings
+- [x] **#158 T10.5** — add expo-dev-client — the development EAS profile is unbuildable
+- [x] **#159 T10.6** — `Docs` missing from REQUIRED_CHECKS + guard that every CI job is required or listed informational
+- [x] **#160 T10.7** — Renovate config hardening (groups, release age, custom managers for Maestro/Bun)
+- [x] **#161 T10.8** — remove stale 'bump version + push tag' instructions (contradict release-please, ADR-0002)
 - [M] **Renovate** — install the Renovate GitHub App on the repo (no Renovate PR has ever run; ~30 packages behind). Do after #160 merges.
 
 ### E11 — Hardening: scripts, workflows, supply chain (tracker #151)
 
-- [ ] **#162 T11.1** — scripts/lib/args.js — one parser (util.parseArgs), exit-code convention, doctor Node>=
-- [ ] **#163 T11.2** — scripts/lib/device.js — dedupe adb/maestro/sdk helpers; built-ins-only guard test; eas bin helper
-- [ ] **#164 T11.3** — extract promote/rollout/backport/release inline logic to scripts/eas/*.js; adopt Slack built-in in promote
-- [ ] **#165 T11.4** — supply chain — pin GitHub Actions to SHAs, pin gitleaks, replace Maestro curl|bash with versioned download + cache
-- [ ] **#166 T11.5** — lefthook — sequential fixers, oxlint first, wider glob, drop env-check from pre-push
-- [ ] **#167 T11.6** — ci.yml shape — PR-only cancel-in-progress, web-only dependency for Maestro web, preview-web label gating
-- [ ] **#168 T11.7** — config hygiene — lightningcss override, .gitignore, bunfig, i18n parser input, bundle-budget unit, package.json aliases
-- [ ] **#169 T11.8** — tests for bundle-budget, reassure-gate, serve-web resolveFile, e2e-run selection
-- [ ] **#170 T11.9** — .claude/settings.json allowlist + ship-next skill corrections
+- [x] **#162 T11.1** — scripts/lib/args.js — one parser (util.parseArgs), exit-code convention, doctor Node>=
+- [x] **#163 T11.2** — scripts/lib/device.js — dedupe adb/maestro/sdk helpers; built-ins-only guard test; eas bin helper
+- [x] **#164 T11.3** — extract promote/rollout/backport/release inline logic to scripts/eas/*.js; adopt Slack built-in in promote
+- [x] **#165 T11.4** — supply chain — pin GitHub Actions to SHAs, pin gitleaks, replace Maestro curl|bash with versioned download + cache
+- [x] **#166 T11.5** — lefthook — sequential fixers, oxlint first, wider glob, drop env-check from pre-push
+- [x] **#167 T11.6** — ci.yml shape — PR-only cancel-in-progress, web-only dependency for Maestro web, preview-web label gating
+- [x] **#168 T11.7** — config hygiene — lightningcss override, .gitignore, bunfig, i18n parser input, bundle-budget unit, package.json aliases
+- [x] **#169 T11.8** — tests for bundle-budget, reassure-gate, serve-web resolveFile, e2e-run selection
+- [x] **#170 T11.9** — .claude/settings.json allowlist + ship-next skill corrections
 
 ### E12 — Docs consolidation (tracker #152)
 
-- [ ] **#171 T12.1** — ADR-0009 docs site supersedes decision 14; reconcile ADR-0001/PLAN.md; auto-build ADR sidebar
-- [ ] **#172 T12.2** — docs/owner-checklist.md — one page for every human-owed setup step
-- [ ] **#173 T12.3** — slim CLAUDE.md into an agent brief; move the command reference to docs/commands.md; dedupe pipeline content
-- [ ] **#174 T12.4** — onboarding.md, SECURITY.md, PR template, issue-template contact links, 'not included and why'
+- [x] **#171 T12.1** — ADR-0009 docs site supersedes decision 14; reconcile ADR-0001/PLAN.md; auto-build ADR sidebar
+- [x] **#172 T12.2** — docs/owner-checklist.md — one page for every human-owed setup step
+- [x] **#173 T12.3** — slim CLAUDE.md into an agent brief; move the command reference to docs/commands.md; dedupe pipeline content
+- [x] **#174 T12.4** — onboarding.md, SECURITY.md, PR template, issue-template contact links, 'not included and why'
 
 ### E13 — App layer polish and examples (tracker #153)
 
-- [ ] **#175 T13.1** — app cleanup — prod-guard the Sentry test button, drop unused assets and animated-icon, fix jest transformIgnore
-- [ ] **#176 T13.2** — Zod-validate the posts API and serve a fixture for the Maestro web fetch flow
-- [ ] **#177 T13.3** — navigation theme from the same tokens as global.css
-- [ ] **#178 T13.4** — +not-found route with EmptyState + web flow; ITSAppUsesNonExemptEncryption
-- [ ] **#179 T13.5** — test gaps + small consistency fixes (env, query-provider, use-update-info, apply-error copy, Link role, @assets alias)
-- [ ] **#180 T13.6** — Stack.Protected sign-in example backed by a tiny session store
-- [ ] **#181 T13.7** — analytics track() over Observe.logEvent, typed storage module, pinned emulator locale for tab selection
+- [x] **#175 T13.1** — app cleanup — prod-guard the Sentry test button, drop unused assets and animated-icon, fix jest transformIgnore
+- [x] **#176 T13.2** — Zod-validate the posts API and serve a fixture for the Maestro web fetch flow
+- [x] **#177 T13.3** — navigation theme from the same tokens as global.css
+- [x] **#178 T13.4** — +not-found route with EmptyState + web flow; ITSAppUsesNonExemptEncryption
+- [x] **#179 T13.5** — test gaps + small consistency fixes (env, query-provider, use-update-info, apply-error copy, Link role, @assets alias)
+- [x] **#180 T13.6** — Stack.Protected sign-in example backed by a tiny session store
+- [x] **#181 T13.7** — analytics track() over Observe.logEvent, typed storage module, pinned emulator locale for tab selection
 
 ## RUN LOG
+
+- `#154` | `t154-eas-after-context` | https://github.com/seandillon1224/expo-boilerplate/pull/182 | merged | 2026-09-14
+- `#155` | `t155-env-deploy-policies` | https://github.com/seandillon1224/expo-boilerplate/pull/183 | merged | 2026-09-14
+- `#156` | `t156-changelog-unblock` | https://github.com/seandillon1224/expo-boilerplate/pull/184 | merged | 2026-09-14
+- `#157` | `t157-test-flake` | https://github.com/seandillon1224/expo-boilerplate/pull/185 | merged | 2026-09-14
+- `#158` | `t158-expo-dev-client` | https://github.com/seandillon1224/expo-boilerplate/pull/186 | merged | 2026-09-14 (fingerprint bump: ios beb32cf…, android ec52aec…)
+- `#159` | `t159-required-checks` | https://github.com/seandillon1224/expo-boilerplate/pull/187 | merged | 2026-09-14
+- `#160` | `t160-renovate-hardening` | https://github.com/seandillon1224/expo-boilerplate/pull/188 | merged | 2026-09-14
+- `#161` | `t161-release-please-drift` | https://github.com/seandillon1224/expo-boilerplate/pull/189 | merged | 2026-09-14 — E10 code tickets complete
+- `#162` | `t162-args-lib` | https://github.com/seandillon1224/expo-boilerplate/pull/190 | merged | 2026-09-14
+- `#163` | `t163-device-lib` | https://github.com/seandillon1224/expo-boilerplate/pull/191 | merged | 2026-09-14
+- `#164` | `t164-eas-scripts` | https://github.com/seandillon1224/expo-boilerplate/pull/192 | merged | 2026-09-14
+- `#165` | `t165-supply-chain` | https://github.com/seandillon1224/expo-boilerplate/pull/193 | merged | 2026-09-14
+- `#166` | `t166-lefthook` | https://github.com/seandillon1224/expo-boilerplate/pull/194 | merged | 2026-09-14
+- `#167` | `t167-ci-shape` | https://github.com/seandillon1224/expo-boilerplate/pull/195 | merged | 2026-09-14
+- `#168` | `t168-config-hygiene` | https://github.com/seandillon1224/expo-boilerplate/pull/196 | merged | 2026-09-14
+- `#169` | `t169-script-tests` | https://github.com/seandillon1224/expo-boilerplate/pull/197 | merged | 2026-09-14
+- `#170` | `t170-claude-config` | https://github.com/seandillon1224/expo-boilerplate/pull/198 | merged | 2026-09-14 — E11 complete
+- `#171` | `t171-adr-reconcile` | https://github.com/seandillon1224/expo-boilerplate/pull/199 | merged | 2026-09-14
+- `#172` | `t172-owner-checklist` | https://github.com/seandillon1224/expo-boilerplate/pull/200 | merged | 2026-09-14
+- `#173` | `t173-claude-slim` | https://github.com/seandillon1224/expo-boilerplate/pull/201 | merged | 2026-09-14
+- `#174` | `t174-onboarding-docs` | https://github.com/seandillon1224/expo-boilerplate/pull/202 | merged | 2026-09-14 — E12 complete
+- `#175` | `t175-app-cleanup` | https://github.com/seandillon1224/expo-boilerplate/pull/203 | merged | 2026-09-14 (fingerprint bump: expo-image removed)
+- `#176` | `t176-posts-zod-fixture` | https://github.com/seandillon1224/expo-boilerplate/pull/204 | merged | 2026-09-14
+- `#177` | `t177-nav-theme` | https://github.com/seandillon1224/expo-boilerplate/pull/205 | merged | 2026-09-14
+- `#178` | `t178-not-found` | https://github.com/seandillon1224/expo-boilerplate/pull/206 | merged | 2026-09-14 (fingerprint bump: ITSAppUsesNonExemptEncryption)
+- `#179` | `t179-test-gaps` | https://github.com/seandillon1224/expo-boilerplate/pull/207 | merged | 2026-09-14
+- `#180` | `t180-session-guard` | https://github.com/seandillon1224/expo-boilerplate/pull/208 | merged | 2026-09-14
+- `#181` | `t181-analytics-storage` | https://github.com/seandillon1224/expo-boilerplate/pull/209 | merged | 2026-09-14 — E13 complete, queue drained
 
 - 2026-09-03 — Repo created, 66 tickets + 10 epic trackers filed from PLAN.md.
 - 2026-09-03 — E0 shipped: #1–#3 (direct on empty main), #4 PR #77, #5 PR #78, #6 PR #79, #7 PR #80, #8 PR #81, #9 PR #82, #10 PR #83.
