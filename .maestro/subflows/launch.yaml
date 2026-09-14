@@ -6,3 +6,6 @@ appId: ${MAESTRO_APP_ID}
     clearState: true
     permissions:
       all: allow
+# The demo session gate (T13.6): a cleared app opens on sign-in, so every flow taps through it
+# here and still starts on Home. Delete this line with the session demo.
+- runFlow: sign-in.yaml

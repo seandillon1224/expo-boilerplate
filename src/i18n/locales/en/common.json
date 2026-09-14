@@ -26,9 +26,15 @@
   "settings": {
     "sentryTest": "Send test error to Sentry",
     "sentryTestSent": "Test error sent (no-op unless a DSN is configured).",
+    "signOut": "Sign out",
     "subtitle": "App preferences and diagnostics will live here.",
     "title": "Settings",
     "updatesLink": "OTA updates"
+  },
+  "signIn": {
+    "action": "Sign in",
+    "subtitle": "A demo gate: no password, no server. Replace it with your provider, or remove it.",
+    "title": "Sign in"
   },
   "states": {
     "emptyTitle": "Nothing here yet",

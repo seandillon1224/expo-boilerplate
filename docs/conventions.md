@@ -234,6 +234,35 @@ behaviour a one-file decision when a project changes it
 - The Updates screen (Settings → OTA updates) shows the active policy and keeps the manual
   check / download buttons as the test bed.
 
+### The session demo and the `Stack.Protected` guard
+
+The template ships a one-boolean sign-in demo so the shape of an authenticated app is already in
+place: `src/features/session/use-session.ts` is a `useSyncExternalStore` store in the same style as
+`use-update-policy.ts` (`isSignedIn`, `signIn()`, `signOut()`, nothing else), the flag is persisted
+through AsyncStorage — the same storage the query cache uses — and the root layout wraps `(tabs)` in
+`<Stack.Protected guard={isSignedIn}>` with `(auth)/sign-in` behind the inverse guard. Settings
+carries the sign-out control.
+
+Three things are deliberate:
+
+- **It is not auth.** No tokens, no refresh, no provider SDK, no server check. `Stack.Protected` is
+  client-side navigation: it hides routes, it never protects data. A real integration swaps the
+  three store functions for the provider's calls and keeps the token in `expo-secure-store`;
+  everything above `useSession()` stays as it is.
+- **It is removable in one pass.** The file header of `use-session.ts` is the checklist — layout,
+  routes, Settings control, Maestro subflows, `bun run i18n:extract`. Do that first if your app has
+  no sign-in rather than leaving a dead gate in front of it.
+- **Hydration gates the navigator, not the screens.** The persisted flag is read asynchronously, so
+  `useSession()` reports `isHydrated: false` for the first tick and the root layout returns `null`
+  until it flips. No navigator means Expo Router has not hidden the native splash yet, so the splash
+  simply stays up a moment longer — a signed-out launch never flashes the tabs, and a persisted
+  session never flashes the sign-in screen. Never render the guarded tree "optimistically" while the
+  flag is still unknown.
+
+`+not-found` stays outside both guarded groups so an unmatched URL renders it on either side of the
+gate. Every Maestro flow taps through the gate in its launch subflow; see
+[Testing → End-to-end tests](testing.md#end-to-end-tests-maestro).
+
 ### Loading, empty and error UI is shared
 
 Screens compose `LoadingState`, `EmptyState` and `ErrorState` from `@/components/states` instead of

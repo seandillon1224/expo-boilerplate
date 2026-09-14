@@ -322,10 +322,11 @@ canonical description; in short:
 | `.maestro/config.yaml`                | Workspace config: `flows: ['flows/*', 'flows/web/*']`, env contract (`MAESTRO_APP_ID`, `APP_URL`), tag and selector rules.                              |
 | `.maestro/flows/<name>.yaml`          | Native entry: `appId: ${MAESTRO_APP_ID}`, `tags: [ios, android]`, then `runFlow` launch + steps. Discovered by `--include-tags ios\|android`.           |
 | `.maestro/flows/web/<name>.yaml`      | Web entry: `url: ${APP_URL}`, `tags: [web]`, same steps. Discovered by `--include-tags web` (CI `maestro-web`, `bun run e2e:web`).                      |
-| `.maestro/subflows/launch.yaml`       | Native `launchApp` (`clearState`, all permissions allowed).                                                                                             |
-| `.maestro/subflows/launch-web.yaml`   | Web `launchApp` (opens `APP_URL`).                                                                                                                      |
+| `.maestro/subflows/launch.yaml`       | Native `launchApp` (`clearState`, all permissions allowed), then `sign-in.yaml`.                                                                        |
+| `.maestro/subflows/launch-web.yaml`   | Web `launchApp` (opens `APP_URL`, `clearState`), then `sign-in.yaml`.                                                                                   |
+| `.maestro/subflows/sign-in.yaml`      | Taps through the demo sign-in gate so every flow still starts on Home; delete it with the session demo.                                                 |
 | `.maestro/subflows/select-tab.yaml`   | Tab-bar tap with a `when: platform` branch per OS — the only non-testID selector, see below.                                                            |
-| `.maestro/subflows/steps/<name>.yaml` | The shared steps (`smoke`, `tabs`, `fetch`, `updates`), written once and run by both entries.                                                           |
+| `.maestro/subflows/steps/<name>.yaml` | The shared steps (`smoke`, `tabs`, `fetch`, `updates`, `session`), written once and run by both entries.                                                |
 | `.maestro/fixtures/*.json`            | Offline API responses for the **web** lane, served at `/fixtures/<name>` by `scripts/serve-web.js`. Not flows; see [Fetch flow data](#fetch-flow-data). |
 
 Two entry files per flow are unavoidable: Maestro picks the Chromium driver from a `url:` header

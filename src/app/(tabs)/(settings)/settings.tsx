@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useSession } from '@/features/session/use-session';
 import { env } from '@/lib/env';
 import { captureException } from '@/lib/sentry';
 import { Link, Pressable, Text, View } from '@/tw';
@@ -8,6 +9,9 @@ import { Link, Pressable, Text, View } from '@/tw';
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const [testSent, setTestSent] = useState(false);
+  // Demo session (T13.6): flipping this to false sends the router back to `(auth)/sign-in`,
+  // because `(tabs)` sits behind `<Stack.Protected>` in the root layout.
+  const { signOut } = useSession();
   // Diagnostics only: never ship a button that fires a real error into the production issue stream.
   const showSentryTest = env.APP_VARIANT !== 'production';
 
@@ -31,6 +35,14 @@ export default function SettingsScreen() {
       >
         {t('settings.updatesLink')}
       </Link>
+      <Pressable
+        testID="settings-sign-out"
+        accessibilityRole="button"
+        onPress={signOut}
+        className="bg-muted mt-4 rounded-md px-4 py-2"
+      >
+        <Text className="text-foreground font-semibold">{t('settings.signOut')}</Text>
+      </Pressable>
       {showSentryTest ? (
         <Pressable
           testID="settings-sentry-test"

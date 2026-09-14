@@ -292,6 +292,10 @@ function buildManifest(id) {
       rules: [rule('persister key', `'${TEMPLATE.slug}-query-cache'`, `'${id.slug}-query-cache'`)],
     },
     {
+      file: 'src/features/session/use-session.ts',
+      rules: [rule('session key', `'${TEMPLATE.slug}-session'`, `'${id.slug}-session'`)],
+    },
+    {
       file: 'scripts/repo-settings.js',
       rules: [
         rule(

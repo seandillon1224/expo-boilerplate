@@ -26,13 +26,13 @@ added only when `CI` is set). `bun run test:watch` for a loop.
 
 Layout on `main`:
 
-| Directory                   | What is there                                                                                              |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `src/__tests__/screens/`    | One test per route: `home`, `settings`, `fetch` (query states + `markInteractive`), `updates`, `not-found` |
-| `src/__tests__/components/` | `states` (`LoadingState` / `EmptyState` / `ErrorState`), `error-boundary`                                  |
-| `src/__tests__/features/`   | Hooks: `use-update-policy`                                                                                 |
-| `src/__tests__/i18n/`       | Locale fallback and `useTranslation` rendering                                                             |
-| `src/lib/__tests__/`        | Pure modules next to their source: `env.schema`, `observe`, `sentry`                                       |
+| Directory                   | What is there                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/__tests__/screens/`    | One test per route: `home`, `settings`, `fetch` (query states + `markInteractive`), `updates`, `not-found`, `sign-in`, plus `session-guard` (the root layout through `renderRouter`) |
+| `src/__tests__/components/` | `states` (`LoadingState` / `EmptyState` / `ErrorState`), `error-boundary`                                                                                                            |
+| `src/__tests__/features/`   | Hooks: `use-update-policy`                                                                                                                                                           |
+| `src/__tests__/i18n/`       | Locale fallback and `useTranslation` rendering                                                                                                                                       |
+| `src/lib/__tests__/`        | Pure modules next to their source: `env.schema`, `observe`, `sentry`                                                                                                                 |
 
 ### Rules that bite
 
@@ -153,19 +153,31 @@ the workspace directory (`maestro test .maestro`) so `config.yaml` is read; the 
 
 Flows that ship:
 
-| Flow        | Steps                           | Lanes      | What it covers                                                                 |
-| ----------- | ------------------------------- | ---------- | ------------------------------------------------------------------------------ |
-| `smoke`     | `subflows/steps/smoke.yaml`     | web+native | The app boots to Home.                                                         |
-| `tabs`      | `subflows/steps/tabs.yaml`      | web+native | Tab-bar navigation.                                                            |
-| `fetch`     | `subflows/steps/fetch.yaml`     | web+native | Home → `/fetch`, loading resolves to a list (data: see below).                 |
-| `updates`   | `subflows/steps/updates.yaml`   | web+native | The OTA updates screen renders its rows.                                       |
-| `not-found` | `subflows/steps/not-found.yaml` | web        | An unmatched URL renders `src/app/+not-found.tsx`, whose link returns to Home. |
+| Flow        | Steps                           | Lanes      | What it covers                                                                                                                  |
+| ----------- | ------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `smoke`     | `subflows/steps/smoke.yaml`     | web+native | The app boots to Home.                                                                                                          |
+| `tabs`      | `subflows/steps/tabs.yaml`      | web+native | Tab-bar navigation.                                                                                                             |
+| `fetch`     | `subflows/steps/fetch.yaml`     | web+native | Home → `/fetch`, loading resolves to a list (data: see below).                                                                  |
+| `updates`   | `subflows/steps/updates.yaml`   | web+native | The OTA updates screen renders its rows.                                                                                        |
+| `not-found` | `subflows/steps/not-found.yaml` | web        | An unmatched URL renders `src/app/+not-found.tsx`, whose link returns to Home.                                                  |
+| `session`   | `subflows/steps/session.yaml`   | web+native | Signing out from Settings drops back through the `Stack.Protected` guard to the sign-in screen, and signing in returns to Home. |
 
-`not-found` is the one web-only flow: it needs a URL the router cannot match, which the entry
-opens from its own `url:` header (`${APP_URL}/this-route-does-not-exist`) instead of running
-`subflows/launch-web.yaml`. `scripts/serve-web.js` answers any unresolved path with
-`+not-found.html` and a real 404 status, the same as a static host serving the export. Native has
-no equivalent entry point short of a deep link that resolves to nothing, so it stays web-only.
+Every entry starts with a launch subflow, and both launch subflows run `subflows/sign-in.yaml`
+after `launchApp`: `(tabs)` sits behind `<Stack.Protected>` (the session demo, see
+[Conventions → The session demo](conventions.md#the-session-demo-and-the-protected-guard)), so a
+freshly launched app opens on sign-in. Tapping through it there is what keeps every other flow
+starting on Home exactly as it did before the guard existed. Both launches clear state first — on
+web too, because the Chromium driver reuses one browser profile across flows and the persisted
+session would otherwise leak from whichever flow ran before.
+
+`not-found` is the one web-only flow: it needs a URL the router cannot match, so after the shared
+launch the entry `openLink`s `${APP_URL}/this-route-does-not-exist`. `scripts/serve-web.js` answers
+any unresolved path with `+not-found.html` and a real 404 status, the same as a static host serving
+the export. Native has no equivalent entry point short of a deep link that resolves to nothing, so
+it stays web-only. It signs in first like everything else: `+not-found` is outside both guarded
+groups and renders either way, but its "go home" link points at a guarded route, and the router
+answers a blocked navigation by staying on the first available screen rather than falling through
+to sign-in.
 
 | Lane   | Command                                                                                      | App under test                                                                | Where it runs in CI                                                  |
 | ------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------- |

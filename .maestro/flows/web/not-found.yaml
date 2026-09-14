@@ -1,9 +1,16 @@
-# Web entry for the not-found steps (subflows/steps/not-found.yaml). Unlike the other entries this
-# one launches itself: the flow's whole point is a URL the router cannot match, and
-# subflows/launch-web.yaml opens `${APP_URL}` (the app root) from its own header.
+# Web entry for the not-found steps (subflows/steps/not-found.yaml). Unlike the other entries it
+# has a third line: it launches at the app root like everyone else (so the shared launch subflow
+# gets it past the demo sign-in gate, T13.6) and then `openLink`s the URL the router cannot match.
+#
+# Why not launch straight at the unknown path, as this entry used to: `+not-found` sits outside
+# both `<Stack.Protected>` groups, so it renders either way — but its "go home" link points at a
+# route that is guarded while signed out, and the router answers that by keeping you on the first
+# available screen (`+not-found` itself), not by falling through to sign-in. Signing in first
+# keeps the flow about what it is meant to test: the 404 screen and its way back.
 name: web/not-found
-url: ${APP_URL}/this-route-does-not-exist
+url: ${APP_URL}
 tags: [web]
 ---
-- launchApp
+- runFlow: ../../subflows/launch-web.yaml
+- openLink: ${APP_URL}/this-route-does-not-exist
 - runFlow: ../../subflows/steps/not-found.yaml

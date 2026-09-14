@@ -1,5 +1,13 @@
 # Web launch, first step of every flows/web/<name>.yaml entry: opens `url` (the served static
 # export) in Maestro's Chromium. A bare `launchApp` needs the target in this file's own header.
+#
+# `clearState` mirrors the native launch: the web driver reuses one browser profile across flows,
+# so without it the persisted session (T13.6) and the query cache would leak between them and
+# ordering would start to matter.
 url: ${APP_URL}
 ---
-- launchApp
+- launchApp:
+    clearState: true
+# The demo session gate (T13.6): a fresh browser context opens on sign-in, so every flow taps
+# through it here and still starts on Home. Delete this line with the session demo.
+- runFlow: sign-in.yaml

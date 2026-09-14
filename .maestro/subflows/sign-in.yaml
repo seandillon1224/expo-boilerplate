@@ -1,0 +1,15 @@
+# Get past the demo sign-in gate (T13.6). Run by both launch subflows, so every flow still starts
+# on Home exactly as it did before `(tabs)` moved behind `<Stack.Protected>`.
+#
+# A fresh launch is always signed out (native clears state, the web driver starts a fresh browser
+# context), so the gate is unconditional: assert it, tap through it, and let the caller's own
+# first assertion confirm where it landed.
+#
+# If you remove the session demo, delete this file and the `runFlow: ../sign-in.yaml` lines in
+# subflows/launch.yaml, subflows/launch-web.yaml and subflows/steps/not-found.yaml.
+appId: ${MAESTRO_APP_ID}
+---
+- assertVisible:
+    id: sign-in-screen
+- tapOn:
+    id: sign-in-submit
