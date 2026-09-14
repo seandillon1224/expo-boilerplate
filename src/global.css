@@ -5,10 +5,13 @@
 @import 'nativewind/theme';
 
 /*
- * Semantic theme tokens. Raw values live on :root (light) and are overridden for
- * dark mode via prefers-color-scheme, which NativeWind maps to the Appearance API
- * on native and to the real media query on web. Values mirror Colors in
- * src/constants/theme.ts so StyleSheet-based and className-based UI agree.
+ * Semantic theme tokens — the single source of truth for app colour. Raw values live
+ * on :root (light) and are overridden for dark mode via prefers-color-scheme, which
+ * NativeWind maps to the Appearance API on native and to the real media query on web.
+ * Consume them as Tailwind classes (bg-background, text-foreground, ...) via the
+ * @theme inline block below; navigation chrome comes from React Navigation's
+ * DefaultTheme/DarkTheme in src/app/_layout.tsx. There is no parallel TS palette:
+ * add a token here rather than hardcoding a hex value in a component.
  */
 :root {
   --background: #ffffff;
