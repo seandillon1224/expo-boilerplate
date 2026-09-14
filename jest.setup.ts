@@ -30,6 +30,7 @@ jest.mock('@/lib/devtools', () => ({ useDevTools: jest.fn() }));
 // Sentry needs native modules; the app only ever calls this small surface.
 jest.mock('@sentry/react-native', () => ({
   init: jest.fn(),
+  addBreadcrumb: jest.fn(),
   captureException: jest.fn(),
   setTag: jest.fn(),
   setContext: jest.fn(),

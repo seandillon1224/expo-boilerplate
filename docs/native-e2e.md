@@ -349,6 +349,41 @@ identifier on iOS (`id: tab-settings`), but only a view tag on Android (Maestro 
 the visible label is matched via `TAB_LABEL`) and absent on web (Radix generates
 `radix-<uid>-trigger-(settings)-<nanoid>`, matched by regex).
 
+There is no way to give the Android tab bar a real id, and it is worth knowing why before anyone
+tries again. `NativeTabs.Trigger` exposes exactly two selectable strings on Android: `testID`,
+which expo-router documents as "the item's view tag, which Espresso-based drivers like Detox read
+but Maestro and Appium do not", and `accessibilityLabel`, which becomes the item's
+`contentDescription`. The second one _is_ matchable — but it is also the string TalkBack reads
+aloud, so buying a stable selector with it means every blind user hears "tab-settings" instead of
+"Settings", and `bun run e2e:a11y` exists to catch exactly that. The label selector stays, and the
+variable it depends on gets pinned instead.
+
+### Device locale
+
+Matching a visible label is only deterministic if the device's language is. Today the app bundles
+one catalog (`src/i18n/locales/en`) and every other locale falls back to it, so a French emulator
+still renders "Settings" — but the template invites a second catalog, and the day one lands, a
+worker image with a different locale turns a healthy app into a failing tab tap. So the Android
+lane pins the locale rather than assuming it:
+
+| Where                                        | How                                                                                                                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bun run e2e:android`                        | An AVD this script boots gets `-prop persist.sys.locale=en-US` at launch; an already-running device is pinned by `pinAndroidLocale()` before the APK is installed. |
+| `maestro_android` (`.eas/workflows/e2e.yml`) | A `before_maestro_tests` hook runs the same file: `node scripts/e2e-pin-locale.js`.                                                                                |
+
+`scripts/e2e-pin-locale.js` reads `persist.sys.locale` (falling back to the image's
+`ro.product.locale`) and does nothing when the device is already on an English locale — the common
+path on a stock emulator image is one `getprop`. When it does differ, the property alone is not
+enough: the framework reads it at start, so the script restarts the framework
+(`adb shell stop && start`, ~20 s) and waits for `sys.boot_completed`. It never exits non-zero — a
+locale that could not be pinned (a production-signed device rejects `setprop`) is a warning, so
+the run still fails on the flows rather than on the preflight.
+
+iOS needs none of this: the iOS branch of `select-tab.yaml` selects by accessibility identifier,
+which does not move with the language. Change the pinned locale in one place, `DEFAULT_LOCALE` in
+`scripts/e2e-pin-locale.js`, and keep the `TAB_LABEL` values in `subflows/steps/*.yaml` spelled
+the way that locale's catalog spells them.
+
 ### Adding a flow
 
 1. Write the steps once in `.maestro/subflows/steps/<name>.yaml` with an `appId: ${MAESTRO_APP_ID}`

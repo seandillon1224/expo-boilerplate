@@ -58,6 +58,15 @@ export async function flushSentry(): Promise<void> {
   await Sentry.flush();
 }
 
+/**
+ * Add a breadcrumb — the trail of "what happened just before" attached to the next event.
+ * A no-op when no client was initialised, which is every build without a DSN. Called by
+ * `@/lib/analytics`; screens use `track()` rather than this.
+ */
+export function addBreadcrumb(message: string, data?: Record<string, unknown>): void {
+  Sentry.addBreadcrumb({ category: 'analytics', type: 'user', level: 'info', message, data });
+}
+
 /** Report a handled error. Safe to call when Sentry is not initialised. */
 export function captureException(error: unknown, context?: Record<string, unknown>): void {
   Sentry.captureException(error, context ? { extra: context } : undefined);

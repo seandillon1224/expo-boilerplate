@@ -12,6 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { collectDeviceLogs } = require('./e2e-device-logs');
+const { DEFAULT_LOCALE, pinAndroidLocale } = require('./e2e-pin-locale');
 const { parseArgs, runMain } = require('./lib/args');
 const {
   MAESTRO_HINT,
@@ -180,7 +181,17 @@ function runAndroid(maestro, id, ctx) {
         'no device online and no AVDs defined. Create one in Android Studio → Device Manager.',
       );
     console.log(`Emulator: starting AVD ${avd} …`);
-    const child = spawn(emulator, ['-avd', avd, '-no-snapshot-save', '-no-boot-anim'], {
+    // `-prop` sets the property before the framework starts, so an AVD we boot ourselves comes
+    // up on the right locale and `pinAndroidLocale` below never has to restart it.
+    const emulatorArgs = [
+      '-avd',
+      avd,
+      '-no-snapshot-save',
+      '-no-boot-anim',
+      '-prop',
+      `persist.sys.locale=${DEFAULT_LOCALE}`,
+    ];
+    const child = spawn(emulator, emulatorArgs, {
       detached: true,
       stdio: 'ignore',
     });
@@ -195,6 +206,9 @@ function runAndroid(maestro, id, ctx) {
   }
   waitForBoot(adb, serial);
   console.log(`Device: ${serial}`);
+  // The Android tab tap selects by visible label, so the language has to be ours, not the
+  // device's (docs/native-e2e.md → Device locale). A no-op on a device already in English.
+  pinAndroidLocale({ device: serial });
   const install = run(adb, ['-s', serial, 'install', '-r', ctx.artifact], { stdio: 'inherit' });
   if (install.status !== 0) fail(NAME, `adb install ${relative(ctx.artifact)} failed.`);
   // Start logcat from a clean buffer so device/logcat.txt only covers this run.

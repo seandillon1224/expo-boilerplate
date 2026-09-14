@@ -51,6 +51,7 @@ The reasoning, and the rules not repeated here, are in `docs/conventions.md`.
   is meant to be deleted or replaced: the removal checklist is that file's header. Every Maestro
   launch subflow runs `.maestro/subflows/sign-in.yaml` so flows still start on Home
   (`docs/conventions.md` → The session demo).
+- Product events go through `track()` (`@/lib/analytics` → `Observe.logEvent` + a Sentry breadcrumb) and persistence through `@/lib/storage` (`storage.get/set/remove`, or `storageDriver` for libraries that serialise themselves) — screens and features never import a telemetry or storage vendor directly.
 - Loading / empty / error UI comes from `@/components/states` with screen-specific `testID`s; render errors go through `ErrorBoundary` / the root layout's `RouteErrorBoundary`.
 - OTA behaviour changes in exactly one place, `useUpdatePolicy` (ADR-0003); screens never call `expo-updates` actions. Every screen that loads data calls `markInteractive` once content is usable, never while loading.
 - `@rozenite/*` is imported only in `src/lib/devtools-plugins.ts`, behind the `__DEV__` require in `src/lib/devtools.ts` (`docs/rozenite.md`).
