@@ -6,6 +6,10 @@
  *   bun scripts/serve-web.js            # serves dist-web/ on http://localhost:8081
  *   PORT=3000 DIST=dist-web bun scripts/serve-web.js
  *
+ * It also serves `.maestro/fixtures/*.json` under `/fixtures/` (T13.2) so the web fetch flow can
+ * run with no network: `bun run export:web:e2e` bakes `EXPO_PUBLIC_API_URL=<host>/fixtures` into
+ * the export, and `${API_URL}/posts?_limit=10` then resolves to `.maestro/fixtures/posts.json`.
+ *
  * `expo export --platform web` with `web.output: 'static'` writes one HTML file per route
  * (`index.html`, `fetch.html`, `settings.html`, ...). Resolution order for a request path:
  *   1. the exact file (`/_expo/static/js/...`, `/favicon.ico`)
@@ -20,7 +24,13 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const DIST = path.resolve(ROOT, process.env.DIST || 'dist-web');
+const FIXTURES = path.resolve(ROOT, process.env.FIXTURES || '.maestro/fixtures');
 const PORT = Number(process.env.PORT || 8081);
+
+/** Request prefix the fixture API answers on; `EXPO_PUBLIC_API_URL` ends with it. */
+const FIXTURE_PREFIX = '/fixtures/';
+/** One path segment, no dots: `..`, `/` and `%2e%2e` cannot survive this. */
+const FIXTURE_NAME = /^[a-z0-9][a-z0-9-]*$/;
 
 function isFile(candidate) {
   try {
@@ -52,6 +62,23 @@ function resolveFile(pathname, dist = DIST) {
   return candidates.find(isFile) ?? null;
 }
 
+/**
+ * Maps `/fixtures/<name>` to `<fixtures>/<name>.json`, or null when the request is not for a
+ * fixture (or names one that does not exist). Deliberately not a second static server: the name
+ * is a single allow-listed segment (`[a-z0-9-]`, no dot, no slash, never percent-decoded) and the
+ * `.json` extension is appended here, so no request can reach a file the fixture directory does
+ * not own — `..`, `%2e%2e` and `/etc/hosts` all fail the pattern before a path is built.
+ */
+function resolveFixture(pathname, fixtures = FIXTURES) {
+  if (!pathname.startsWith(FIXTURE_PREFIX)) return null;
+  const name = pathname.slice(FIXTURE_PREFIX.length);
+  if (!FIXTURE_NAME.test(name)) return null;
+  const target = path.join(fixtures, `${name}.json`);
+  // Belt and braces: the pattern already guarantees containment.
+  if (!target.startsWith(fixtures + path.sep)) return null;
+  return isFile(target) ? target : null;
+}
+
 function serve() {
   if (!fs.existsSync(path.join(DIST, 'index.html'))) {
     console.error(`serve-web: ${DIST}/index.html not found. Run \`bun run export:web\` first.`);
@@ -62,16 +89,24 @@ function serve() {
     port: PORT,
     fetch(request) {
       const { pathname } = new URL(request.url);
-      const file = resolveFile(pathname) ?? path.join(DIST, 'index.html');
       const headers = { 'Cache-Control': 'no-store' };
+      if (pathname.startsWith(FIXTURE_PREFIX)) {
+        const fixture = resolveFixture(pathname);
+        // No SPA fallback here: a fixture typo must fail loudly as a 404, not hand the app
+        // index.html and surface as a JSON parse error inside the flow.
+        if (!fixture) return new Response('fixture not found', { status: 404, headers });
+        return new Response(Bun.file(fixture), { headers });
+      }
+      const file = resolveFile(pathname) ?? path.join(DIST, 'index.html');
       return new Response(Bun.file(file), { headers });
     },
   });
   console.log(
-    `serve-web: serving ${path.relative(ROOT, DIST)}/ at http://localhost:${server.port}`,
+    `serve-web: serving ${path.relative(ROOT, DIST)}/ at http://localhost:${server.port}` +
+      ` (fixtures: ${path.relative(ROOT, FIXTURES)}/ at /fixtures/<name>)`,
   );
 }
 
-module.exports = { resolveFile };
+module.exports = { resolveFile, resolveFixture };
 
 if (require.main === module) serve();

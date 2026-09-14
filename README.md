@@ -67,7 +67,7 @@ The most-used scripts; the full list with flags is [Commands](docs/commands.md).
 | Dev server | `bun run ios` / `bun run android` / `bun run web`                                                        |
 | Local gate | `bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check`                |
 | Env        | `bun run env:check`, `bun run env:pull` (`EAS_ENV=preview\|production` for the others)                   |
-| E2E web    | `bun run export:web`, `bun run serve:web`, then `bun run e2e:web`                                        |
+| E2E web    | `bun run export:web:e2e`, `bun run serve:web`, then `bun run e2e:web`                                    |
 | E2E native | `bun run e2e:build` → `bun run e2e:repack` → `bun run e2e:ios` / `bun run e2e:android`                   |
 | Perf       | `bun run perf:baseline` then `bun run perf`; `bun run export:web && bun run budget`; `bun run atlas`     |
 | Release    | `bun run fingerprint`; `bun run eas workflow:run promote.yml -F target=uat`; merge the release-please PR |

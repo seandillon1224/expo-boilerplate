@@ -110,6 +110,45 @@ describe('FetchScreen', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('jsonplaceholder.typicode.com/posts');
   });
 
+  it('renders the error state when the body does not match the schema', async () => {
+    // `postSchema` (Zod) is the only thing standing between a changed API and `undefined.title`
+    // in a render, so a well-formed 200 with the wrong shape must land in the error state.
+    // Same deferred-promise pattern as above: nothing resolves until the explicit act().
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    let resolveFetch: (value: Response) => void = () => {};
+    fetchMock.mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    await renderWithQuery(<FetchScreen />);
+    expect(screen.getByTestId('fetch-loading')).toBeOnTheScreen();
+
+    // `title` is a number and `body` is missing: JSON-parseable, schema-invalid.
+    const response = await jsonResponse([{ userId: 1, id: 1, title: 42 }]);
+    await act(async () => {
+      resolveFetch(response);
+    });
+
+    expect(await screen.findByTestId('fetch-error')).toBeOnTheScreen();
+    expect(screen.getByText('Something went wrong')).toBeOnTheScreen();
+    expect(screen.getByText('Unexpected response shape')).toBeOnTheScreen();
+    expect(screen.queryByTestId('fetch-list')).not.toBeOnTheScreen();
+    expect(markInteractive).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('renders the error state when the body is not an array at all', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    fetchMock.mockImplementation(() => jsonResponse({ posts: [] }));
+    await renderWithQuery(<FetchScreen />);
+    expect(await screen.findByTestId('fetch-error')).toBeOnTheScreen();
+    expect(screen.getByText('Unexpected response shape')).toBeOnTheScreen();
+    warn.mockRestore();
+  });
+
   it('renders the empty state when the API returns no posts', async () => {
     fetchMock.mockImplementation(() => jsonResponse([]));
     await renderWithQuery(<FetchScreen />);
