@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react-native';
+import { act, cleanup, renderHook } from '@testing-library/react-native';
 import * as Updates from 'expo-updates';
 import { AppState, type AppStateStatus } from 'react-native';
 
@@ -71,7 +71,10 @@ describe('useUpdatePolicy', () => {
     mockEnv.UPDATE_POLICY = 'silent';
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Unmount first: resetting the store while a `useUpdatePolicy()` hook is still mounted
+    // notifies its subscriber outside `act(...)`.
+    await cleanup();
     resetUpdatePolicyState();
     devGlobal.__DEV__ = originalDev;
     mockUpdates.isEnabled = false;

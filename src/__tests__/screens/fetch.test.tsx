@@ -65,9 +65,24 @@ describe('FetchScreen', () => {
   });
 
   it('marks the screen interactive once content is usable', async () => {
-    fetchMock.mockImplementation(() => jsonResponse(posts));
+    // The request stays deferred so the loading-phase assertion cannot race the query
+    // resolving; only the explicit resolve below moves the screen to its content state.
+    let resolveFetch: (value: Response) => void = () => {};
+    fetchMock.mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
     await renderWithQuery(<FetchScreen />);
+    expect(screen.getByTestId('fetch-loading')).toBeOnTheScreen();
     expect(markInteractive).not.toHaveBeenCalled();
+
+    const response = await jsonResponse(posts);
+    await act(async () => {
+      resolveFetch(response);
+    });
+
     expect(await screen.findByText('First post')).toBeOnTheScreen();
     expect(markInteractive).toHaveBeenCalledTimes(1);
   });
