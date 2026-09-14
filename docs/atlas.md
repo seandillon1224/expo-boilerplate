@@ -38,9 +38,9 @@ To see release sizes while still using the dev server: `EXPO_ATLAS=true bun run 
 ### From a release export (`bun run atlas:export`)
 
 ```sh
-bun run atlas:export            # all platforms → one Atlas with a platform switcher
-bun run atlas:export:web        # or :ios / :android
-bun run atlas:serve             # re-open the last export without re-bundling
+bun run atlas:export                        # all platforms → one Atlas with a platform switcher
+ATLAS_PLATFORM=web bun run atlas:export     # or ios / android
+bun run atlas:serve                         # re-open the last export without re-bundling
 ```
 
 `atlas:export` runs `expo export` with Atlas on into `dist-atlas/` (kept separate from the
