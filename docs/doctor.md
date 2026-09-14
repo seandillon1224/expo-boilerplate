@@ -15,10 +15,16 @@ step (`--skip-doctor` to skip). No network access except `eas whoami`.
 | EAS CLI           | major of `eas-cli` in `package.json`, resolved via `bun run eas --version`               | —        | EAS build / update / workflows, `env:pull` |
 | EAS login         | `bun run eas whoami --non-interactive` succeeds, or `EXPO_TOKEN` is set                  | —        | `e2e:build`, `env:pull`, `devices:*`       |
 | GitHub CLI + auth | `gh` installed, `gh auth status` logged in                                               | —        | `repo:settings:*`                          |
-| Maestro           | `>= 2.9.0`; CI pins `2.10.0` (`ci.yml`, `.eas/workflows/e2e.yml`); `~/.maestro/bin` ok   | —        | `e2e:web`, `e2e:ios`, `e2e:android`        |
+| Maestro           | `>= EXPECTED.maestroMin`; CI pins `EXPECTED.maestroPinned`; `~/.maestro/bin` ok          | —        | `e2e:web`, `e2e:ios`, `e2e:android`        |
 | Xcode             | `>= 16.0` + at least one iOS simulator; macOS only (`skip` elsewhere)                    | —        | iOS lane                                   |
 | Android SDK       | `ANDROID_HOME` (or `ANDROID_SDK_ROOT`) exists, `adb` and `emulator` resolvable           | —        | Android lane                               |
 | Java              | JDK `>= 17` — what the Maestro CLI and `@expo/repack-app`'s build-tools need             | —        | Maestro, Android repack                    |
+
+Version floors live once, in `EXPECTED` at the top of `scripts/doctor.js` — this table names the
+key rather than repeating the number. The Maestro pin (`EXPECTED.maestroPinned`) is the same value
+as `maestro_version:` in `.eas/workflows/*.yml` and `MAESTRO_VERSION:` in `.github/workflows/ci.yml`;
+the Maestro custom manager in `.github/renovate.json5` bumps all three in one PR, so never edit one
+of them alone.
 
 Statuses: `ok`, `warn` (missing / incompatible / logged out, but only an optional lane is
 affected), `MISSING` (a required tool — Bun, Node, git — is absent or incompatible), `skip` (not

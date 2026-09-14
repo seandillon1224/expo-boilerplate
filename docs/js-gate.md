@@ -71,9 +71,32 @@ on any leftover template identifier outside `KEEP` — PLAN.md decision 4's defi
 Renovate path (`.github/renovate.json5`): dev-tooling minor/patch and GitHub Actions minor/patch/digest
 updates open a PR with `automerge: true`, `automergeType: 'pr'`, `platformAutomerge: true`. Renovate
 enables GitHub's native auto-merge on the PR, and GitHub squash-merges it the moment every required
-check passes; nothing polls. The `expo sdk` group and any Expo/React Native major are never
-auto-merged. Because the PR body is the squash message, Renovate PRs land as `chore(deps): ...`
-commits (`:semanticCommits`).
+check passes; nothing polls. Because the PR body is the squash message, Renovate PRs land as
+`chore(deps): ...` commits (`:semanticCommits`).
+
+What is deliberately **not** auto-merged:
+
+- the `expo sdk` group (`expo`, `react`, `react-native`, `expo-**`, `@expo/**`, `react-native-**`,
+  `@react-native/**`, `eslint-config-expo`, `jest-expo`) — these move together via
+  `bunx expo install --fix`, not one at a time — and any major in that same list, which is
+  `enabled: false` outright and goes through the expo-upgrade flow instead;
+- majors of `oxlint` / `eslint-plugin-oxlint`, `vitepress` / `vitepress-plugin-mermaid` / `mermaid`,
+  and `eas-cli`. Each of those groups is `matchUpdateTypes: ['minor', 'patch']`, so a major falls
+  through to a plain un-auto-merged PR. `eas-cli` needs the carve-out because the `cli.version`
+  floor in `eas.json` (`>= 23.0.0`) does not cap the major.
+
+Every update also waits `minimumReleaseAge: '3 days'` with `internalChecksFilter: 'strict'`, so a
+yanked or hotfixed release never reaches a PR (digest re-tags opt out at `0 days`).
+
+Two pins have no native Renovate manager and are covered by `customManagers`:
+
+| Pin             | Files                                                                                                                | Datasource                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Maestro CLI     | `maestro_version:` in `.eas/workflows/*.yml`, `MAESTRO_VERSION:` in `ci.yml`, `maestroPinned` in `scripts/doctor.js` | `github-releases` `mobile-dev-inc/Maestro` (`cli-*` tags) |
+| Bun (EAS Build) | `build.base.bun` in `eas.json`                                                                                       | `github-releases` `oven-sh/bun` (`bun-v*` tags)           |
+
+The Maestro manager matches all of those occurrences in one PR, so the pin only ever exists as a
+single value — never bump one file by hand.
 
 ## Changing the required set
 

@@ -187,8 +187,10 @@ jobs:
     # Maestro web entries (`.maestro/flows/web`, tag `web`) against the static export from the
     # bundle-budget web entry (PLAN.md decisions 6, 10). `needs` on a matrix job waits for every
     # platform entry; only the web artifact is used. Maestro drives its own Chromium; JDK 17+ is
-    # preinstalled on ubuntu-latest. Pinned MAESTRO_VERSION: 2.3.0 reads a 1px viewport on
-    # Chrome 150+, fixed in 2.9.0.
+    # preinstalled on ubuntu-latest. The version below is pinned and kept in lockstep with
+    # `.eas/workflows/*.yml` and `EXPECTED.maestroPinned` in `scripts/doctor.js` by the Maestro
+    # custom manager in `.github/renovate.json5`; Maestro 2.3.0 read a 1px viewport on Chrome
+    # 150+, fixed in 2.9.0.
     name: Maestro web
     runs-on: ubuntu-latest
     timeout-minutes: 20
