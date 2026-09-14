@@ -42,22 +42,9 @@ features:
     linkText: Toolchain check
 ---
 
-## The pipeline
+## Where to start
 
-```mermaid
-flowchart LR
-  PR["Pull request"] --> GATE["JS gate: lint, typecheck, unit, knip, format, commitlint, secret scan, bundle budgets, Maestro web"]
-  PR --> E2E["E2E (native): fingerprint, build if needed, repack, Maestro iOS + Android"]
-  PR --> PREVIEW["Preview web: pr-N alias + PR comment (web-preview label)"]
-  PR --> DRIFT["Fingerprint drift: informational PR comment"]
-  GATE --> MERGE["Squash-merge to main"]
-  E2E --> MERGE
-  MERGE --> STAGING["Deploy staging: build on fingerprint miss, OTA to staging, web staging alias"]
-  STAGING -->|"promote.yml, approval"| UAT["UAT: same update group republished, web uat alias"]
-  UAT -->|"promote.yml, approval, fingerprint gate"| PROD["Production: same update group republished, web production URL"]
-  MERGE -->|"release-please PR merged, vX.Y.Z tag, production reviewer"| RELEASE["Release: store builds to TestFlight + Play internal, skipped if fingerprint unchanged"]
-```
-
-[CI overview](ci-overview.md) is the legend for this picture: every job and workflow, what
-triggers it, what it needs, and where to look when one is red. The
-[release ladder](release-ladder.md) is the runbook from a merge to the stores.
+[CI overview](ci-overview.md) is the map of the pipeline — every GitHub Actions job and EAS
+workflow, what triggers it, what it needs, the repo constants that keep owner-dependent jobs
+skipped, and where to look when one is red. The [release ladder](release-ladder.md) is the runbook
+from a merge to the stores, and [Commands](commands.md) is every script with its flags.

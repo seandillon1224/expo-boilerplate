@@ -607,16 +607,22 @@ const REMOVAL = Object.freeze({
       ],
     },
     {
+      // The command reference moved to docs/commands.md (T12.3); CLAUDE.md only names the gate
+      // jobs now, and the `Template init` job is one of them.
       file: 'CLAUDE.md',
+      rules: [rule('ci bullet: template init job', /, template init(?=\))/g, () => '')],
+    },
+    {
+      // The last section of docs/commands.md: its heading, its one-line intro and the two bullets.
+      file: 'docs/commands.md',
       rules: [
-        rule('init command bullet', /^- `bun run init` — [^\n]*\n/gm, () => ''),
-        rule('template:e2e command bullet', /^- `bun run template:e2e` — [^\n]*\n/gm, () => ''),
         rule(
-          'doctor bullet: init step',
-          / Also the first `init` step \(`--skip-doctor`\)\./g,
+          'template section',
+          /^\n## Template\n\nOnly while this checkout is the template[^\n]*\n\n/m,
           () => '',
         ),
-        rule('ci bullet: template init job', /, template init(?=\))/g, () => ''),
+        rule('init command bullet', /^- `bun run init` — [^\n]*\n/gm, () => ''),
+        rule('template:e2e command bullet', /^- `bun run template:e2e` — [^\n]*\n/gm, () => ''),
       ],
     },
     {

@@ -5,7 +5,7 @@ runs it on every PR to `main` and every push to `main` (PLAN.md decision 1). Bra
 `main` requires every check below except `Perf (Reassure)` and `Fingerprint drift`, so a PR merges exactly when the
 required set is green. The native lane (fingerprint → build → repack → Maestro on device → update)
 runs in EAS Workflows (`.eas/workflows/e2e.yml`) and reports to the PR separately; see
-[How EAS checks appear on the PR](#how-eas-checks-appear-on-the-pr-wired-in-e4).
+[How EAS checks appear on the PR](#how-eas-checks-appear-on-the-pr).
 
 ## Checks
 
@@ -159,7 +159,7 @@ To see what a PR is waiting on: `gh pr checks <n>` and
 `gh pr view <n> --json mergeStateStatus -q .mergeStateStatus` (`CLEAN` = mergeable, `BLOCKED` =
 a required context is missing or red).
 
-## How EAS checks appear on the PR (wired in E4)
+## How EAS checks appear on the PR
 
 > **Status: wired, not required.** `.eas/workflows/e2e.yml` (`E2E (native)`) runs on every PR to
 > `main` and posts one PR comment per run. Its check context is deliberately **not** in

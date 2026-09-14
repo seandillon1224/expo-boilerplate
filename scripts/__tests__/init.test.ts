@@ -450,8 +450,9 @@ describe('planRemoval (fixture strings)', () => {
           '{\n  "scripts": {\n    "init": "node scripts/init.js",\n    "doctor": "node scripts/doctor.js",\n    "template:e2e": "node scripts/template-e2e.js",\n  }\n}',
         'README.md':
           'bun run doctor # check\nbun run init   # new app (docs/template-init.md)\nbun run ios\n\n- [Template init](docs/template-init.md) — x.\n- [JS gate](docs/js-gate.md) — y.\n',
-        'CLAUDE.md':
-          '- `bun run doctor` — toolchain check. Also the first `init` step (`--skip-doctor`). Expected versions: x\n- `bun run init` — rebrand.\n- `bun run template:e2e` — e2e.\n- `bun run ios`\n- GitHub Actions = JS gate only (lint, Maestro web, template init).\n',
+        'CLAUDE.md': '- GitHub Actions = JS gate only (lint, Maestro web, template init).\n',
+        'docs/commands.md':
+          '| `bun run doctor` | toolchain check |\n\nEvery workflow: [CI overview](ci-overview.md).\n\n## Template\n\nOnly while this checkout is the template itself; running the init script removes both and this section.\n\n- `bun run init` — rebrand ([Template init](template-init.md))\n- `bun run template:e2e` — e2e\n',
         'docs/doctor.md':
           'exact install command. It is also the first `init`\nstep (`--skip-doctor` to skip). No network access.\n',
         '.github/workflows/ci.yml':
@@ -470,8 +471,9 @@ describe('planRemoval (fixture strings)', () => {
     expect(after['README.md']).toBe(
       'bun run doctor # check\nbun run ios\n\n- [JS gate](docs/js-gate.md) — y.\n',
     );
-    expect(after['CLAUDE.md']).toBe(
-      '- `bun run doctor` — toolchain check. Expected versions: x\n- `bun run ios`\n- GitHub Actions = JS gate only (lint, Maestro web).\n',
+    expect(after['CLAUDE.md']).toBe('- GitHub Actions = JS gate only (lint, Maestro web).\n');
+    expect(after['docs/commands.md']).toBe(
+      '| `bun run doctor` | toolchain check |\n\nEvery workflow: [CI overview](ci-overview.md).\n',
     );
     expect(after['docs/doctor.md']).toBe('exact install command. No network access.\n');
     expect(after['.github/workflows/ci.yml']).toBe('jobs:\n  lint:\n    name: Lint\n');
@@ -701,8 +703,9 @@ describeTemplate('integration (headless init on a temp copy)', () => {
     expect(pkg.scripts['template:e2e']).toBeUndefined();
     expect(pkg.scripts.doctor).toBe('node scripts/doctor.js');
     expect(readIn(dir, 'README.md')).not.toMatch(/bun run init|template-init/);
-    expect(readIn(dir, 'CLAUDE.md')).not.toMatch(
-      /bun run init|template-init|Also the first `init` step/,
+    expect(readIn(dir, 'CLAUDE.md')).not.toMatch(/bun run init|template-init|template init\)/);
+    expect(readIn(dir, 'docs/commands.md')).not.toMatch(
+      /bun run init|template:e2e|template-init|## Template/,
     );
     expect(readIn(dir, 'docs/doctor.md')).not.toContain('first `init`');
 

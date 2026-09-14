@@ -70,7 +70,7 @@ What has to be true for a PR to be gated properly on `main`.
 - **Proof:** `bun run repo:settings:check` is clean and the check shows **Required** on a PR.
 - **Budget:** the first run has no cached base build and cuts two paid builds (~15 min each); every
   JS-only PR after that repacks.
-- **More:** [JS gate → How EAS checks appear on the PR](js-gate.md#how-eas-checks-appear-on-the-pr-wired-in-e4).
+- **More:** [JS gate → How EAS checks appear on the PR](js-gate.md#how-eas-checks-appear-on-the-pr).
 
 ## Staging
 

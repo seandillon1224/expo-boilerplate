@@ -4,7 +4,7 @@
 
 An opinionated Expo template with the delivery pipeline already wired: a JS gate on GitHub Actions, native Maestro E2E and a staging → UAT → production release ladder on EAS Workflows, web on EAS Hosting with PR previews, performance tooling from dev to prod, and a self-deleting init script that turns the template into your app. Opinionated infra, thin product: the demo app is a home tab, a settings tab, an updates screen and one fetch screen. Bun only, Expo SDK 57, New Architecture and React Compiler on, CNG only (no committed `ios/` / `android/`).
 
-The locked decisions and the _why_ behind them: [ADR-0001](docs/adr/0001-locked-architecture-decisions.md) and the rest of [`docs/adr/`](docs/adr/README.md). How the template got here: `PLAN.md`. Working agreement for humans and agents: `CLAUDE.md`.
+The locked decisions and the _why_ behind them: [ADR-0001](docs/adr/0001-locked-architecture-decisions.md) and the rest of [`docs/adr/`](docs/adr/README.md). How the template got here: `PLAN.md`. Working on it: [Contributing](#contributing).
 
 ## What's inside
 
@@ -50,17 +50,17 @@ flowchart LR
 
 Who runs what:
 
-| System                                | Workflows                                                                                                                                                                                                                                                                                           |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GitHub Actions (`.github/workflows/`) | `ci.yml` = the JS gate (required checks, plus informational `Perf (Reassure)` and `Fingerprint drift`); `pr-title.yml`; `release.yml` = the `production` Environment reviewer that dispatches the EAS store release on a `vX.Y.Z` tag                                                               |
-| EAS Workflows (`.eas/workflows/`)     | `e2e.yml` (PR native check), `preview-web.yml` (PR web preview), `deploy-staging.yml` (push to `main`), `promote.yml` (manual, `require-approval`), `release.yml` (store builds + submit), `register-device.yml`, `observe-check.yml`, `e2e-quarantine.yml`, `e2e-cloud.yml` (opt-in Maestro Cloud) |
-| EAS Build / Update / Hosting          | Builds keyed by fingerprint (CI never runs Metro); channels `staging` / `uat` / `production` mirror the variants; web aliases `pr-N` / `staging` / `uat` and the production URL                                                                                                                     |
+| System                                | Workflows                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub Actions (`.github/workflows/`) | `ci.yml` = the JS gate (required checks, plus informational `Perf (Reassure)` and `Fingerprint drift`); `pr-title.yml`; `release-please.yml` = the release PR and the `vX.Y.Z` tag its merge pushes; `release.yml` = the `production` Environment reviewer that dispatches the EAS store release on that tag; `docs.yml` = the docs site to GitHub Pages                                                      |
+| EAS Workflows (`.eas/workflows/`)     | `e2e.yml` (PR native check), `preview-web.yml` (PR web preview), `deploy-staging.yml` (push to `main`), `promote.yml` (manual, `require-approval`), `rollout.yml` (manual, ramps a production rollout), `backport.yml` (manual, OTA onto older release tags), `release.yml` (store builds + submit), `register-device.yml`, `observe-check.yml`, `e2e-quarantine.yml`, `e2e-cloud.yml` (opt-in Maestro Cloud) |
+| EAS Build / Update / Hosting          | Builds keyed by fingerprint (CI never runs Metro); channels `staging` / `uat` / `production` mirror the variants; web aliases `pr-N` / `staging` / `uat` and the production URL                                                                                                                                                                                                                               |
 
 Two rules hold on the ladder: what UAT signed off is byte-for-byte what production gets (promotions republish an update group, never re-bundle), and an update only reaches builds with the same native fingerprint. Details, rollback and hotfix: [Release ladder](docs/release-ladder.md).
 
 ## Commands
 
-The most-used scripts; the full list with flags is in `CLAUDE.md`.
+The most-used scripts; the full list with flags is [Commands](docs/commands.md).
 
 | Task       | Command                                                                                                  |
 | ---------- | -------------------------------------------------------------------------------------------------------- |
@@ -92,7 +92,8 @@ Browse these as a site: `bun run docs:dev` (VitePress; `.github/workflows/docs.y
 
 - [Template init](docs/template-init.md) — `bun run init`: what it rewrites (app config, workflow envs, badges, docs), the steps (ledger + `PLAN.md` reset, self-delete, optional fresh git history), the flags, the headless form, and `bun run template:e2e`.
 - [Toolchain check](docs/doctor.md) — `bun run doctor`: every tool the lanes need, the expected versions and why, install hints, `--strict` / `--json`.
-- [CI overview](docs/ci-overview.md) — the map of both CI systems: every GitHub Actions job and EAS workflow, triggers, gates, repo constants (`HOSTING` / `IOS_MODE` / `IOS_BUILDS` / `IOS_RELEASE` / `PLAY_SUBMIT`), what each needs, and the "when something is red" triage table.
+- [Commands](docs/commands.md) — every `package.json` script with its flags, grouped by what you are doing: the local gate, dev, environments, tests and E2E, performance, release and repo settings.
+- [CI overview](docs/ci-overview.md) — the map of both CI systems: every GitHub Actions job and EAS workflow, triggers, gates, the repo constants that keep owner-dependent jobs skipped, what each needs, and the "when something is red" triage table.
 - [JS gate: required checks](docs/js-gate.md) — what gates merge, how merging works, running the gate locally.
 - [Testing](docs/testing.md) — the pyramid as built: Jest + RNTL (async v14 rules, what `jest.setup.ts` mocks, mocking env / i18n / query), script tests, Reassure, Maestro web and native lanes, the template e2e, what runs locally vs CI, how to write one more of each.
 - [Conventions](docs/conventions.md) — the house rules for humans: Bun-only, Conventional Commits and hooks, source layout and naming, `testID` / `t()` / `@/lib/env` / CNG / `APP_VARIANT` / `useUpdatePolicy` / states and error boundaries, docs conventions, how to change a locked decision.
@@ -108,6 +109,19 @@ Browse these as a site: `bun run docs:dev` (VitePress; `.github/workflows/docs.y
 - [EAS Observe and the TTI check](docs/observe.md) — what `expo-observe` reports from real installs, querying it (`bun run eas observe:*`), the `markInteractive` contract, `observe-budget.json`, `bun run observe:check`, and gating a promotion on startup TTI after a staging soak.
 - [Expo Atlas](docs/atlas.md) — bundle composition per platform (which module pulls what): `bun run atlas` against the dev server, `bun run atlas:export` for a release export; budget = the gate, Atlas = the diagnosis.
 - [Installing the staging app](docs/install-staging-app.md) — the no-CLI one-pager for designers / PMs / testers: iOS and Android install, and why "reinstall required" happens.
+
+## Contributing
+
+One ticket, one PR off `main`, squash-merged as soon as the required checks are green, with
+`Closes #n` in the PR body.
+
+- [`CLAUDE.md`](CLAUDE.md) — the working agreement: the commands an agent runs unprompted, the
+  non-negotiable rules and the shape of the pipeline, with a pointer to the page that owns each.
+- [Conventions](docs/conventions.md) — the same rules for people, with the reasoning: toolchain,
+  commits, source layout, the app-layer rules (`testID`, `t()`, `@/lib/env`, CNG, `APP_VARIANT`,
+  `useUpdatePolicy`), CI and docs conventions, and how to change a locked decision.
+- [JS gate: required checks](docs/js-gate.md) — what gates merge, how merging and auto-merge work,
+  and how to run the gate locally before pushing.
 
 ## Licence
 

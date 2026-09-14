@@ -61,8 +61,9 @@ entry must match on `main` (the drift guard in `scripts/__tests__/init.test.ts` 
 - `scripts/init.js`, `scripts/__tests__/init.test.ts`, this doc
 - the `init` script in `package.json`
 - the `bun run init` quick-start line and the "Template init" docs entry in `README.md`
-- the `bun run init` command bullet in `CLAUDE.md`, and the "Also the first `init` step" note on
-  the `bun run doctor` bullet (also in `docs/doctor.md`)
+- the whole "Template" section of `docs/commands.md` (the `bun run init` and `template:e2e`
+  bullets), the "Also the first `init` step" note in `docs/doctor.md`, and `template init` from the
+  JS-gate job list in `CLAUDE.md`
 
 `bun run doctor`, `scripts/doctor.js`, its test and `docs/doctor.md` stay: they are useful in
 the project. Comments in `app.config.ts`, the workflows and a few docs that say "`bun run init`
