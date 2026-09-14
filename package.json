@@ -127,6 +127,7 @@
     "perf:baseline": "reassure --baseline",
     "perf:check": "reassure check-stability",
     "perf:gate": "node scripts/reassure-gate.js",
+    "perf:flashlight": "node scripts/flashlight.js",
     "observe:check": "node scripts/observe-check.js",
     "prepare": "lefthook install",
     "repo:settings": "node scripts/repo-settings.js --dry-run",

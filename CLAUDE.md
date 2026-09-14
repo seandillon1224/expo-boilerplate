@@ -21,6 +21,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run test` — Jest; `test:coverage` for coverage
 - `bun run knip` — dead code / unused deps
 - `bun run perf:baseline` then `bun run perf` — Reassure render-perf compare (`.reassure/output.md`); `perf:gate` fails on significant regressions, `perf:check` measures machine stability
+- `bun run perf:flashlight` — Flashlight release-build CPU / RAM / FPS of one Maestro flow on an online Android emulator / device with the e2e build installed (`bun run e2e:android --keep` first): `--platform android`, `--device`, `--out` (default `flashlight`), `--iterations 5`, `--duration 10000`, `--flow .maestro/flows/fetch.yaml`, `--install`, `--no-fail` (the informational EAS hook mode, off behind the `FLASHLIGHT` constant in `e2e.yml`); ADR-0007, `docs/performance.md`
 - `bun run observe:check` — EAS Observe startup-TTI check against `observe-budget.json` (`--platform`, `--days`, `--version`, `--update-id`, `--strict`; `--input <json>` offline); skips with a notice while Observe has no data / session (see `docs/observe.md`)
 - `bun run export:web` (or `export:ios` / `export:android`) then `bun run budget` — JS-only export + gzip bundle-budget check (`bundle-budget.json`)
 - `bun run atlas` — dev server with Expo Atlas at `http://localhost:8081/_expo/atlas`; `bun run atlas:export` (or `atlas:export:web|ios|android`) — release export with Atlas on, then serve `.expo/atlas.jsonl` (`atlas:serve` re-opens it). Atlas is `EXPO_ATLAS=true`-gated and never set in CI / EAS (`docs/atlas.md`)

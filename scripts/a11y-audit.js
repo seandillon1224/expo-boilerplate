@@ -404,13 +404,17 @@ function main() {
 module.exports = {
   INTERACTIVE_ELEMENTS,
   SCREENS,
+  // Shared with scripts/flashlight.js (same device / app-id preflight, ADR-0007).
+  appId,
   auditScreen,
   collectInteractiveIds,
   extractInteractiveIds,
   flattenNodes,
   labelOf,
   parseHierarchy,
+  pickDevice,
   renderTable,
+  which,
 };
 
 if (require.main === module) main();

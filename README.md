@@ -86,7 +86,6 @@ Deliberately not in the template (PLAN.md decision 5: no auth, backend or forms)
 - **Analytics** — PostHog (`posthog-react-native`) or Segment; keep the key in EAS environment variables and read it through `@/lib/env`.
 - **Storybook** — deliberately not included (PLAN.md decision 14); the demo screens plus RNTL and Reassure cover component work.
 - **Multi-runtime OTA backports** — shipping OTA-safe fixes to older store runtimes ([#61](https://github.com/seandillon1224/expo-boilerplate/issues/61)).
-- **Flashlight** — Android performance scores in the native E2E lane ([#63](https://github.com/seandillon1224/expo-boilerplate/issues/63)).
 
 ## Docs
 

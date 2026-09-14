@@ -1,9 +1,10 @@
 # Native E2E lane (PLAN.md decisions 1, 2, 6, 14). Per platform: fingerprint → get_build (hit:
 # repack this commit's JS into the cached base | miss: paid full build) → maestro, then one PR
-# comment. iOS is the expensive lane and can be tiered down (IOS_MODE below). The full story —
-# cache idiom, tiered-mode matrix, local twins, failure artifacts — is docs/native-e2e.md.
+# comment. iOS is the expensive lane and can be tiered down (IOS_MODE below); Flashlight perf
+# profiling on Android is opt-in (FLASHLIGHT below, ADR-0007). The full story — cache idiom,
+# tiered-mode matrix, local twins, failure artifacts — is docs/native-e2e.md.
 #
-# Run by hand:  bun run eas workflow:run .eas/workflows/e2e.yml [-F ios_mode=always]
+# Run by hand:  bun run eas workflow:run .eas/workflows/e2e.yml [-F ios_mode=always] [-F flashlight=enabled]
 # Validate:     bun run eas workflow:validate .eas/workflows/e2e.yml   (file cap: 16 KiB)
 # PR triggers need the Expo GitHub App linked to the repo (docs/native-e2e.md → Workflow).
 name: E2E (native)
@@ -28,6 +29,13 @@ on:
         default: always
         required: false
         description: always = iOS on every run; main-only = iOS only on push-to-main / dispatch; label = iOS only on PRs labelled `e2e:ios`. Android always runs.
+      # FLASHLIGHT 2/2 — the dispatch-time override. Keep `default` equal to the repo constant.
+      flashlight:
+        type: choice
+        options: [enabled, disabled]
+        default: disabled
+        required: false
+        description: enabled = run Flashlight (CPU / RAM / FPS of one flow, informational) after the Android Maestro step and upload the report. Android only.
 
 concurrency:
   # A new push to the same branch cancels the run in flight.
@@ -220,6 +228,21 @@ jobs:
             type: other
             name: A11y audit (android)
             path: a11y-audit
+        # FLASHLIGHT 1/2 — the repo constant is the `|| 'disabled'` fallback (inputs are empty
+        # outside workflow_dispatch); the script gates on the env var and prints a skip notice,
+        # so the upload below always has a directory. Informational, never red (ADR-0007).
+        - name: Flashlight
+          if: ${{ always() }}
+          env:
+            FLASHLIGHT: ${{ inputs.flashlight || 'disabled' }}
+          run: node scripts/flashlight.js --platform android --no-fail --out flashlight
+        - name: Upload Flashlight report
+          if: ${{ always() }}
+          uses: eas/upload_artifact
+          with:
+            type: other
+            name: Flashlight (android)
+            path: flashlight
 
   # --- PR comment --------------------------------------------------------------------------
 
