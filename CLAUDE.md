@@ -32,7 +32,8 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run env:check` — validate `EXPO_PUBLIC_*` against the Zod schema (also runs at app startup)
 - `bun run env:pull` — pull EAS environment variables into `.env.local` (`EAS_ENV=preview|production` or `env:pull:preview` / `env:pull:production`); uses the repo-pinned `eas-cli`
 - `bun run i18n:extract` / `i18n:check` — sync `src/i18n/locales/*/common.json` with `t()` keys in code / fail if out of sync
-- `bun run repo:settings:apply` / `repo:settings:check` — push / diff `main` branch protection + merge settings + `uat`/`production` environments + the automation's labels (`scripts/repo-settings.js`; plain `repo:settings` is a dry run; `--only protection|repo|environments|labels` for a subset). New labels used by workflows or skills go into `LABELS` there.
+- `bun run repo:settings:apply` / `repo:settings:check` — push / diff `main` branch protection + merge settings + `uat`/`production` environments + the automation's labels + GitHub Pages source = Actions (`scripts/repo-settings.js`; plain `repo:settings` is a dry run; `--only protection|repo|environments|labels|pages` for a subset). New labels used by workflows or skills go into `LABELS` there.
+- `bun run docs:dev` / `docs:build` / `docs:preview` — the VitePress docs site over `docs/` (`docs/.vitepress/config.mts`: sidebar, landing page `docs/index.md`); `docs:build` fails on any dead relative link and is the `Docs` CI job; `.github/workflows/docs.yml` publishes it to GitHub Pages on push to `main` (`docs/conventions.md` → Docs)
 - Full local gate before a PR: `bun run lint && bun run typecheck && bun run test && bun run knip && bun run i18n:check`
 
 ## Conventions
@@ -87,7 +88,7 @@ The human-readable version of these rules, with the reasoning, is `docs/conventi
 
 ## CI/CD shape (see PLAN.md decisions 1–3, 12–13)
 
-- GitHub Actions (`.github/workflows/ci.yml`) = JS gate only (lint, typecheck, unit, knip, format, commitlint on the commit range, secret scan, bundle budget, Maestro web, template init).
+- GitHub Actions (`.github/workflows/ci.yml`) = JS gate only (lint, typecheck, unit, knip, format, commitlint on the commit range, secret scan, bundle budget, Maestro web, docs build, template init).
 - `Fingerprint drift` (`ci.yml`, informational, not required) compares the production-variant `@expo/fingerprint` hash of base vs PR and upserts one PR comment + `fingerprint-drift` label on drift: merging means a staging build, and a store release (`vX.Y.Z` tag) before production promotion (`docs/release-ladder.md` → Fingerprint drift on PRs).
 - `.github/workflows/pr-title.yml` lints the PR title with the same `commitlint.config.js` (the title becomes the squash commit).
 - Required checks on `main` (every CI job except `Perf (Reassure)`), merge settings (squash-only, auto-merge on for Renovate), environments and labels are managed by `scripts/repo-settings.js`; run `bun run repo:settings:apply` once after creating a repo from the template (the init script offers to).

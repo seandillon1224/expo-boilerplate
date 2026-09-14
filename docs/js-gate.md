@@ -31,6 +31,7 @@ release ([release ladder](release-ladder.md#store-release-tag)). Durations are f
 | `Bundle budget (ios)`     | `CI` / `bundle-budget`     | `bun run export:ios && bun run budget:ios`                                                                                                   | PR, push to main | yes      | `bundle-sizes-ios`                | ~55 s                                      |
 | `Bundle budget (android)` | `CI` / `bundle-budget`     | `bun run export:android && bun run budget:android`                                                                                           | PR, push to main | yes      | `bundle-sizes-android`            | ~45 s                                      |
 | `Maestro web`             | `CI` / `maestro-web`       | `bun run serve:web` + `bun run e2e:web` against the `web-export` artifact                                                                    | PR, push to main | yes      | `maestro-web`                     | ~80 s, after all three `Bundle budget (*)` |
+| `Docs`                    | `CI` / `docs`              | `bun run docs:build`: VitePress build of `docs/`, red on any dead relative link                                                              | PR, push to main | yes      | –                                 | ~30 s                                      |
 | `Template init`           | `CI` / `template-init`     | `bun run template:e2e`: headless `bun run init --fresh-git` on a copy of the checkout, then the gate on the generated project                | PR, push to main | yes      | –                                 | ~2 min                                     |
 | `Perf (Reassure)`         | `CI` / `perf`              | `bun run perf:baseline` (base) → `bun run perf` (head) → `bun run perf:gate`                                                                 | PR only          | **no**   | `reassure`, report in job summary | ~50 s                                      |
 | `Fingerprint drift`       | `CI` / `fingerprint-drift` | `node scripts/fingerprint.js` (`APP_VARIANT=production`) on base and head, then one upserted PR comment + `fingerprint-drift` label on drift | PR only          | **no**   | report in job summary             | ~45 s                                      |
@@ -81,13 +82,13 @@ The required checks live in code, not in the GitHub UI:
 1. Edit `REQUIRED_CHECKS` (or the rest of `DESIRED`) in `scripts/repo-settings.js`.
 2. `bun run repo:settings` to preview the `gh api` calls (dry run, default).
 3. `bun run repo:settings:apply` to `PUT` branch protection, `PATCH` repo settings, `PUT` the
-   `uat` / `production` environments and upsert the labels (needs `gh auth login` with admin on
-   the repo; the script refuses to start otherwise).
+   `uat` / `production` environments, upsert the labels and point GitHub Pages at Actions (needs
+   `gh auth login` with admin on the repo; the script refuses to start otherwise).
 4. `bun run repo:settings:check` to diff live state against `DESIRED`; it exits 1 on drift and
    lists every drifted field (`labels.needs-human.description: want ..., got ...`).
 
 Every mode takes `--only <section>[,<section>]` to work on a subset of `protection`, `repo`,
-`environments`, `labels` — e.g. `bun run repo:settings:check --only labels` after adding a label,
+`environments`, `labels`, `pages` — e.g. `bun run repo:settings:check --only labels` after adding a label,
 or `--only protection` after renaming a job. The repo is whatever `gh repo view` resolves from the
 `origin` remote (`GH_REPO=owner/name` overrides).
 
@@ -98,6 +99,10 @@ job) and `dependencies` (Renovate) — with a color and description each. Apply 
 labels and patches a changed color or description; it never deletes a label it does not know
 about, so GitHub's defaults and hand-made labels survive. New automation that adds a label goes
 into `LABELS` first, then `bun run repo:settings:apply --only labels`.
+
+`DESIRED.pages` sets the repo's GitHub Pages source to GitHub Actions (`build_type: workflow`),
+which `.github/workflows/docs.yml` needs to publish the docs site: apply `POST`s the Pages site
+when there is none and `PUT`s the source when it points at a branch; check reports either.
 
 Adding a job to `ci.yml` does not gate merge until its `name:` is in `REQUIRED_CHECKS` and the
 script is re-applied. The reverse is the trap: **renaming a job's `name:` silently un-gates it**.
@@ -183,6 +188,7 @@ Then the slower ones as needed:
 | Maestro web       | `bun run serve:web` in one shell, `bun run e2e:web` in another                                                   | Needs Maestro ≥ 2.9 (`curl -Ls https://get.maestro.mobile.dev \| bash`) and a JDK; report in `maestro-web/`. |
 | Perf (Reassure)   | `bun run perf:baseline` on `main`, then `bun run perf` on your branch, then `bun run perf:gate`                  | Report in `.reassure/output.md`.                                                                             |
 | Fingerprint drift | `APP_VARIANT=production bun run fingerprint` on `main` and on your branch; compare                               | `--debug` lists the sources behind a changed hash.                                                           |
+| Docs              | `bun run docs:build`                                                                                             | `bun run docs:dev` to browse; dead links are listed in the build output.                                     |
 | Template init     | `bun run template:e2e`                                                                                           | Copy in a temp dir, removed on success; `--keep` keeps it, `--dir <path>` picks where.                       |
 | PR title          | `printf '%s\n' "your title" \| bunx commitlint`                                                                  | Same config as the commit hook.                                                                              |
 

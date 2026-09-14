@@ -406,11 +406,23 @@ jobs:
               core.warning(`Could not update the "${LABEL}" label: ${e.message} (create it with: gh label create ${LABEL})`);
             }
 
+  docs:
+    # VitePress build of docs/ (T8.4, #143). This is the link audit: a dead relative link in any
+    # doc fails the build (`ignoreDeadLinks: false` in docs/.vitepress/config.mts). The site
+    # itself is published by docs.yml on push to main; this job only proves it builds.
+    name: Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: bun run docs:build
+
   template-init:
     # Template end-to-end test (PLAN.md decision 4; #56): scripts/template-e2e.js copies the
     # checkout to a temp dir, runs the documented headless `bun run init --fresh-git` there with no
     # EAS project id and no EXPO_TOKEN, then runs the JS gate (lint, typecheck, test, knip,
-    # i18n:check, format:check, env:check) on the generated project's first commit and scans it for
+    # i18n:check, format:check, env:check, docs:build) on the generated project's first commit and scans it for
     # leftover template identifiers. The checkout itself must come out untouched. Local parity:
     # `bun run template:e2e`. Removed by `bun run init` (it only makes sense on the template).
     name: Template init

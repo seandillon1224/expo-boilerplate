@@ -201,6 +201,15 @@ to override). Both report to Sentry through `captureException`.
   "PLAN.md decision N" so the reference survives `bun run init`, which keeps the decisions table.
 - Prettier formats markdown (tables are re-aligned on commit); `bun run format:check` is a required
   check.
+- The same files are the docs site (VitePress, `bun run docs:dev` to browse it locally, published to
+  GitHub Pages by `.github/workflows/docs.yml` on push to `main`). Keep links relative with the
+  `.md` extension and an anchor where useful (`js-gate.md#how-merging-works`, `adr/README.md`):
+  they work on GitHub and the site alike. `bun run docs:build` fails on a dead relative link and is
+  the `Docs` required check, so a rename or a moved section is caught on the PR. A new page is added
+  to the hand-written `sidebar` in `docs/.vitepress/config.mts` (pick the group it belongs to);
+  `docs/index.md` is the landing page. Code spans and fences are literal; outside them, avoid bare
+  `<tag>`-looking text and `{{ }}` (VitePress parses them as HTML / Vue; write `\<p>`), and keep `README.md` files out of `docs/` subfolders unless
+  they get a `rewrites` entry (`adr/README.md` → `/adr/`).
 - New docs must not contain the template's own identity (name, slug, bundle id, Expo account,
   GitHub owner) except in the exact spots `scripts/init.js` rewrites — `bun run template:e2e`
   fails on any leftover. Prefer `<owner>/<repo>` placeholders or a link to the doc that already
