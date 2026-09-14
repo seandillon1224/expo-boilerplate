@@ -18,6 +18,11 @@
     "subtitle": "Opinionated infra, thin product. Start building in src/app/(tabs)/(home).",
     "title": "Home"
   },
+  "notFound": {
+    "description": "The page you were looking for could not be found.",
+    "home": "Go to home",
+    "title": "This screen does not exist"
+  },
   "settings": {
     "sentryTest": "Send test error to Sentry",
     "sentryTestSent": "Test error sent (no-op unless a DSN is configured).",

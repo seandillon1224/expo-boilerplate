@@ -26,13 +26,13 @@ added only when `CI` is set). `bun run test:watch` for a loop.
 
 Layout on `main`:
 
-| Directory                   | What is there                                                                                 |
-| --------------------------- | --------------------------------------------------------------------------------------------- |
-| `src/__tests__/screens/`    | One test per route: `home`, `settings`, `fetch` (query states + `markInteractive`), `updates` |
-| `src/__tests__/components/` | `states` (`LoadingState` / `EmptyState` / `ErrorState`), `error-boundary`                     |
-| `src/__tests__/features/`   | Hooks: `use-update-policy`                                                                    |
-| `src/__tests__/i18n/`       | Locale fallback and `useTranslation` rendering                                                |
-| `src/lib/__tests__/`        | Pure modules next to their source: `env.schema`, `observe`, `sentry`                          |
+| Directory                   | What is there                                                                                              |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `src/__tests__/screens/`    | One test per route: `home`, `settings`, `fetch` (query states + `markInteractive`), `updates`, `not-found` |
+| `src/__tests__/components/` | `states` (`LoadingState` / `EmptyState` / `ErrorState`), `error-boundary`                                  |
+| `src/__tests__/features/`   | Hooks: `use-update-policy`                                                                                 |
+| `src/__tests__/i18n/`       | Locale fallback and `useTranslation` rendering                                                             |
+| `src/lib/__tests__/`        | Pure modules next to their source: `env.schema`, `observe`, `sentry`                                       |
 
 ### Rules that bite
 
@@ -148,9 +148,24 @@ fails on: [Render-perf tests](perf-tests.md).
 
 `.maestro/` is one Maestro workspace: shared steps live once in `subflows/steps/<name>.yaml`, and
 each flow has two thin entries — `flows/<name>.yaml` (`appId: ${MAESTRO_APP_ID}`,
-`tags: [ios, android]`) and `flows/web/<name>.yaml` (`url: ${APP_URL}`, `tags: [web]`). Four flows
-ship: `smoke`, `tabs`, `fetch`, `updates`. Always run the workspace directory (`maestro test
-.maestro`) so `config.yaml` is read; the scripts do.
+`tags: [ios, android]`) and `flows/web/<name>.yaml` (`url: ${APP_URL}`, `tags: [web]`). Always run
+the workspace directory (`maestro test .maestro`) so `config.yaml` is read; the scripts do.
+
+Flows that ship:
+
+| Flow        | Steps                           | Lanes      | What it covers                                                                 |
+| ----------- | ------------------------------- | ---------- | ------------------------------------------------------------------------------ |
+| `smoke`     | `subflows/steps/smoke.yaml`     | web+native | The app boots to Home.                                                         |
+| `tabs`      | `subflows/steps/tabs.yaml`      | web+native | Tab-bar navigation.                                                            |
+| `fetch`     | `subflows/steps/fetch.yaml`     | web+native | Home → `/fetch`, loading resolves to a list (data: see below).                 |
+| `updates`   | `subflows/steps/updates.yaml`   | web+native | The OTA updates screen renders its rows.                                       |
+| `not-found` | `subflows/steps/not-found.yaml` | web        | An unmatched URL renders `src/app/+not-found.tsx`, whose link returns to Home. |
+
+`not-found` is the one web-only flow: it needs a URL the router cannot match, which the entry
+opens from its own `url:` header (`${APP_URL}/this-route-does-not-exist`) instead of running
+`subflows/launch-web.yaml`. `scripts/serve-web.js` answers any unresolved path with
+`+not-found.html` and a real 404 status, the same as a static host serving the export. Native has
+no equivalent entry point short of a deep link that resolves to nothing, so it stays web-only.
 
 | Lane   | Command                                                                                      | App under test                                                                | Where it runs in CI                                                  |
 | ------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------- |

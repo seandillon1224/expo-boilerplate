@@ -1,0 +1,9 @@
+# Web entry for the not-found steps (subflows/steps/not-found.yaml). Unlike the other entries this
+# one launches itself: the flow's whole point is a URL the router cannot match, and
+# subflows/launch-web.yaml opens `${APP_URL}` (the app root) from its own header.
+name: web/not-found
+url: ${APP_URL}/this-route-does-not-exist
+tags: [web]
+---
+- launchApp
+- runFlow: ../../subflows/steps/not-found.yaml

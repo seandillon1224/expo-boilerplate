@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { resolveFile, resolveFixture } = require('../serve-web');
+const { resolveFallback, resolveFile, resolveFixture } = require('../serve-web');
 
 /**
  * `resolveFile` is the whole security surface of `bun run serve:web`: it turns an attacker-controlled
@@ -71,6 +71,26 @@ describe('resolveFile — resolution order', () => {
   it('returns null for an unknown route so the caller can fall back to index.html', () => {
     expect(resolveFile('/does-not-exist', dist)).toBeNull();
     expect(resolveFile('/_expo/static/js/web/nope.js', dist)).toBeNull();
+  });
+});
+
+/**
+ * The fallback is what the `web/not-found` flow (T13.4) actually lands on: an unknown path must
+ * get `+not-found.html` and a 404, not Home with a 200.
+ */
+describe('resolveFallback', () => {
+  it('serves +not-found.html with a 404 when the export has one', () => {
+    const withNotFound = fs.mkdtempSync(path.join(os.tmpdir(), 'serve-web-nf-'));
+    fs.writeFileSync(path.join(withNotFound, 'index.html'), '<html>index</html>');
+    fs.writeFileSync(path.join(withNotFound, '+not-found.html'), '<html>404</html>');
+    expect(resolveFallback(withNotFound)).toEqual({
+      file: path.join(withNotFound, '+not-found.html'),
+      status: 404,
+    });
+  });
+
+  it('falls back to index.html with a 200 when the app has no +not-found route', () => {
+    expect(resolveFallback(dist)).toEqual({ file: path.join(dist, 'index.html'), status: 200 });
   });
 });
 
