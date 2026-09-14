@@ -1,8 +1,9 @@
 # Release ladder
 
 The runbook for everything that leaves a laptop: PR → `main` → **staging** → **UAT** →
-**production** → **stores**, plus how to go back down ([Rollback](#rollback)) and how to get a fix
-up quickly ([Hotfix](#hotfix)). The environment variables each rung reads and the owner-only
+**production** → **stores**, plus how to go back down ([Rollback](#rollback)), how to get a fix
+up quickly ([Hotfix](#hotfix)) and how to reach users still on an older store binary
+([Backports](#backports-older-runtimes)). The environment variables each rung reads and the owner-only
 setup are in [Environments and secrets](environments-and-secrets.md); how testers get a build is
 [Build sharing](build-sharing.md).
 
@@ -16,6 +17,7 @@ setup are in [Environments and secrets](environments-and-secrets.md); how tester
 | **UAT → production** | `workflow:run promote.yml -F target=production` (by hand) | The **same** group republished to `production`, web production URL, Slack                                               | `require-approval` on expo.dev; fingerprint gate **refuses** a runtime with no store build | [UAT and production](#uat-and-production-manual)                                            |
 | **Store release**    | push a `vX.Y.Z` tag (after a `version` bump PR)           | Production store builds → TestFlight internal group + Play internal track; skipped when the fingerprint is unchanged    | GitHub `production` Environment reviewer (`.github/workflows/release.yml`)                 | [Store release](#store-release-tag)                                                         |
 | **Back down**        | by hand                                                   | An earlier group republished on the channel, or a roll-back-to-embedded; web alias re-pointed                           | same gates as going up when done through `promote.yml`; none from the CLI                  | [Rollback](#rollback)                                                                       |
+| **Backport**         | `workflow:run backport.yml -F tags=… -F fix=…` (by hand)  | A `main` fix cherry-picked onto older store release tags, published to `production` under each tag's runtime            | `require-approval` on expo.dev; fingerprint gate **refuses** a tag + fix whose hash moved  | [Backports](#backports-older-runtimes)                                                      |
 
 Two rules hold everywhere on the ladder: **what UAT signed off is byte-for-byte what production
 gets** (PLAN.md decision 3 — promotions republish a group, they never re-bundle), and **an update
@@ -648,8 +650,127 @@ what production gets".
      `production` Environment, wait for `release.yml` to cut the store build, then promote the
      staging group — the fingerprint gate now hits. Until users install the new binary they are on
      the rolled-back OTA from step 1.
+   - **JS-only, and users are still on an older store runtime:** the promotion above reaches only
+     installs whose binary has `main`'s fingerprint. For the rest, [backport](#backports-older-runtimes)
+     the merged fix commit onto the tag(s) they run — after the promotion, not instead of it.
 5. Verify as above; close the loop in the Slack thread that announced the rollback.
 
 Never publish a fix straight to `production` with `eas update --channel production` from a laptop:
 it would bypass staging, the approval, the fingerprint gate and Sentry source maps, and would
-create a production group with no staging twin — which the next `promote.yml` run cannot see.
+create a production group with no staging twin — which the next `promote.yml` run cannot see. The
+one sanctioned exception is `backport.yml` below, which keeps the approval and the fingerprint gate.
+
+## Backports (older runtimes)
+
+**Workflow:** `.eas/workflows/backport.yml` (`Backport`, `workflow_dispatch` only;
+[ADR-0008](adr/0008-multi-runtime-ota-backports.md)). **Unverified:** the repo has no store
+release yet, so the workflow has only passed `eas workflow:validate`; the ADR lists what the first
+real run must confirm.
+
+### When a backport is needed
+
+An update only reaches builds with the same fingerprint, and the runtime version _is_ the
+fingerprint — `eas update` cannot override it, it is computed from the checked-out tree. Every
+store release whose fingerprint moved (a native dependency, a config plugin, an SDK upgrade)
+leaves a runtime behind: the installs that never took the store update keep the old binary and
+get **nothing** from `main`'s groups, however many times you promote. A backport is a JS-only fix
+from `main` published from a tree whose fingerprint equals that old runtime: the release tag's
+tree with the fix cherry-picked on top. It is worth doing when the fix matters to those users
+(a crash, a broken flow, a data bug) and they are still numerous; it is never a substitute for
+the normal ladder — promote the fix for the current runtime first ([Hotfix](#hotfix) step 4).
+
+### Pick the targets
+
+Nothing is automatic ("last N" would backport to runtimes nobody runs). Per run you name the
+tags, and each tag stands for a runtime through its store build's fingerprint:
+
+```sh
+bun run eas build:list -p ios -e production --distribution store --status finished --json --non-interactive     # fingerprint.hash + gitCommitHash per store build
+bun run eas build:list -p android -e production --distribution store --status finished --json --non-interactive
+bun run eas channel:view production                                              # what production serves, per runtime
+bun run eas update:list --branch production --runtime-version <fingerprint>      # groups already on that runtime (backports land here)
+bun run eas update:view <group-id> --insights --days 7                           # launches / unique users of the group
+```
+
+Which runtimes still have users: EAS Update insights (expo.dev → Updates → the `production`
+branch, or `update:view --insights` on the newest group of each runtime) give launches and unique
+users per group, and the embedded-vs-OTA split per runtime; a runtime whose newest group has no
+launches in a week has no users worth a backport. Map a fingerprint to its tag through the store
+build's `gitCommitHash` (`git tag --contains <sha>`, or `bun run eas build:view <build-id>`).
+Note that a tag whose fingerprint did not move never got its own build (`release.yml` skipped it)
+— the workflow looks builds up **by fingerprint**, so such a tag still works as a target.
+
+### Dispatch
+
+```sh
+bun run eas workflow:run .eas/workflows/backport.yml -F tags=v1.2.0,v1.1.0 -F fix=<fix sha on main> [-F rollout_percentage=10] [-F platforms=ios] [-F message="…"]
+```
+
+`fix` is the **squash commit on `main`** (the merged PR, `git log --oneline -5`), not the PR
+branch. The run:
+
+1. `resolve` — validates the inputs (`rollout_percentage` 1–100; `ref` needs exactly one tag;
+   `fix` must be on `origin/main`), fetches the tags, and prints per tag and platform the
+   fingerprint of the **clean** tag tree and the production store build that runs it
+   (`NONE` = nothing to backport to). Read this before approving.
+2. `approve` — `require-approval` on the run page.
+3. `backport` — one job, looping over the tags: checkout the tag, `git cherry-pick -x <fix>`,
+   `bun install`, `bun run fingerprint --platform <p>` for both platforms, and the gate: the
+   fingerprint of tag + fix must **equal** the clean tag's, and that hash must have a store build.
+   Passing platforms get `eas update --channel production --environment production -p <…>
+--rollout-percentage <n> -m "backport <fix7> onto <tag>: <subject>"`; the log prints the group
+   id and its expo.dev link. Every tag is attempted; the job fails at the end if any tag failed.
+   Sentry source maps are uploaded best-effort (`bun run sentry:sourcemaps`, skipped without
+   `SENTRY_*` on `production`).
+
+### What the gate refuses, and why
+
+| Log line                                                | Meaning                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<tag>/<p>: REFUSED — fingerprint <a> != <b>`           | The fix touched the native surface on that platform (a dependency with native code, a plugin, `app.config.ts` outside `version` / `extra`). It is **not OTA-safe** for that tag: it needs a [fix release](#store-release-tag). The other platform may still publish. |
+| `<tag>/<p>: REFUSED — no production store build runs …` | No store build has the tag tree's fingerprint on that platform — nobody can run the update. Wrong tag, or a platform that never shipped.                                                                                                                             |
+| `<tag>: FAIL — cherry-pick of <fix> conflicts`          | The fix does not apply cleanly to the tag. Resolve it locally with the recipe below and re-run with `ref`.                                                                                                                                                           |
+| `<tag>: FAIL — <ref> does not contain tag <tag>`        | The prepared branch was not cut from the tag; `git checkout -b backport/<tag> <tag>` and cherry-pick again.                                                                                                                                                          |
+
+Nothing is published for a refused platform, ever: publishing a mismatched tree would create a
+group under a runtime that **no** build matches (unreachable) or, worse, one that a binary matches
+while the JS assumes native code it does not have.
+
+### Conflict recipe
+
+Printed by the job, too. Keep the resolution JS / assets only — the fingerprint check at the end
+is the same one the gate runs:
+
+```sh
+git fetch origin --tags
+git checkout -b backport/v1.2.0 v1.2.0
+git cherry-pick -x <fix sha>      # resolve conflicts, keep the change OTA-safe (JS/assets only)
+bun run fingerprint --platform ios && bun run fingerprint --platform android   # must equal the tag's
+git push -u origin backport/v1.2.0
+bun run eas workflow:run .eas/workflows/backport.yml -F tags=v1.2.0 -F ref=backport/v1.2.0 [-F rollout_percentage=10]
+```
+
+With `ref`, `tags` must be exactly that one tag and no cherry-pick happens; the job checks the
+tag is an ancestor of the branch, then gates and publishes as above. The `backport/*` branch is
+throwaway: delete it after the run (nothing on the ladder reads it).
+
+### Ramp and rollback
+
+A backport group is a normal `production` group under the tag's runtime, so the
+[staged rollout](#staged-rollouts-production) and [Rollback](#rollback) mechanics apply
+**per runtime**; filter with `--runtime-version` so you act on the right one (flags verified with
+`update:rollback --help` / `update:republish --help`, eas-cli 24):
+
+```sh
+bun run eas update:list --branch production --runtime-version <fingerprint> --limit 3   # the backport must be the newest group for that runtime
+bun run eas update:view <backport-group-id> --insights --days 1                          # adoption / crash rate on the old runtime
+bun run eas update:edit <backport-group-id> --rollout-percentage 100 --non-interactive   # ramp (up only)
+bun run eas update:rollback <backport-group-id> --message "rollback: <why>" --non-interactive            # back to what that runtime ran before (or embedded)
+bun run eas update:republish --group <earlier-group-id> --message "rollback: <why>" --non-interactive   # a specific earlier group of that runtime
+```
+
+`update:rollback` takes the group id (it must be the newest on the branch **for its runtime**)
+and republishes the one before it on that runtime — an earlier backport, or nothing, in which case
+it rolls that runtime back to embedded. `-p ios|android` limits either command to one platform.
+Post in Slack by hand (the workflow has no Slack job yet — ADR-0008 follow-up), naming the tag and
+runtime so nobody confuses it with the current promotion.

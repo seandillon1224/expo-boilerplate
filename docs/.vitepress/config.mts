@@ -150,6 +150,10 @@ export default withMermaid(
               text: 'ADR-0007: Flashlight as an opt-in Android hook',
               link: '/adr/0007-flashlight-android-perf-hook',
             },
+            {
+              text: 'ADR-0008: Multi-runtime OTA backports',
+              link: '/adr/0008-multi-runtime-ota-backports',
+            },
           ],
         },
       ],

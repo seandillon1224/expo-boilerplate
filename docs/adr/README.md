@@ -32,3 +32,4 @@ inherits as-is (it describes the template the project started from).
 | [0005](0005-a11y-hierarchy-audit.md)          | Accessibility E2E as a hierarchy audit             | Accepted |
 | [0006](0006-maestro-cloud-optional-job.md)    | Maestro Cloud as an opt-in EAS workflow            | Accepted |
 | [0007](0007-flashlight-android-perf-hook.md)  | Flashlight as an opt-in Android E2E hook           | Accepted |
+| [0008](0008-multi-runtime-ota-backports.md)   | Multi-runtime OTA backports as a manual workflow   | Accepted |

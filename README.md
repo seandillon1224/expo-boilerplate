@@ -85,7 +85,6 @@ Deliberately not in the template (PLAN.md decision 5: no auth, backend or forms)
 - **Deep links** — the `scheme` per variant is already in `app.config.ts`; add universal links / app links via `ios.associatedDomains` and `android.intentFilters`.
 - **Analytics** — PostHog (`posthog-react-native`) or Segment; keep the key in EAS environment variables and read it through `@/lib/env`.
 - **Storybook** — deliberately not included (PLAN.md decision 14); the demo screens plus RNTL and Reassure cover component work.
-- **Multi-runtime OTA backports** — shipping OTA-safe fixes to older store runtimes ([#61](https://github.com/seandillon1224/expo-boilerplate/issues/61)).
 
 ## Docs
 

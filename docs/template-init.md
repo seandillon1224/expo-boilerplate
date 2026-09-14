@@ -101,18 +101,18 @@ anything is written, and `scripts/__tests__/init.test.ts` runs the same manifest
 checked-in files on every PR (the drift guard), so moving an identifier without updating the
 manifest fails CI.
 
-| File                                                                         | Rewritten                                                                                                    |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `app.config.ts`                                                              | `BASE.name` / `slug` / `scheme` / `bundleId` / `androidPackage`, `EAS_PROJECT_ID`, the `@owner/slug` comment |
-| `package.json`                                                               | `name`                                                                                                       |
-| `README.md`, `CLAUDE.md`                                                     | H1 title; README CI badge URLs                                                                               |
-| `.gitleaks.toml`                                                             | `title`                                                                                                      |
-| `src/lib/query-client.ts`                                                    | persisted query-cache key                                                                                    |
-| `scripts/repo-settings.js`                                                   | `uat` / `production` environment reviewer login (= the GitHub repo owner; change if it is an org)            |
-| `.maestro/config.yaml`                                                       | the `MAESTRO_APP_ID` example                                                                                 |
-| `.eas/workflows/e2e.yml`, `e2e-quarantine.yml`, `e2e-cloud.yml`              | `MAESTRO_APP_ID` (bundle id on the iOS job, package on the Android job)                                      |
-| `.eas/workflows/e2e.yml`, `deploy-staging.yml`, `promote.yml`, `release.yml` | `expo.dev/accounts/<owner>/projects/<slug>` links                                                            |
-| `docs/*.md`                                                                  | bundle id / package examples, credentials table, dev-domain, staging web URL, expo.dev and GitHub links      |
+| File                                                                                         | Rewritten                                                                                                    |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `app.config.ts`                                                                              | `BASE.name` / `slug` / `scheme` / `bundleId` / `androidPackage`, `EAS_PROJECT_ID`, the `@owner/slug` comment |
+| `package.json`                                                                               | `name`                                                                                                       |
+| `README.md`, `CLAUDE.md`                                                                     | H1 title; README CI badge URLs                                                                               |
+| `.gitleaks.toml`                                                                             | `title`                                                                                                      |
+| `src/lib/query-client.ts`                                                                    | persisted query-cache key                                                                                    |
+| `scripts/repo-settings.js`                                                                   | `uat` / `production` environment reviewer login (= the GitHub repo owner; change if it is an org)            |
+| `.maestro/config.yaml`                                                                       | the `MAESTRO_APP_ID` example                                                                                 |
+| `.eas/workflows/e2e.yml`, `e2e-quarantine.yml`, `e2e-cloud.yml`                              | `MAESTRO_APP_ID` (bundle id on the iOS job, package on the Android job)                                      |
+| `.eas/workflows/e2e.yml`, `deploy-staging.yml`, `promote.yml`, `release.yml`, `backport.yml` | `expo.dev/accounts/<owner>/projects/<slug>` links                                                            |
+| `docs/*.md`                                                                                  | bundle id / package examples, credentials table, dev-domain, staging web URL, expo.dev and GitHub links      |
 
 Afterwards the script scans every tracked file for leftover template identifiers and prints what
 it found. Some are kept on purpose (`KEEP` in `scripts/init.js`): `PLAN.md` (stubbed by the

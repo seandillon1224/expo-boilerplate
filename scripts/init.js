@@ -298,6 +298,7 @@ function buildManifest(id) {
     { file: '.eas/workflows/deploy-staging.yml', rules: workflowUrls },
     { file: '.eas/workflows/promote.yml', rules: workflowUrls },
     { file: '.eas/workflows/release.yml', rules: workflowUrls },
+    { file: '.eas/workflows/backport.yml', rules: workflowUrls },
     {
       file: 'docs/environments-and-secrets.md',
       rules: [
