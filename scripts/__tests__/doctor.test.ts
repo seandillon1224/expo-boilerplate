@@ -160,13 +160,29 @@ describe('runChecks (fake run, nothing real executed)', () => {
   });
 
   it('reads the wanted Node major from .node-version, falling back to the constant', () => {
-    const on20 = byId(runChecks(makeCtx({ files: { '.node-version': 'v20.11\n' } })) as Row[]);
-    expect(on20.node).toMatchObject({ status: 'missing', expected: '20.x (.node-version)' });
     const noFile = byId(runChecks(makeCtx({ files: { '.node-version': null } })) as Row[]);
     expect(noFile.node).toMatchObject({
       status: 'ok',
       expected: `${EXPECTED.nodeMajor}.x (.node-version)`,
     });
+    const pinned = byId(runChecks(makeCtx({ files: { '.node-version': 'v22.11\n' } })) as Row[]);
+    expect(pinned.node).toMatchObject({ status: 'ok', expected: '22.x (.node-version)' });
+  });
+
+  it('only blocks on a Node OLDER than .node-version; newer warns (init stays usable)', () => {
+    const older = byId(
+      runChecks(makeCtx({ results: { 'node --version': ok('v20.11.1\n') } })) as Row[],
+    );
+    expect(older.node).toMatchObject({ status: 'missing', found: '20.11.1' });
+
+    const newer = byId(
+      runChecks(makeCtx({ results: { 'node --version': ok('v24.2.0\n') } })) as Row[],
+    );
+    expect(newer.node).toMatchObject({ status: 'warn', found: '24.2.0' });
+    expect(newer.node.hint).toContain('newer than .node-version');
+    // A warn never fails `bun run doctor` (or the `init` step) without --strict.
+    expect(summarize([newer.node]).exitCode).toBe(0);
+    expect(summarize([newer.node], { strict: true }).exitCode).toBe(1);
   });
 
   it('warns about foreign lockfiles with a removal hint', () => {
@@ -460,6 +476,7 @@ describe('CLI surface', () => {
     expect(parseArgs([])).toEqual({ json: false, strict: false, help: false });
     expect(parseArgs(['--json', '--strict'])).toMatchObject({ json: true, strict: true });
     expect(() => parseArgs(['--nope'])).toThrow('doctor: unknown argument --nope');
+    expect(parseArgs(['--help'])).toMatchObject({ help: true });
   });
 
   it('exposes the init step (`doctor`) with an opt-out for --skip-doctor', () => {

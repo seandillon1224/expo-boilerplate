@@ -76,7 +76,7 @@ src/
   tw/             Styling primitives (NativeWind) — the View / Text every screen imports.
   __tests__/      Jest tests grouped by kind (screens / components / features / i18n); lib tests sit in lib/__tests__.
   __perf__/       Reassure perf tests (*.perf-test.tsx), never run by Jest.
-scripts/          Plain-Node tooling with tests in scripts/__tests__.
+scripts/          Plain-Node tooling with tests in scripts/__tests__; scripts/lib/ = shared helpers.
 .maestro/         The Maestro workspace (flows/, flows/web/, subflows/steps/).
 .eas/workflows/   EAS Workflows, one file per workflow.
 .github/          Actions workflows, the composite setup action, issue templates, Renovate config.
@@ -92,6 +92,40 @@ docs/             One markdown page per concern.
 - Naming: kebab-case files (`use-update-policy.ts`, `error-state.tsx`), PascalCase components,
   `useX` hooks, `*.test.tsx` / `*.perf-test.tsx` suffixes, Maestro flow names `native/<name>` and
   `web/<name>`.
+
+### Scripts parse arguments and exit the same way
+
+Every script in `scripts/` takes its command line through `scripts/lib/args.js`, which wraps
+`util.parseArgs({ strict: true })` with a per-script option table (`type`, `choices`, `default`,
+`required`, `multiple`, numeric `integer` / `min`, and deprecated aliases). That is what makes
+`--flag value`, `--flag=value` and `--help` / `-h` behave identically everywhere instead of
+per-script — do not hand-roll a loop over `process.argv`.
+
+The shape is always the same:
+
+```js
+const CLI = { name: 'thing', usage: '…', options: { platform: { type: 'string', required: true } } };
+
+function main(argv) {
+  const { values, help } = parseArgs(argv, CLI);
+  if (help) return 0; // the lib already printed `usage`
+  …
+  return 0;
+}
+
+runMain(main); // sets process.exitCode; never process.exit()
+```
+
+Exit codes mean one thing each (the header of `scripts/lib/args.js` is the reference):
+
+| Code | Meaning                                                                             |
+| ---- | ----------------------------------------------------------------------------------- |
+| 0    | the script did its job and what it checks is fine (a skip with a notice counts)     |
+| 1    | what it checks failed, or an error the operator must fix                            |
+| 2    | usage / environment: the command line — or the environment it needs — has to change |
+
+`process.exit()` is banned in scripts: under `bun run` it can drop piped stdout that has not
+flushed. Return a code from `main` and let `runMain` set `process.exitCode`.
 
 ## App-layer rules
 

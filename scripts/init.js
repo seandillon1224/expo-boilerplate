@@ -42,6 +42,7 @@ const path = require('node:path');
 const readline = require('node:readline/promises');
 const { spawnSync } = require('node:child_process');
 const { doctorStep } = require('./doctor');
+const { parseArgs: parseCli, runMain } = require('./lib/args');
 
 /** The template's own identity: the values every pattern below matches on. */
 const TEMPLATE = Object.freeze({
@@ -134,7 +135,6 @@ const BOOLEAN_FLAGS = [
   'apply-repo-settings',
   'help',
 ];
-const FLAGS = new Set([...FIELDS.map((f) => f.flag), ...BOOLEAN_FLAGS]);
 
 /** Derive sensible defaults from the working-directory name and the OS user. */
 function deriveDefaults(folderName, username = os.userInfo().username) {
@@ -170,23 +170,25 @@ function validateIdentity(identity) {
   return errors;
 }
 
+/** The option table: one identity field per FIELDS entry, plus the switches. */
+const CLI = {
+  name: 'init',
+  usage: () => usage(),
+  options: Object.fromEntries([
+    ...FIELDS.map((f) => [f.flag, { type: 'string' }]),
+    ...BOOLEAN_FLAGS.filter((flag) => flag !== 'help').map((flag) => [flag, { type: 'boolean' }]),
+  ]),
+};
+
+/**
+ * Only the flags actually passed, so `collectIdentity` can tell "given" (prompt skipped, `''`
+ * included) from "not given" (prompt or derived default).
+ */
 function parseArgs(argv) {
-  const out = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) throw new Error(`init: unknown argument ${arg}`);
-    const eq = arg.indexOf('=');
-    const flag = eq === -1 ? arg.slice(2) : arg.slice(2, eq);
-    if (!FLAGS.has(flag)) throw new Error(`init: unknown argument --${flag}`);
-    if (BOOLEAN_FLAGS.includes(flag)) {
-      out[flag] = true;
-      continue;
-    }
-    const value = eq === -1 ? argv[(i += 1)] : arg.slice(eq + 1);
-    if (value === undefined) throw new Error(`init: --${flag} needs a value`);
-    out[flag] = value;
-  }
-  return out;
+  const { values } = parseCli(argv, CLI);
+  return Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== undefined && value !== false),
+  );
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -1039,10 +1041,7 @@ async function collectIdentity(args, { interactive, root, log }) {
 
 async function main(argv) {
   const args = parseArgs(argv);
-  if (args.help) {
-    console.log(usage());
-    return 0;
-  }
+  if (args.help) return 0;
   const root = process.cwd();
   const log = (line) => console.log(line);
   const interactive = !args.yes && process.stdin.isTTY;
@@ -1153,13 +1152,5 @@ module.exports = {
 if (require.main === module) {
   // `exitCode`, not `process.exit()`: Bun (which `bun run` substitutes for node) can drop piped
   // stdout that has not flushed when exit() is called.
-  main(process.argv.slice(2)).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.error(error.message);
-      process.exitCode = 1;
-    },
-  );
+  runMain(main);
 }

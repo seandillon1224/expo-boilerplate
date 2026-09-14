@@ -12,34 +12,36 @@
  * markdown table to `$GITHUB_STEP_SUMMARY` when set, and exits 1 when over budget.
  *
  * Plain Node/JS (no @types/node) so it runs under `bun` or `node` with no extra deps.
+ * Exit codes follow scripts/lib/args.js: 0 within budget, 1 over budget / bad export, 2 usage.
  */
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
 
+const { ScriptError, parseArgs, runMain } = require('./lib/args');
+
 const PLATFORMS = ['web', 'ios', 'android'];
 const ROOT = path.resolve(__dirname, '..');
 
-function parseArgs(argv) {
-  const args = { platform: undefined, dist: undefined };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === '--platform') args.platform = argv[++i];
-    else if (arg.startsWith('--platform=')) args.platform = arg.slice('--platform='.length);
-    else if (arg === '--dist') args.dist = argv[++i];
-    else if (arg.startsWith('--dist=')) args.dist = arg.slice('--dist='.length);
-    else fail(`unknown argument: ${arg}`);
-  }
-  if (!PLATFORMS.includes(args.platform)) {
-    fail(`--platform must be one of ${PLATFORMS.join('|')}; got "${args.platform ?? ''}"`);
-  }
-  args.dist = path.resolve(ROOT, args.dist ?? `dist-${args.platform}`);
-  return args;
-}
+const CLI = {
+  name: 'bundle-budget',
+  usage: `Usage: bun scripts/bundle-budget.js --platform web|ios|android [--dist <dir>]
+
+Measures the raw and gzip size of every JS/CSS bundle in an \`expo export\` output and compares
+the gzip totals against bundle-budget.json. Exits 1 when over budget.
+
+Options:
+  --platform web|ios|android   required
+  --dist <dir>                 default dist-<platform>
+  --help                       this text`,
+  options: {
+    platform: { type: 'string', choices: PLATFORMS, required: true },
+    dist: { type: 'string' },
+  },
+};
 
 function fail(message) {
-  console.error(`bundle-budget: ${message}`);
-  process.exit(1);
+  throw new ScriptError(`bundle-budget: ${message}`);
 }
 
 /** Recursively lists files under `dir` (relative to `dist`) matching one of `exts`. */
@@ -101,8 +103,11 @@ function pad(value, width, right = false) {
   return right ? s.padStart(width) : s.padEnd(width);
 }
 
-function main() {
-  const { platform, dist } = parseArgs(process.argv.slice(2));
+function main(argv) {
+  const { values, help } = parseArgs(argv, CLI);
+  if (help) return 0;
+  const { platform } = values;
+  const dist = path.resolve(ROOT, values.dist ?? `dist-${platform}`);
   const budgetsPath = path.join(ROOT, 'bundle-budget.json');
   const budgets = JSON.parse(fs.readFileSync(budgetsPath, 'utf8'));
   const budget = budgets[platform];
@@ -189,9 +194,10 @@ function main() {
       `\nbundle-budget: ${platform} is over budget (${failed.map((c) => c.key).join(', ')}). ` +
         'Trim the bundle or raise the limit in bundle-budget.json with a justification.',
     );
-    process.exit(1);
+    return 1;
   }
   console.log(`\nbundle-budget: ${platform} within budget.`);
+  return 0;
 }
 
-main();
+runMain(main);

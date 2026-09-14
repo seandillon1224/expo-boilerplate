@@ -12,11 +12,12 @@ const os = require('os');
 const path = require('path');
 
 const { collectDeviceLogs } = require('./e2e-device-logs');
+const { parseArgs, runMain } = require('./lib/args');
 const {
+  PLATFORM_OPTION,
   PROFILES,
   artifactPaths,
   fail,
-  parseArgs,
   projectRoot,
   relative,
   requireBinary,
@@ -41,41 +42,36 @@ Options:
   --platform ios|android   default ios
   --device <udid|serial>   use this simulator UDID / adb serial instead of auto-selecting
   --keep                   leave the simulator / emulator running afterwards
-  --include-quarantine     run only the flows tagged \`quarantine\` (default: exclude them, like the gate)
+  --quarantine-only        run only the flows tagged \`quarantine\` (default: exclude them, like the gate)
   --help                   this text`;
 
-const { platform, flags, values } = parseArgs(process.argv, { name: NAME, usage: USAGE });
-const { ext } = PROFILES[platform];
-const paths = artifactPaths(platform);
-const flowsDir = path.join(projectRoot, '.maestro', 'flows');
-const outputDir = path.join(projectRoot, `maestro-${platform}`);
+const CLI = {
+  name: NAME,
+  usage: USAGE,
+  options: {
+    platform: { ...PLATFORM_OPTION, default: 'ios' },
+    device: { type: 'string' },
+    keep: { type: 'boolean' },
+    'quarantine-only': { type: 'boolean' },
+    // Pre-T11.1 spelling; kept so muscle memory and old scripts keep working.
+    'include-quarantine': {
+      type: 'boolean',
+      aliasFor: 'quarantine-only',
+      deprecated: '--include-quarantine is now --quarantine-only (the old name still works).',
+    },
+  },
+};
 
-const artifact = [paths.repacked, paths.base].find((candidate) => fs.existsSync(candidate));
-if (!artifact) {
-  fail(
-    NAME,
-    [
-      `no ${platform} build under ${relative(paths.dir)}/ (expected repacked.${ext} or base.${ext}).`,
-      `Run \`bun run e2e:build --platform ${platform}\` then \`bun run e2e:repack --platform ${platform}\`.`,
-    ].join('\n'),
-  );
-}
+const flowsDir = path.join(projectRoot, '.maestro', 'flows');
 
 // spawnSync-based cleanup runs fine from the exit hook because nothing here is async.
 function onExit(cleanup) {
   process.on('exit', cleanup);
 }
 
-// Flake budget (docs/native-e2e.md): the gate excludes `quarantine`; `--include-quarantine`
-// flips that to run only the quarantined flows. Mirrors e2e.yml / e2e-quarantine.yml.
-const quarantine = flags.has('include-quarantine');
-const tagArgs = quarantine
-  ? ['--include-tags', 'quarantine', '--exclude-tags', 'web']
-  : ['--include-tags', platform, '--exclude-tags', 'quarantine'];
-
 // Native entries live flat in .maestro/flows (web ones in flows/web, see .maestro/config.yaml);
 // list the ones this run selects so the notice below can name them.
-function selectedFlows() {
+function selectedFlows(platform, quarantine) {
   if (!fs.existsSync(flowsDir)) return [];
   return fs.readdirSync(flowsDir).filter((file) => {
     if (!/\.ya?ml$/.test(file)) return false;
@@ -87,7 +83,7 @@ function selectedFlows() {
   });
 }
 
-function appId() {
+function appId(platform) {
   const expoBin = path.join(projectRoot, 'node_modules', '.bin', 'expo');
   const config = runJson(NAME, expoBin, ['config', '--type', 'public', '--json'], {
     env: { ...process.env, APP_VARIANT: 'development', CI: '1' },
@@ -110,7 +106,7 @@ function maestroBinary() {
 
 // --- iOS -------------------------------------------------------------------------------------
 
-function pickSimulator(xcrun) {
+function pickSimulator(xcrun, device) {
   const { devices } = runJson(NAME, xcrun, ['simctl', 'list', '-j', 'devices', 'available']);
   const iphones = Object.entries(devices).flatMap(([runtime, list]) =>
     list
@@ -124,11 +120,11 @@ function pickSimulator(xcrun) {
           .map(Number) ?? [0, 0],
       })),
   );
-  if (values.device) {
-    const chosen = iphones.find((d) => d.udid === values.device || d.name === values.device);
+  if (device) {
+    const chosen = iphones.find((d) => d.udid === device || d.name === device);
     return (
       chosen ??
-      fail(NAME, `simulator \`${values.device}\` is not an available iPhone (xcrun simctl list).`)
+      fail(NAME, `simulator \`${device}\` is not an available iPhone (xcrun simctl list).`)
     );
   }
   const booted = iphones.find((d) => d.state === 'Booted');
@@ -145,9 +141,9 @@ function pickSimulator(xcrun) {
   );
 }
 
-function runIos(maestro, id) {
+function runIos(maestro, id, ctx) {
   const xcrun = requireBinary('xcrun', { hint: 'Install Xcode and its command line tools.' });
-  const sim = pickSimulator(xcrun);
+  const sim = pickSimulator(xcrun, ctx.device);
   const bootedByUs = sim.state !== 'Booted';
   console.log(
     `Simulator: ${sim.name} (${sim.runtime.replace(/.*\./, '')}, ${sim.udid})${bootedByUs ? ' — booting' : ''}`,
@@ -156,12 +152,12 @@ function runIos(maestro, id) {
     const boot = run(xcrun, ['simctl', 'boot', sim.udid], { stdio: 'inherit' });
     if (boot.status !== 0) fail(NAME, 'simctl boot failed.');
     // Only shut down what we booted, and on every exit path (install failure included).
-    if (!flags.has('keep')) onExit(() => run(xcrun, ['simctl', 'shutdown', sim.udid]));
+    if (!ctx.keep) onExit(() => run(xcrun, ['simctl', 'shutdown', sim.udid]));
     run(xcrun, ['simctl', 'bootstatus', sim.udid, '-b'], { stdio: 'inherit' });
   }
-  const install = run(xcrun, ['simctl', 'install', sim.udid, artifact], { stdio: 'inherit' });
-  if (install.status !== 0) fail(NAME, `simctl install ${relative(artifact)} failed.`);
-  return maestroTest(maestro, id, sim.udid);
+  const install = run(xcrun, ['simctl', 'install', sim.udid, ctx.artifact], { stdio: 'inherit' });
+  if (install.status !== 0) fail(NAME, `simctl install ${relative(ctx.artifact)} failed.`);
+  return maestroTest(maestro, id, sim.udid, ctx);
 }
 
 // --- Android ---------------------------------------------------------------------------------
@@ -187,13 +183,13 @@ function waitForBoot(adb, serial) {
   fail(NAME, `emulator ${serial} did not finish booting within 3 minutes.`);
 }
 
-function runAndroid(maestro, id) {
+function runAndroid(maestro, id, ctx) {
   const sdk = process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME || '';
   const adb = requireBinary('adb', {
     fallbacks: [path.join(sdk, 'platform-tools', 'adb')],
     hint: 'Install Android platform-tools (Android Studio → SDK Manager) or set ANDROID_HOME.',
   });
-  let serial = values.device ?? onlineAdbDevices(adb)[0];
+  let serial = ctx.device ?? onlineAdbDevices(adb)[0];
   if (!serial) {
     const emulator = requireBinary('emulator', {
       fallbacks: [path.join(sdk, 'emulator', 'emulator')],
@@ -215,7 +211,7 @@ function runAndroid(maestro, id) {
       },
     );
     child.unref();
-    if (!flags.has('keep')) onExit(() => serial && run(adb, ['-s', serial, 'emu', 'kill']));
+    if (!ctx.keep) onExit(() => serial && run(adb, ['-s', serial, 'emu', 'kill']));
     const deadline = Date.now() + 60_000;
     while (!serial && Date.now() < deadline) {
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
@@ -225,16 +221,16 @@ function runAndroid(maestro, id) {
   }
   waitForBoot(adb, serial);
   console.log(`Device: ${serial}`);
-  const install = run(adb, ['-s', serial, 'install', '-r', artifact], { stdio: 'inherit' });
-  if (install.status !== 0) fail(NAME, `adb install ${relative(artifact)} failed.`);
+  const install = run(adb, ['-s', serial, 'install', '-r', ctx.artifact], { stdio: 'inherit' });
+  if (install.status !== 0) fail(NAME, `adb install ${relative(ctx.artifact)} failed.`);
   // Start logcat from a clean buffer so device/logcat.txt only covers this run.
   run(adb, ['-s', serial, 'logcat', '-c']);
-  return maestroTest(maestro, id, serial);
+  return maestroTest(maestro, id, serial, ctx);
 }
 
 // --- Maestro ---------------------------------------------------------------------------------
 
-function maestroTest(maestro, id, device) {
+function maestroTest(maestro, id, device, { platform, tagArgs, outputDir }) {
   fs.rmSync(outputDir, { recursive: true, force: true });
   const args = [
     '--device',
@@ -269,19 +265,54 @@ function maestroTest(maestro, id, device) {
   return status;
 }
 
-const flows = selectedFlows();
-const selection = quarantine ? 'quarantine' : `${platform} (minus quarantine)`;
-if (flows.length === 0) {
+function main(argv) {
+  const { values, help } = parseArgs(argv, CLI);
+  if (help) return 0;
+  const { platform } = values;
+  const { ext } = PROFILES[platform];
+  const paths = artifactPaths(platform);
+
+  const artifact = [paths.repacked, paths.base].find((candidate) => fs.existsSync(candidate));
+  if (!artifact) {
+    fail(
+      NAME,
+      [
+        `no ${platform} build under ${relative(paths.dir)}/ (expected repacked.${ext} or base.${ext}).`,
+        `Run \`bun run e2e:build --platform ${platform}\` then \`bun run e2e:repack --platform ${platform}\`.`,
+      ].join('\n'),
+    );
+  }
+
+  // Flake budget (docs/native-e2e.md): the gate excludes `quarantine`; `--quarantine-only`
+  // flips that to run only the quarantined flows. Mirrors e2e.yml / e2e-quarantine.yml.
+  const quarantine = values['quarantine-only'];
+  const ctx = {
+    platform,
+    artifact,
+    device: values.device,
+    keep: values.keep,
+    outputDir: path.join(projectRoot, `maestro-${platform}`),
+    tagArgs: quarantine
+      ? ['--include-tags', 'quarantine', '--exclude-tags', 'web']
+      : ['--include-tags', platform, '--exclude-tags', 'quarantine'],
+  };
+
+  const flows = selectedFlows(platform, quarantine);
+  const selection = quarantine ? 'quarantine' : `${platform} (minus quarantine)`;
+  if (flows.length === 0) {
+    console.log(
+      `${NAME}: no flow in .maestro/flows is tagged \`${selection}\`, so there is nothing to run. ` +
+        `Build ${relative(artifact)} is ready; exiting 0.`,
+    );
+    return 0;
+  }
   console.log(
-    `${NAME}: no flow in .maestro/flows is tagged \`${selection}\`, so there is nothing to run. ` +
-      `Build ${relative(artifact)} is ready; exiting 0.`,
+    `Installing ${relative(artifact)}; ${flows.length} flow(s) tagged ${selection}: ${flows.join(', ')}`,
   );
-  process.exit(0);
+  const maestro = maestroBinary();
+  const id = appId(platform);
+  console.log(`MAESTRO_APP_ID=${id}`);
+  return platform === 'ios' ? runIos(maestro, id, ctx) : runAndroid(maestro, id, ctx);
 }
-console.log(
-  `Installing ${relative(artifact)}; ${flows.length} flow(s) tagged ${selection}: ${flows.join(', ')}`,
-);
-const maestro = maestroBinary();
-const id = appId();
-console.log(`MAESTRO_APP_ID=${id}`);
-process.exit(platform === 'ios' ? runIos(maestro, id) : runAndroid(maestro, id));
+
+runMain(main);

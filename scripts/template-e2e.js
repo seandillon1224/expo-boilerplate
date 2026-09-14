@@ -26,6 +26,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { UsageError, parseArgs: parseCli, runMain } = require('./lib/args');
 const { KEEP, REMOVAL, TEMPLATE, initialCommitMessage, scanLeftovers } = require('./init');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -80,18 +81,30 @@ const GATE = [
 
 class E2EError extends Error {}
 
+const CLI = {
+  name: 'template-e2e',
+  usage: `Usage: bun run template:e2e [--dir <path>] [--keep]
+
+Spawns a project from this checkout with the headless \`bun run init\` and proves the JS gate
+passes on its first commit. The template checkout itself is never touched.
+
+Options:
+  --dir <path>   where to put the copy; default a fresh temp dir (removed on success)
+  --keep         leave the copy behind, path printed
+  --help         this text`,
+  options: {
+    dir: { type: 'string' },
+    keep: { type: 'boolean' },
+  },
+};
+
 function parseArgs(argv) {
-  const args = { dir: null, keep: false };
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === '--keep') args.keep = true;
-    else if (a === '--dir') args.dir = path.resolve(argv[++i] ?? '');
-    else if (a.startsWith('--dir=')) args.dir = path.resolve(a.slice('--dir='.length));
-    else throw new E2EError(`template-e2e: unknown argument ${a} (flags: --dir <path>, --keep)`);
-  }
-  if (args.dir === '' || args.dir === ROOT)
-    throw new E2EError('template-e2e: --dir needs a path outside this checkout');
-  return args;
+  const { values, help } = parseCli(argv, CLI);
+  if (help) return { help: true };
+  const dir = values.dir === undefined ? null : path.resolve(values.dir);
+  if (values.dir === '' || dir === ROOT)
+    throw new UsageError('template-e2e: --dir needs a path outside this checkout');
+  return { dir, keep: values.keep };
 }
 
 /** Hermetic child env: no EXPO_TOKEN (init must not need EAS), a fixed git identity, no user git config. */
@@ -267,6 +280,7 @@ step('The template checkout is untouched', (ctx) => {
 
 function main(argv) {
   const args = parseArgs(argv);
+  if (args.help) return 0;
   const pkgName = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).name;
   if (pkgName !== TEMPLATE.slug) {
     throw new E2EError(
@@ -306,10 +320,13 @@ function main(argv) {
 }
 
 if (require.main === module) {
-  try {
-    process.exitCode = main(process.argv.slice(2));
-  } catch (error) {
-    console.error(error instanceof E2EError ? error.message : error);
-    process.exitCode = 1;
-  }
+  runMain((argv) => {
+    try {
+      return main(argv);
+    } catch (error) {
+      if (!(error instanceof E2EError)) throw error;
+      console.error(error.message);
+      return 1;
+    }
+  });
 }

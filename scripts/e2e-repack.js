@@ -11,11 +11,12 @@
 const fs = require('fs');
 const path = require('path');
 
+const { parseArgs, runMain } = require('./lib/args');
 const {
+  PLATFORM_OPTION,
   PROFILES,
   artifactPaths,
   fail,
-  parseArgs,
   projectRoot,
   readJson,
   relative,
@@ -40,36 +41,47 @@ Options:
   --verbose                pass through to @expo/repack-app
   --help                   this text`;
 
-const { platform, flags } = parseArgs(process.argv, { name: NAME, usage: USAGE });
-const { ext } = PROFILES[platform];
-const paths = artifactPaths(platform);
+const CLI = {
+  name: NAME,
+  usage: USAGE,
+  options: {
+    platform: { ...PLATFORM_OPTION, default: 'ios' },
+    verbose: { type: 'boolean' },
+  },
+};
 
-if (!fs.existsSync(paths.base)) {
-  fail(
-    NAME,
-    `${relative(paths.base)} not found. Run \`bun run e2e:build --platform ${platform}\` first.`,
-  );
-}
+async function main(argv) {
+  const { values, help } = parseArgs(argv, CLI);
+  if (help) return 0;
+  const { platform } = values;
+  const { ext } = PROFILES[platform];
+  const paths = artifactPaths(platform);
 
-if (platform === 'android') {
-  requireBinary('java', {
-    hint: 'A JDK is required: repack-app decodes/rebuilds the APK with apktool. `brew install --cask temurin`.',
-  });
-  const sdkRoot = process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME;
-  if (!sdkRoot || !fs.existsSync(path.join(sdkRoot, 'build-tools'))) {
+  if (!fs.existsSync(paths.base)) {
     fail(
       NAME,
-      'Android build-tools not found. Set ANDROID_SDK_ROOT (or ANDROID_HOME) to an SDK with build-tools/ (aapt2, zipalign, apksigner).',
+      `${relative(paths.base)} not found. Run \`bun run e2e:build --platform ${platform}\` first.`,
     );
   }
-  process.env.ANDROID_SDK_ROOT = sdkRoot;
-}
 
-// The base build was made with APP_VARIANT=development (eas.json e2e-* profiles); the embedded
-// config/bundle must be derived the same way or the bundle id / scheme would not match.
-process.env.APP_VARIANT = process.env.APP_VARIANT || 'development';
+  if (platform === 'android') {
+    requireBinary('java', {
+      hint: 'A JDK is required: repack-app decodes/rebuilds the APK with apktool. `brew install --cask temurin`.',
+    });
+    const sdkRoot = process.env.ANDROID_SDK_ROOT || process.env.ANDROID_HOME;
+    if (!sdkRoot || !fs.existsSync(path.join(sdkRoot, 'build-tools'))) {
+      fail(
+        NAME,
+        'Android build-tools not found. Set ANDROID_SDK_ROOT (or ANDROID_HOME) to an SDK with build-tools/ (aapt2, zipalign, apksigner).',
+      );
+    }
+    process.env.ANDROID_SDK_ROOT = sdkRoot;
+  }
 
-(async () => {
+  // The base build was made with APP_VARIANT=development (eas.json e2e-* profiles); the embedded
+  // config/bundle must be derived the same way or the bundle id / scheme would not match.
+  process.env.APP_VARIANT = process.env.APP_VARIANT || 'development';
+
   const { ConsoleLogger, repackAppAndroidAsync, repackAppIosAsync } = require('@expo/repack-app');
   const base = readJson(paths.baseMeta);
   fs.rmSync(paths.repacked, { recursive: true, force: true });
@@ -82,7 +94,7 @@ process.env.APP_VARIANT = process.env.APP_VARIANT || 'development';
     sourceAppPath: paths.base,
     outputPath: paths.repacked,
     workingDirectory: paths.work,
-    verbose: flags.has('verbose'),
+    verbose: values.verbose,
     logger: new ConsoleLogger(),
   };
   const output =
@@ -103,7 +115,7 @@ process.env.APP_VARIANT = process.env.APP_VARIANT || 'development';
     repackedAt: new Date().toISOString(),
   });
   console.log(`Wrote ${relative(output)} (repacked.${ext}). Next: bun run e2e:${platform}.`);
-})().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+  return 0;
+}
+
+runMain(main);

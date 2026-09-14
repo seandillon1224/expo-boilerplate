@@ -1,16 +1,18 @@
 // `bun run e2e:build` — local twin of the workflow's `get-build` (+ conditional `build`) job.
 // Fingerprints the current tree, asks EAS for a finished build of the E2E profile with that
 // exact hash, and downloads it to `e2e/builds/<platform>/base.(app|apk)`. Never starts a
-// (paid) `eas build` unless `--build` is passed; without it, prints the command and exits 2.
+// (paid) `eas build` unless `--build` is passed; without it, prints the command and exits 2
+// (the usage / "change the command line" code — scripts/lib/args.js).
 const fs = require('fs');
 const path = require('path');
 const { createFingerprintAsync } = require('@expo/fingerprint');
 
+const { parseArgs, runMain } = require('./lib/args');
 const {
+  PLATFORM_OPTION,
   PROFILES,
   artifactPaths,
   fail,
-  parseArgs,
   projectRoot,
   relative,
   run,
@@ -19,7 +21,9 @@ const {
 } = require('./e2e-common');
 
 const NAME = 'e2e:build';
-const USAGE = `Usage: bun run e2e:build [--platform ios|android] [--build] [--build-id <id>]
+const CLI = {
+  name: NAME,
+  usage: `Usage: bun run e2e:build [--platform ios|android] [--build] [--build-id <id>]
 
 Mirrors the native lane's get-build / build jobs for laptop debugging:
   1. fingerprint the current tree (same hash as \`bun run fingerprint --platform <p>\`)
@@ -34,18 +38,22 @@ Options:
   --build-id <id>          skip fingerprint matching and download this build instead
   --help                   this text
 
-Next: bun run e2e:repack, then bun run e2e:ios | e2e:android.`;
+Next: bun run e2e:repack, then bun run e2e:ios | e2e:android.`,
+  options: {
+    platform: { ...PLATFORM_OPTION, default: 'ios' },
+    build: { type: 'boolean' },
+    'build-id': { type: 'string' },
+  },
+};
 
-const { platform, flags, values } = parseArgs(process.argv, { name: NAME, usage: USAGE });
-const { profile, ext, simulator } = PROFILES[platform];
 const easBin = path.join(projectRoot, 'node_modules', '.bin', 'eas');
-const paths = artifactPaths(platform);
 
 function easJson(args) {
   return runJson(NAME, easBin, [...args, '--json', '--non-interactive']);
 }
 
-function findBuild(fingerprint) {
+function findBuild(platform, fingerprint) {
+  const { profile, simulator } = PROFILES[platform];
   const args = [
     'build:list',
     '--platform',
@@ -64,7 +72,9 @@ function findBuild(fingerprint) {
   return Array.isArray(builds) && builds.length > 0 ? builds[0] : null;
 }
 
-function download(build, fingerprint) {
+function download(platform, build, fingerprint) {
+  const { profile, ext } = PROFILES[platform];
+  const paths = artifactPaths(platform);
   console.log(`Downloading build ${build.id} (${build.buildProfile}, ${build.createdAt}) …`);
   // eas-cli keeps an extracted copy in its own cache; we copy it under e2e/builds so the repack
   // and run scripts have one stable, project-local location.
@@ -90,9 +100,18 @@ function download(build, fingerprint) {
   );
 }
 
-(async () => {
+async function main(argv) {
+  const { values, help } = parseArgs(argv, CLI);
+  if (help) return 0;
+  const { platform } = values;
+  const { profile } = PROFILES[platform];
+
   if (run(easBin, ['whoami', '--non-interactive']).status !== 0) {
-    fail(NAME, 'not logged in to EAS. Run `bun run eas login` (or set EXPO_TOKEN) and try again.');
+    fail(
+      NAME,
+      'not logged in to EAS. Run `bun run eas login` (or set EXPO_TOKEN) and try again.',
+      2,
+    );
   }
 
   const { hash: fingerprint } = await createFingerprintAsync(projectRoot, {
@@ -110,14 +129,16 @@ function download(build, fingerprint) {
         `warning: build fingerprint ${buildFingerprint} differs from the tree's (${fingerprint}).`,
       );
     }
-    download(build, buildFingerprint ?? fingerprint);
-    return;
+    download(platform, build, buildFingerprint ?? fingerprint);
+    return 0;
   }
 
-  let build = findBuild(fingerprint);
+  let build = findBuild(platform, fingerprint);
   if (!build) {
-    const command = `bun run eas build --platform ${platform} --profile ${profile} --non-interactive`;
-    if (!flags.has('build')) {
+    // One argv, printed and spawned — never a string re-split into arguments.
+    const buildArgs = ['build', '--platform', platform, '--profile', profile, '--non-interactive'];
+    const command = `bun run eas ${buildArgs.join(' ')}`;
+    if (!values.build) {
       console.error(
         [
           `${NAME}: no finished ${profile} build with fingerprint ${fingerprint}.`,
@@ -126,17 +147,17 @@ function download(build, fingerprint) {
           'then re-run `bun run e2e:build`, or pass `--build` to let this script run it.',
         ].join('\n'),
       );
-      process.exit(2);
+      return 2;
     }
     console.log(`No matching build; running \`${command}\` (this is a paid EAS build) …`);
-    const result = run(easBin, [...command.split(' ').slice(3), '--wait'], { stdio: 'inherit' });
+    const result = run(easBin, [...buildArgs, '--wait'], { stdio: 'inherit' });
     if (result.status !== 0) fail(NAME, 'eas build failed; see output above.');
-    build = findBuild(fingerprint);
+    build = findBuild(platform, fingerprint);
     if (!build)
       fail(NAME, 'the build finished but EAS lists no finished build with this fingerprint.');
   }
-  download(build, fingerprint);
-})().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+  download(platform, build, fingerprint);
+  return 0;
+}
+
+runMain(main);

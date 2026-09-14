@@ -48,6 +48,8 @@
  */
 const { spawnSync } = require('node:child_process');
 
+const { UsageError, parseArgs: parseCli, runMain } = require('./lib/args');
+
 const BRANCH = 'main';
 
 // Must match `name:` in .github/workflows/ci.yml and pr-title.yml (the matrix job expands to
@@ -684,48 +686,69 @@ function check(ctx, slug, only) {
 
 const MODES = { '--dry-run': dryRun, '--apply': apply, '--check': check };
 
+const CLI = {
+  name: 'repo:settings',
+  usage: `Usage: bun run repo:settings[:apply|:check] [--only <${SECTIONS.join('|')}>]
+
+Pushes (or diffs) the GitHub repo settings this template expects: main branch protection, merge
+settings, the uat / production environments, the automation's labels and Pages = Actions.
+
+Modes (pick one; default --dry-run):
+  --dry-run                print the API calls without making them
+  --apply                  make the changes
+  --check                  exit 1 on any drift (no changes)
+
+Options:
+  --only <a,b>             only these sections (repeatable, comma-separated):
+                           ${SECTIONS.join(', ')}
+  --help                   this text`,
+  options: {
+    'dry-run': { type: 'boolean' },
+    apply: { type: 'boolean' },
+    check: { type: 'boolean' },
+    only: { type: 'string', multiple: true },
+  },
+};
+
 /** `--dry-run | --apply | --check` (default dry run) plus `--only a,b` / `--only=a,b` (repeatable). */
 function parseArgs(argv) {
-  let mode = '--dry-run';
-  let only = null;
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (MODES[arg]) {
-      mode = arg;
-      continue;
-    }
-    if (arg === '--only' || arg.startsWith('--only=')) {
-      const value = arg === '--only' ? argv[(i += 1)] : arg.slice('--only='.length);
-      if (!value) throw new RepoSettingsError('repo:settings: --only needs a value');
-      const names = value
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const unknown = names.filter((s) => !SECTIONS.includes(s));
-      if (unknown.length) {
-        throw new RepoSettingsError(
-          `repo:settings: unknown section ${unknown.join(', ')} in --only; expected a comma-separated subset of ${SECTIONS.join(', ')}`,
-        );
-      }
-      only = [...(only ?? []), ...names];
-      continue;
-    }
-    throw new RepoSettingsError(
-      `repo:settings: unknown flag ${arg}; expected one of ${Object.keys(MODES).join(', ')} and optionally --only <${SECTIONS.join('|')}>`,
+  const { values, help } = parseCli(argv, CLI);
+  if (help) return { help: true };
+
+  const modes = Object.keys(MODES).filter((flag) => values[flag.slice(2)]);
+  if (modes.length > 1) {
+    throw new UsageError(`repo:settings: pick one mode, not ${modes.join(' and ')}`);
+  }
+  const mode = modes[0] ?? '--dry-run';
+
+  const names = (values.only ?? []).flatMap((value) =>
+    value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  if (values.only?.some((value) => value.trim() === '')) {
+    throw new UsageError('repo:settings: --only needs a value');
+  }
+  const unknown = names.filter((s) => !SECTIONS.includes(s));
+  if (unknown.length) {
+    throw new UsageError(
+      `repo:settings: unknown section ${unknown.join(', ')} in --only; expected a comma-separated subset of ${SECTIONS.join(', ')}`,
     );
   }
   // Keep DESIRED's order regardless of how --only was spelled.
-  return { mode, only: only ? SECTIONS.filter((s) => only.includes(s)) : SECTIONS };
+  return { mode, only: names.length ? SECTIONS.filter((s) => names.includes(s)) : SECTIONS };
 }
 
 function main(argv, ctx = { gh: defaultGh, log: (line) => console.log(line) }) {
   try {
-    const { mode, only } = parseArgs(argv);
+    const { mode, only, help } = parseArgs(argv);
+    if (help) return 0;
     requireAuth(ctx);
     MODES[mode](ctx, repoSlug(ctx), only);
     return 0;
   } catch (error) {
-    if (error instanceof RepoSettingsError) {
+    if (error instanceof RepoSettingsError || error instanceof UsageError) {
       console.error(error.message);
       return error.code;
     }
@@ -750,6 +773,4 @@ module.exports = {
   resolveReviewer,
 };
 
-if (require.main === module) {
-  process.exit(main(process.argv.slice(2)));
-}
+if (require.main === module) runMain(main);

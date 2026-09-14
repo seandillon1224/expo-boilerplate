@@ -26,6 +26,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
+const { parseArgs: parseCli, runMain } = require('./lib/args');
+
 /* ------------------------------------------------------------------------------------------ */
 /* Expected versions — one place, with the reason for each number                              */
 /* ------------------------------------------------------------------------------------------ */
@@ -194,7 +196,17 @@ const CHECKS = [
       const r = ctx.run('node', ['--version']);
       const found = ran(r) ? parseVersion(r.stdout) : null;
       if (!found) return row('missing', 'not found', expected, HINT.node);
-      if (major(found) !== wanted) return row('missing', found, expected, HINT.node);
+      // Older than .node-version really does break (scripts use current syntax); newer only
+      // risks drifting from what CI runs, so it warns instead of blocking `bun run init`.
+      if (major(found) < wanted) return row('missing', found, expected, HINT.node);
+      if (major(found) > wanted) {
+        return row(
+          'warn',
+          found,
+          expected,
+          `newer than .node-version — CI and EAS run ${wanted}.x; \`fnm use\` / \`nvm use\` to match`,
+        );
+      }
       return row('ok', found, expected);
     },
   },
@@ -508,19 +520,20 @@ function summarize(rows, { strict = false } = {}) {
   return { ...summary, message };
 }
 
-function parseArgs(argv) {
-  const out = { json: false, strict: false, help: false };
-  for (const arg of argv) {
-    if (arg === '--json') out.json = true;
-    else if (arg === '--strict') out.strict = true;
-    else if (arg === '--help' || arg === '-h') out.help = true;
-    else throw new Error(`doctor: unknown argument ${arg}`);
-  }
-  return out;
+function usage() {
+  return 'Usage: bun run doctor [--strict] [--json]\n\n  --strict   warnings exit 1 as well (CI)\n  --json     machine-readable { rows, summary }\n  --help     this text\n\nSee docs/doctor.md.';
 }
 
-function usage() {
-  return 'Usage: bun run doctor [--strict] [--json]\n\n  --strict   warnings exit 1 as well (CI)\n  --json     machine-readable { rows, summary }\n\nSee docs/doctor.md.';
+const CLI = {
+  name: 'doctor',
+  usage,
+  options: { json: { type: 'boolean' }, strict: { type: 'boolean' } },
+};
+
+/** `--json` / `--strict` / `--help` (scripts/lib/args.js prints `usage()` for the last one). */
+function parseArgs(argv) {
+  const { values, help } = parseCli(argv, CLI);
+  return { json: Boolean(values.json), strict: Boolean(values.strict), help };
 }
 
 /**
@@ -547,10 +560,7 @@ const doctorStep = {
 
 function main(argv) {
   const args = parseArgs(argv);
-  if (args.help) {
-    console.log(usage());
-    return 0;
-  }
+  if (args.help) return 0;
   const rows = runChecks(realContext());
   const summary = summarize(rows, { strict: args.strict });
   if (args.json) {
@@ -574,11 +584,4 @@ module.exports = {
   summarize,
 };
 
-if (require.main === module) {
-  try {
-    process.exitCode = main(process.argv.slice(2));
-  } catch (error) {
-    console.error(error.message);
-    process.exitCode = 1;
-  }
-}
+if (require.main === module) runMain(main);

@@ -6,23 +6,41 @@
 const path = require('path');
 const { createFingerprintAsync } = require('@expo/fingerprint');
 
-const projectRoot = path.join(__dirname, '..');
-const args = process.argv.slice(2);
-const debug = args.includes('--debug');
-const platformIndex = args.indexOf('--platform');
-const only = platformIndex === -1 ? null : args[platformIndex + 1];
-const platforms = only ? [only] : ['ios', 'android'];
+const { parseArgs, runMain } = require('./lib/args');
 
-(async () => {
+const projectRoot = path.join(__dirname, '..');
+
+const CLI = {
+  name: 'fingerprint',
+  usage: `Usage: bun run fingerprint [--platform ios|android] [--debug]
+
+Prints the @expo/fingerprint hash of the current tree — the value EAS uses as runtimeVersion.
+
+Options:
+  --platform ios|android   print this platform's hash as a bare string (default: both, as JSON)
+  --debug                  print every source that fed the hash, for diffing
+  --help                   this text`,
+  options: {
+    platform: { type: 'string', choices: ['ios', 'android'] },
+    debug: { type: 'boolean' },
+  },
+};
+
+async function main(argv) {
+  const { values, help } = parseArgs(argv, CLI);
+  if (help) return 0;
+
+  const only = values.platform;
+  const debug = values.debug;
   const result = {};
-  for (const platform of platforms) {
+  for (const platform of only ? [only] : ['ios', 'android']) {
     const fingerprint = await createFingerprintAsync(projectRoot, { platforms: [platform], debug });
     result[platform] = debug ? fingerprint : fingerprint.hash;
   }
   process.stdout.write(
     only && !debug ? `${result[only]}\n` : `${JSON.stringify(result, null, debug ? 2 : 0)}\n`,
   );
-})().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+  return 0;
+}
+
+runMain(main);

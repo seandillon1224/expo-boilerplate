@@ -9,6 +9,8 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+const { ScriptError } = require('./lib/args');
+
 const projectRoot = path.join(__dirname, '..');
 const buildsRoot = path.join(projectRoot, 'e2e', 'builds');
 
@@ -18,47 +20,32 @@ const PROFILES = {
   android: { profile: 'e2e-android-apk', ext: 'apk', simulator: false },
 };
 
-function parseArgs(argv, { name, usage }) {
-  const args = argv.slice(2);
-  if (args.includes('--help') || args.includes('-h')) {
-    console.log(usage);
-    process.exit(0);
-  }
-  const flags = new Set();
-  const values = {};
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (!arg.startsWith('--')) fail(name, `unexpected argument \`${arg}\`. Try --help.`);
-    const key = arg.slice(2);
-    const next = args[i + 1];
-    if (next !== undefined && !next.startsWith('--')) {
-      values[key] = next;
-      i += 1;
-    } else {
-      flags.add(key);
-    }
-  }
-  const platform = values.platform ?? 'ios';
-  if (!PROFILES[platform]) fail(name, `--platform must be ios or android (got \`${platform}\`).`);
-  return { platform, flags, values };
-}
+/** The `--platform` entry of an e2e script's option table (scripts/lib/args.js). */
+const PLATFORM_OPTION = Object.freeze({ type: 'string', choices: Object.keys(PROFILES) });
 
+/**
+ * Reports a clean failure: throws, so `runMain` prints `<name>: <message>` and sets the exit code
+ * (see the convention in scripts/lib/args.js — 1 = the thing failed, 2 = fix the command line).
+ * Written as an expression (`return fail(…)`, `x ?? fail(…)`) all over the e2e scripts.
+ */
 function fail(name, message, code = 1) {
-  console.error(`${name}: ${message}`);
-  process.exit(code);
+  throw new ScriptError(`${name}: ${message}`, code);
 }
 
-// Resolves a CLI on PATH (with optional fallbacks) or exits with an install hint.
+// Resolves a CLI on PATH (with optional fallbacks) or fails with an install hint.
 function requireBinary(name, { fallbacks = [], hint }) {
   const which = spawnSync('which', [name], { encoding: 'utf8' });
   if (which.status === 0) return which.stdout.trim();
   const found = fallbacks.find((candidate) => fs.existsSync(candidate));
   if (found) return found;
-  console.error(
-    `\`${name}\` not found on PATH${fallbacks.length ? ` or at ${fallbacks.join(', ')}` : ''}.`,
+  throw new ScriptError(
+    [
+      `\`${name}\` not found on PATH${fallbacks.length ? ` or at ${fallbacks.join(', ')}` : ''}.`,
+      hint,
+    ]
+      .filter(Boolean)
+      .join('\n'),
   );
-  if (hint) console.error(hint);
-  return process.exit(1);
 }
 
 function run(command, args, options = {}) {
@@ -110,11 +97,11 @@ function relative(file) {
 }
 
 module.exports = {
+  PLATFORM_OPTION,
   PROFILES,
   artifactPaths,
   buildsRoot,
   fail,
-  parseArgs,
   projectRoot,
   readJson,
   relative,

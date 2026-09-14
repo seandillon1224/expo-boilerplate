@@ -415,7 +415,7 @@ letting them block unrelated PRs either.
 - [ ] Root cause named in the issue (not "made it more robust").
 - [ ] The fix is in the flow or the app, not in the assertion: no removed `assertVisible`, no
       added `sleep`, no timeout stretched past what the feature promises.
-- [ ] `bun run e2e:<p> --include-quarantine` (native) or a temporary tag swap for web passes 5×
+- [ ] `bun run e2e:<p> --quarantine-only` (native) or a temporary tag swap for web passes 5×
       in a row locally.
 - [ ] The tag and the `# quarantine:` comment are removed in the fixing PR; that PR's
       `E2E (native)` / `Maestro web` checks are green on the first attempt (look at the JUnit in
@@ -429,7 +429,7 @@ test` exits 1 when no flow matches, so a weekly cron with nothing to run is a we
 | Where | How                                                                                                                                                                                                                                                                                                                  |
 | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | EAS   | `.eas/workflows/e2e-quarantine.yml`: `bun run eas workflow:run .eas/workflows/e2e-quarantine.yml` (or weekly via `schedule`, once enabled). Same fingerprint → get-build / build → repack → maestro shape as `e2e.yml`, `include_tags: [quarantine]` + `exclude_tags: [web]`, `retries: 0`, no PR comment, no hooks. |
-| Local | `bun run e2e:ios --include-quarantine` / `bun run e2e:android --include-quarantine` — same selection as the workflow (`quarantine` minus `web`).                                                                                                                                                                     |
+| Local | `bun run e2e:ios --quarantine-only` / `bun run e2e:android --quarantine-only` — same selection as the workflow (`quarantine` minus `web`).                                                                                                                                                                           |
 | Web   | No script flag: swap the tags by hand — `maestro test .maestro -e APP_URL=http://localhost:8081 --include-tags quarantine --exclude-tags ios,android --headless` after `bun run export:web && bun run serve:web &`.                                                                                                  |
 
 `maestro test` exits 1 when no flow matches the tags, on every lane.
