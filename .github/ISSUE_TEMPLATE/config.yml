@@ -1,1 +1,18 @@
+# Blank issues stay on (most tickets are not one of the forms). The links below are the questions
+# that have a documented answer instead of an issue; they point at the docs source on GitHub, which
+# is the same markdown the docs site publishes (`bun run docs:dev` to browse it locally).
+# `bun run init` rewrites the owner/repo in these URLs (MANIFEST in scripts/init.js).
 blank_issues_enabled: true
+contact_links:
+  - name: Release runbook
+    url: https://github.com/seandillon1224/expo-boilerplate/blob/main/docs/release-ladder.md
+    about: How a merge reaches staging, UAT, production and the stores — plus rollback, hotfix and backports.
+  - name: Flaky Maestro flow — read the flake budget first
+    url: https://github.com/seandillon1224/expo-boilerplate/blob/main/docs/native-e2e.md#flake-budget
+    about: The policy and the quarantine steps. Then file one with the "Flaky Maestro flow" form, never by deleting assertions.
+  - name: A check is red and you are not sure why
+    url: https://github.com/seandillon1224/expo-boilerplate/blob/main/docs/ci-overview.md
+    about: Every GitHub Actions job and EAS workflow, what triggers it, what it needs, and the triage table.
+  - name: New here?
+    url: https://github.com/seandillon1224/expo-boilerplate/blob/main/docs/onboarding.md
+    about: Day-1 setup — install, doctor, EAS access, env, the dev client, your first PR.

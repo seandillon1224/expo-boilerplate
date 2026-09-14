@@ -92,6 +92,7 @@ Browse these as a site: `bun run docs:dev` (VitePress; `.github/workflows/docs.y
 
 - [Template init](docs/template-init.md) — `bun run init`: what it rewrites (app config, workflow envs, badges, docs), the steps (ledger + `PLAN.md` reset, self-delete, optional fresh git history), the flags, the headless form, and `bun run template:e2e`.
 - [Toolchain check](docs/doctor.md) — `bun run doctor`: every tool the lanes need, the expected versions and why, install hints, `--strict` / `--json`.
+- [Onboarding (day 1)](docs/onboarding.md) — the new engineer's path from a clone to a merged PR: install, `doctor`, EAS access, `env:pull`, the dev client, the local gate, and what each check on the PR means.
 - [Commands](docs/commands.md) — every `package.json` script with its flags, grouped by what you are doing: the local gate, dev, environments, tests and E2E, performance, release and repo settings.
 - [CI overview](docs/ci-overview.md) — the map of both CI systems: every GitHub Actions job and EAS workflow, triggers, gates, the repo constants that keep owner-dependent jobs skipped, what each needs, and the "when something is red" triage table.
 - [JS gate: required checks](docs/js-gate.md) — what gates merge, how merging works, running the gate locally.
@@ -113,8 +114,10 @@ Browse these as a site: `bun run docs:dev` (VitePress; `.github/workflows/docs.y
 ## Contributing
 
 One ticket, one PR off `main`, squash-merged as soon as the required checks are green, with
-`Closes #n` in the PR body.
+`Closes #n` in the PR body (`.github/PULL_REQUEST_TEMPLATE.md` prefills the shape).
 
+- [Onboarding (day 1)](docs/onboarding.md) — start here on your first day: clone → `bun install` →
+  `bun run doctor` → EAS access → `env:pull` → dev client → first PR, and what each check means.
 - [`CLAUDE.md`](CLAUDE.md) — the working agreement: the commands an agent runs unprompted, the
   non-negotiable rules and the shape of the pipeline, with a pointer to the page that owns each.
 - [Conventions](docs/conventions.md) — the same rules for people, with the reasoning: toolchain,
@@ -122,6 +125,10 @@ One ticket, one PR off `main`, squash-merged as soon as the required checks are 
   `useUpdatePolicy`), CI and docs conventions, and how to change a locked decision.
 - [JS gate: required checks](docs/js-gate.md) — what gates merge, how merging and auto-merge work,
   and how to run the gate locally before pushing.
+
+## Security
+
+Report a vulnerability privately through GitHub Security Advisories — see [SECURITY.md](SECURITY.md).
 
 ## Licence
 
