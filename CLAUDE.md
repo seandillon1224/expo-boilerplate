@@ -41,6 +41,9 @@ The reasoning, and the rules not repeated here, are in `docs/conventions.md`.
 - All user-facing strings go through `t()` (`react-i18next`, keys typed against `src/i18n/locales/en/common.json`); run `bun run i18n:extract` after adding one.
 - `EXPO_PUBLIC_*` is read only through `@/lib/env` (schema in `src/lib/env.schema.ts`), never `process.env`; document new keys in `.env.example`. EAS environment variables are the source of truth and `.env.local` is pulled, never hand-edited. Build-time secrets (`SENTRY_AUTH_TOKEN`, `EXPO_TOKEN`) are never `EXPO_PUBLIC_`.
 - Versioning: release-please owns `package.json` `version`, the single source of truth `app.config.ts` reads (ADR-0002) — never hand-edit it or push a `vX.Y.Z` tag.
+- Colour has one source: `src/tw/tokens.ts`. `src/global.css` mirrors it as CSS variables + `@theme inline`
+  (drift-tested by `src/tw/__tests__/tokens.test.ts`) and `navigationTheme()` (`src/tw/navigation-theme.ts`)
+  feeds the same tokens to the root `ThemeProvider`; never hardcode a hex or use React Navigation's stock themes.
 - Loading / empty / error UI comes from `@/components/states` with screen-specific `testID`s; render errors go through `ErrorBoundary` / the root layout's `RouteErrorBoundary`.
 - OTA behaviour changes in exactly one place, `useUpdatePolicy` (ADR-0003); screens never call `expo-updates` actions. Every screen that loads data calls `markInteractive` once content is usable, never while loading.
 - `@rozenite/*` is imported only in `src/lib/devtools-plugins.ts`, behind the `__DEV__` require in `src/lib/devtools.ts` (`docs/rozenite.md`).

@@ -2,7 +2,7 @@ import '@/global.css';
 // Registers i18next with react-i18next before any screen calls useTranslation().
 import '@/i18n';
 
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
+import { ThemeProvider } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
@@ -15,6 +15,7 @@ import { configureObserve, wrapObserveRoot } from '@/lib/observe';
 import { queryClient } from '@/lib/query-client';
 import { initSentry, wrapRoot } from '@/lib/sentry';
 import { QueryProvider } from '@/providers/query-provider';
+import { navigationTheme } from '@/tw/navigation-theme';
 
 // Router renders this for any route that throws during render (routes may override).
 export { RouteErrorBoundary as ErrorBoundary } from '@/components/route-error-boundary';
@@ -40,7 +41,8 @@ function RootLayout() {
   useUpdatePolicyDriver();
   return (
     <QueryProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      {/* Navigation chrome from the same tokens the screens paint (src/tw/tokens.ts). */}
+      <ThemeProvider value={navigationTheme(colorScheme)}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
         </Stack>
