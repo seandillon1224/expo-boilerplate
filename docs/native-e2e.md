@@ -317,15 +317,16 @@ no recording and no device log on web — the headless Chromium's console output
 its flow discovery is otherwise non-recursive. The header comment in `config.yaml` is the
 canonical description; in short:
 
-| Path                                  | Role                                                                                                                                          |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.maestro/config.yaml`                | Workspace config: `flows: ['flows/*', 'flows/web/*']`, env contract (`MAESTRO_APP_ID`, `APP_URL`), tag and selector rules.                    |
-| `.maestro/flows/<name>.yaml`          | Native entry: `appId: ${MAESTRO_APP_ID}`, `tags: [ios, android]`, then `runFlow` launch + steps. Discovered by `--include-tags ios\|android`. |
-| `.maestro/flows/web/<name>.yaml`      | Web entry: `url: ${APP_URL}`, `tags: [web]`, same steps. Discovered by `--include-tags web` (CI `maestro-web`, `bun run e2e:web`).            |
-| `.maestro/subflows/launch.yaml`       | Native `launchApp` (`clearState`, all permissions allowed).                                                                                   |
-| `.maestro/subflows/launch-web.yaml`   | Web `launchApp` (opens `APP_URL`).                                                                                                            |
-| `.maestro/subflows/select-tab.yaml`   | Tab-bar tap with a `when: platform` branch per OS — the only non-testID selector, see below.                                                  |
-| `.maestro/subflows/steps/<name>.yaml` | The shared steps (`smoke`, `tabs`, `fetch`, `updates`), written once and run by both entries.                                                 |
+| Path                                  | Role                                                                                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.maestro/config.yaml`                | Workspace config: `flows: ['flows/*', 'flows/web/*']`, env contract (`MAESTRO_APP_ID`, `APP_URL`), tag and selector rules.                              |
+| `.maestro/flows/<name>.yaml`          | Native entry: `appId: ${MAESTRO_APP_ID}`, `tags: [ios, android]`, then `runFlow` launch + steps. Discovered by `--include-tags ios\|android`.           |
+| `.maestro/flows/web/<name>.yaml`      | Web entry: `url: ${APP_URL}`, `tags: [web]`, same steps. Discovered by `--include-tags web` (CI `maestro-web`, `bun run e2e:web`).                      |
+| `.maestro/subflows/launch.yaml`       | Native `launchApp` (`clearState`, all permissions allowed).                                                                                             |
+| `.maestro/subflows/launch-web.yaml`   | Web `launchApp` (opens `APP_URL`).                                                                                                                      |
+| `.maestro/subflows/select-tab.yaml`   | Tab-bar tap with a `when: platform` branch per OS — the only non-testID selector, see below.                                                            |
+| `.maestro/subflows/steps/<name>.yaml` | The shared steps (`smoke`, `tabs`, `fetch`, `updates`), written once and run by both entries.                                                           |
+| `.maestro/fixtures/*.json`            | Offline API responses for the **web** lane, served at `/fixtures/<name>` by `scripts/serve-web.js`. Not flows; see [Fetch flow data](#fetch-flow-data). |
 
 Two entry files per flow are unavoidable: Maestro picks the Chromium driver from a `url:` header
 alone (`url` beats `appId`; `--platform` does not override it), so one file cannot serve both
@@ -365,9 +366,30 @@ the visible label is matched via `TAB_LABEL`) and absent on web (Radix generates
 
 3. Add the web entry `.maestro/flows/web/<name>.yaml` with `name: web/<name>`, `url: ${APP_URL}`,
    `tags: [web]` and `../../subflows/launch-web.yaml` + `../../subflows/steps/<name>.yaml`.
-4. Verify web locally (`bun run export:web && bun run serve:web &` then `bun run e2e:web`) and
+4. Verify web locally (`bun run export:web:e2e && bun run serve:web &` then `bun run e2e:web`) and
    native with the loop above. A step that must differ per platform goes in its own subflow with
    `when: { platform: iOS | Android | Web }` blocks, like `select-tab.yaml`.
+
+### Fetch flow data
+
+`subflows/steps/fetch.yaml` is shared, but the data behind it is not:
+
+- **Web** reads `.maestro/fixtures/posts.json`, served at `/fixtures/posts` by
+  `scripts/serve-web.js`, because `bun run export:web:e2e` bakes
+  `EXPO_PUBLIC_API_URL=http://localhost:8081/fixtures` into the export. `Maestro web` is a
+  required check, so it owns its data and never reaches the public internet.
+- **Native** still hits `https://jsonplaceholder.typicode.com` — the `EXPO_PUBLIC_API_URL`
+  default. The native lane is not a GitHub-required check and a real HTTPS round trip on a real
+  device is part of what it is testing.
+
+That asymmetry is deliberate but not load-bearing. If jsonplaceholder starts costing the native
+lane green runs, give it the same treatment: set `EXPO_PUBLIC_API_URL` on the `e2e-*` profiles in
+`eas.json` to a host the worker can reach, or add the `quarantine` tag while you do
+([Flake budget](#flake-budget)) — do not delete the assertions.
+
+The fixture must satisfy `postSchema` in `src/features/posts/api.ts`: since T13.2 the response is
+Zod-parsed, so a drifted fixture shows up as the flow's error state, not as a silently empty list.
+Full wiring: [Testing → Test data](testing.md#test-data-fixtures-on-web-the-real-api-on-native).
 
 ## Flake budget
 
@@ -433,7 +455,7 @@ test` exits 1 when no flow matches, so a weekly cron with nothing to run is a we
 | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | EAS   | `.eas/workflows/e2e-quarantine.yml`: `bun run eas workflow:run .eas/workflows/e2e-quarantine.yml` (or weekly via `schedule`, once enabled). Same fingerprint → get-build / build → repack → maestro shape as `e2e.yml`, `include_tags: [quarantine]` + `exclude_tags: [web]`, `retries: 0`, no PR comment, no hooks. |
 | Local | `bun run e2e:ios --quarantine-only` / `bun run e2e:android --quarantine-only` — same selection as the workflow (`quarantine` minus `web`).                                                                                                                                                                           |
-| Web   | No script flag: swap the tags by hand — `maestro test .maestro -e APP_URL=http://localhost:8081 --include-tags quarantine --exclude-tags ios,android --headless` after `bun run export:web && bun run serve:web &`.                                                                                                  |
+| Web   | No script flag: swap the tags by hand — `maestro test .maestro -e APP_URL=http://localhost:8081 --include-tags quarantine --exclude-tags ios,android --headless` after `bun run export:web:e2e && bun run serve:web &`.                                                                                              |
 
 `maestro test` exits 1 when no flow matches the tags, on every lane.
 

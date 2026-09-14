@@ -92,6 +92,7 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "export:web": "expo export --platform web --output-dir dist-web",
+    "export:web:e2e": "EXPO_PUBLIC_API_URL=${E2E_API_URL:-http://localhost:8081/fixtures} bun run export:web -- --clear",
     "export:ios": "expo export --platform ios --output-dir dist-ios",
     "export:android": "expo export --platform android --output-dir dist-android",
     "budget": "bun scripts/bundle-budget.js",

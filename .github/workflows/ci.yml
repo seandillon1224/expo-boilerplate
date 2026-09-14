@@ -165,13 +165,17 @@ jobs:
     # JS-only `expo export` (no native toolchain; PLAN.md decisions 7, 10) plus a gzip budget
     # check against bundle-budget.json. The export is also uploaded as `web-export` for the
     # Maestro web job to reuse.
+    # `export:web:e2e`, not `export:web`: `EXPO_PUBLIC_*` is inlined at export time, so the only
+    # way the reused export can talk to the offline fixture API (`/fixtures/posts`, served by
+    # scripts/serve-web.js — T13.2) is to bake the URL in here. The two exports differ by one
+    # inlined URL string, which is noise against the gzip budget this job checks.
     name: Bundle budget (web)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/setup
-      - run: bun run export:web
+      - run: bun run export:web:e2e
       - run: bun run budget --platform web
       - name: Upload bundle sizes
         if: always()
@@ -265,11 +269,19 @@ jobs:
         run: |
           nohup bun run serve:web > maestro-web-serve.log 2>&1 &
           for i in $(seq 1 30); do
-            curl -sf -o /dev/null http://localhost:8081/ && exit 0
+            curl -sf -o /dev/null http://localhost:8081/ && break
             sleep 1
           done
-          echo "serve-web did not come up on :8081" >&2
-          exit 1
+          if ! curl -sf -o /dev/null http://localhost:8081/; then
+            echo "serve-web did not come up on :8081" >&2
+            exit 1
+          fi
+          # The fetch flow reads posts from the offline fixture API (T13.2), not jsonplaceholder:
+          # fail here, with a clear message, rather than as a red assertion inside Maestro.
+          if ! curl -sf http://localhost:8081/fixtures/posts | head -c 200; then
+            echo "serve-web is not serving .maestro/fixtures/posts.json" >&2
+            exit 1
+          fi
       - run: bun run e2e:web
       - name: Upload Maestro report
         if: always()

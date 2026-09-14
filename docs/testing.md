@@ -154,8 +154,36 @@ ship: `smoke`, `tabs`, `fetch`, `updates`. Always run the workspace directory (`
 
 | Lane   | Command                                                                                      | App under test                                                                | Where it runs in CI                                                  |
 | ------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Web    | `bun run export:web && bun run serve:web` in one shell, `bun run e2e:web` in another         | The static export on `http://localhost:8081`                                  | `Maestro web` in `.github/workflows/ci.yml` (required)               |
+| Web    | `bun run export:web:e2e && bun run serve:web` in one shell, `bun run e2e:web` in another     | The static export on `http://localhost:8081`, API stubbed by local fixtures   | `Maestro web` in `.github/workflows/ci.yml` (required)               |
 | Native | `bun run e2e:build --platform <p>` → `bun run e2e:repack --platform <p>` → `bun run e2e:<p>` | A release-mode EAS build for the current fingerprint with your JS repacked in | `E2E (native)` in `.eas/workflows/e2e.yml`, both platforms, every PR |
+
+### Test data: fixtures on web, the real API on native
+
+The `fetch` flow is the only one that loads data, and the two lanes get it from different places:
+
+| Lane   | Source                                                                     | Why                                                                                                                                                                                                                                  |
+| ------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Web    | `.maestro/fixtures/posts.json`, served at `/fixtures/posts`                | `Maestro web` is a **required** check. A required check must not go red because a free public API rate-limited the runner, so the web lane has no network dependency at all.                                                         |
+| Native | `https://jsonplaceholder.typicode.com` (the `EXPO_PUBLIC_API_URL` default) | The native lane is not a GitHub-required check, and exercising a real HTTPS request on a real device is worth something. If it starts flaking, point it at a fixture host the same way: [Native E2E](native-e2e.md#fetch-flow-data). |
+
+How the web wiring works — three moving parts, all of which have to agree:
+
+1. `bun run export:web:e2e` sets `EXPO_PUBLIC_API_URL=http://localhost:8081/fixtures` for the
+   export (`E2E_API_URL` overrides the host). Expo inlines `EXPO_PUBLIC_*` **at export time**, so
+   a plain `bun run export:web` bakes in jsonplaceholder and no amount of later env twiddling
+   changes it — re-export to switch. The script passes `--clear` for the same reason: Metro's
+   transform cache does not key on `EXPO_PUBLIC_*`, so an export right after a plain `export:web`
+   would otherwise reuse the cached module with the old URL inlined. Check what actually shipped
+   with `grep -rho 'EXPO_PUBLIC_API_URL:"[^"]*"' dist-web/_expo/static/js/web/*.js`.
+2. `scripts/serve-web.js` answers `/fixtures/<name>` from `.maestro/fixtures/<name>.json`
+   (`resolveFixture`, unit-tested alongside the static resolver). `<name>` is one allow-listed
+   segment and the `.json` is appended by the server, so the route cannot reach anything else; an
+   unknown fixture is a 404, never the SPA fallback.
+3. `src/features/posts/api.ts` parses the body with Zod, so a fixture that drifts from `postSchema`
+   fails the flow at the error state instead of rendering half a list.
+
+Adding a fixture: drop `<name>.json` in `.maestro/fixtures/`, and make sure the code path that
+reads it appends `/<name>` to `env.API_URL`.
 
 Rules:
 

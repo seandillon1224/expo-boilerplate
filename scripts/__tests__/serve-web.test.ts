@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { resolveFile } = require('../serve-web');
+const { resolveFile, resolveFixture } = require('../serve-web');
 
 /**
  * `resolveFile` is the whole security surface of `bun run serve:web`: it turns an attacker-controlled
@@ -13,11 +13,13 @@ const { resolveFile } = require('../serve-web');
 
 let dist: string;
 let outside: string;
+let fixtures: string;
 
 beforeAll(() => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'serve-web-'));
   dist = path.join(tmp, 'dist-web');
   outside = path.join(tmp, 'secret.txt');
+  fixtures = path.join(tmp, 'fixtures');
   // A sibling whose path is a string-prefix of `dist`: the guard must compare path *segments*.
   const sibling = path.join(tmp, 'dist-web-evil');
 
@@ -31,6 +33,14 @@ beforeAll(() => {
   fs.writeFileSync(path.join(dist, '_expo', 'static', 'js', 'web', 'entry.js'), 'console.log(1)');
   fs.writeFileSync(outside, 'AWS_SECRET_ACCESS_KEY=hunter2');
   fs.writeFileSync(path.join(sibling, 'index.html'), '<html>evil</html>');
+  fs.mkdirSync(path.join(fixtures, 'nested'), { recursive: true });
+  fs.writeFileSync(path.join(fixtures, 'posts.json'), '[]');
+  fs.writeFileSync(path.join(fixtures, 'nested', 'deep.json'), '[]');
+  // A sibling of the fixture dir whose name is a string-prefix of it, same trap as dist-web-evil.
+  fs.mkdirSync(path.join(tmp, 'fixtures-evil'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'fixtures-evil', 'posts.json'), '["evil"]');
+  // A non-JSON neighbour: the route appends `.json`, so this must be unreachable.
+  fs.writeFileSync(path.join(fixtures, 'secret.env'), 'AWS_SECRET_ACCESS_KEY=hunter2');
   // The parent of the export gets an index.html too: without the containment check, a pathname
   // that normalizes to a bare `..` resolves to *this* file. It is what makes the check observable.
   fs.writeFileSync(path.join(tmp, 'index.html'), '<html>PARENT — must never be served</html>');
@@ -146,5 +156,78 @@ describe('resolveFile — traversal guard', () => {
         expect(path.relative(dist, resolved).startsWith('..')).toBe(false);
       }
     }
+  });
+});
+
+/**
+ * `/fixtures/<name>` is the offline posts API the Maestro web fetch flow runs against (T13.2).
+ * It is a second attacker-reachable route on the same port, so it gets the same treatment as
+ * `resolveFile`: the only thing it may ever return is a `.json` file the fixture directory owns.
+ */
+describe('resolveFixture', () => {
+  it('maps /fixtures/<name> to <name>.json', () => {
+    expect(resolveFixture('/fixtures/posts', fixtures)).toBe(path.join(fixtures, 'posts.json'));
+  });
+
+  it('ignores any path that is not under /fixtures/', () => {
+    expect(resolveFixture('/', fixtures)).toBeNull();
+    expect(resolveFixture('/fetch', fixtures)).toBeNull();
+    // Exactly `/fixtures` (no trailing slash) is not a fixture request either.
+    expect(resolveFixture('/fixtures', fixtures)).toBeNull();
+    expect(resolveFixture('/api/fixtures/posts', fixtures)).toBeNull();
+  });
+
+  it('returns null for a fixture that does not exist', () => {
+    expect(resolveFixture('/fixtures/comments', fixtures)).toBeNull();
+  });
+
+  it('rejects anything but a single lowercase segment', () => {
+    const rejected = [
+      '/fixtures/posts.json', // the extension is appended, never supplied
+      '/fixtures/nested/deep',
+      '/fixtures/secret.env',
+      '/fixtures/POSTS',
+      '/fixtures/-posts',
+      '/fixtures/posts_1',
+      '/fixtures/', // empty name
+      '/fixtures/..',
+      '/fixtures/../secret',
+      '/fixtures/../../dist-web/index',
+      '/fixtures/%2e%2e/secret',
+      '/fixtures/%2e%2e%2fsecret',
+      '/fixtures/..%00',
+      `/fixtures${outside}`,
+      '/fixtures//etc/hosts',
+      '/fixtures/../fixtures-evil/posts',
+    ];
+    for (const pathname of rejected) {
+      expect(resolveFixture(pathname, fixtures)).toBeNull();
+    }
+  });
+
+  it('never returns a path outside the fixture directory', () => {
+    const probes = [
+      '/fixtures/posts',
+      '/fixtures/../secret',
+      '/fixtures/../../secret',
+      '/fixtures/../fixtures-evil/posts',
+      '/fixtures/nested/deep',
+      `/fixtures/${outside}`,
+    ];
+    for (const probe of probes) {
+      const resolved = resolveFixture(probe, fixtures);
+      if (resolved !== null) {
+        expect(path.relative(fixtures, resolved).startsWith('..')).toBe(false);
+        expect(resolved.endsWith('.json')).toBe(true);
+      }
+    }
+    expect(fs.readFileSync(path.join(fixtures, 'secret.env'), 'utf8')).toContain('hunter2');
+  });
+
+  it('the static resolver does not serve fixtures, and vice versa', () => {
+    // The two routes are disjoint: the server picks by prefix, so neither can stand in for the
+    // other if one of them is ever weakened.
+    expect(resolveFile('/fixtures/posts', dist)).toBeNull();
+    expect(resolveFixture('/index.html', fixtures)).toBeNull();
   });
 });

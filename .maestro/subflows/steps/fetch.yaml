@@ -1,6 +1,12 @@
-# Fetch: Home -> /fetch, wait for loading to finish, refetch button visible.
-# The data comes from jsonplaceholder (external), so the flow does not assert list content
-# and leaves the `fetch-retry` error path untested.
+# Fetch: Home -> /fetch, wait for loading to finish, list + refetch button visible.
+#
+# Where the data comes from differs per lane (T13.2):
+#   web     `.maestro/fixtures/posts.json`, served at /fixtures/posts by scripts/serve-web.js.
+#           `bun run export:web:e2e` bakes EXPO_PUBLIC_API_URL=<host>/fixtures into the export,
+#           so the required `Maestro web` check never touches the public internet.
+#   native  still jsonplaceholder over the real network (docs/native-e2e.md → Fetch flow data).
+# Both lanes end on the same rendered list, so the steps stay shared; the `fetch-retry` error
+# path remains untested here.
 appId: ${MAESTRO_APP_ID}
 ---
 - assertVisible:
@@ -13,5 +19,7 @@ appId: ${MAESTRO_APP_ID}
     notVisible:
       id: fetch-loading
     timeout: 20000
+- assertVisible:
+    id: fetch-list
 - assertVisible:
     id: fetch-refetch

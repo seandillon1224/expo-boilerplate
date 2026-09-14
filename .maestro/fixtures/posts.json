@@ -1,0 +1,20 @@
+[
+  {
+    "userId": 1,
+    "id": 1,
+    "title": "Fixture post one",
+    "body": "Served by scripts/serve-web.js so the Maestro web fetch flow never touches the network."
+  },
+  {
+    "userId": 1,
+    "id": 2,
+    "title": "Fixture post two",
+    "body": "Deterministic content: the web flow can assert on it, unlike the live jsonplaceholder data."
+  },
+  {
+    "userId": 2,
+    "id": 3,
+    "title": "Fixture post three",
+    "body": "Keep this file in sync with postSchema in src/features/posts/api.ts."
+  }
+]
