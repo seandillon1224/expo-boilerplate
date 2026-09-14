@@ -29,3 +29,4 @@ inherits as-is (it describes the template the project started from).
 | [0002](0002-release-please-versioning.md)     | release-please owns versioning and the release tag | Accepted |
 | [0003](0003-update-policies.md)               | Update policies: silent, opt-in, forced, critical  | Accepted |
 | [0004](0004-oxlint-front-pass.md)             | oxlint as a fast front pass in front of ESLint     | Accepted |
+| [0005](0005-a11y-hierarchy-audit.md)          | Accessibility E2E as a hierarchy audit             | Accepted |

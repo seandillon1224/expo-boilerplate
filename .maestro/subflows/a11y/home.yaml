@@ -1,0 +1,7 @@
+# A11y audit landing flow (ADR-0005): launch and land on Home, then scripts/a11y-audit.js dumps
+# `maestro hierarchy`. Not a discovered flow (config.yaml only globs flows/*); run via `bun run e2e:a11y`.
+appId: ${MAESTRO_APP_ID}
+---
+- runFlow: ../launch.yaml
+- assertVisible:
+    id: home-screen

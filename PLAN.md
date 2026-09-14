@@ -38,7 +38,7 @@ Recorded as [ADR-0001](docs/adr/0001-locked-architecture-decisions.md); changes 
 - **D3 Update policies:** forced vs opt-in vs silent updates using `expo-updates` controls, rollout %, `update-rollout`, and the updates screen as test bed.
 - **D4 Flashlight** in the Android E2E lane.
 - **D5 oxlint** as a fast first pass in front of ESLint.
-- **D6 Accessibility E2E:** a Maestro flow with the screen reader enabled.
+- **D6 Accessibility E2E:** a screen-reader-output audit of Maestro's accessibility tree ([ADR-0005](docs/adr/0005-a11y-hierarchy-audit.md)); a real VoiceOver/TalkBack run is not drivable by Maestro.
 - **D7 Maestro Cloud** as an optional job for projects that want device farms.
 
 ---

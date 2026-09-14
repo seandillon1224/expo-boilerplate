@@ -1,0 +1,15 @@
+# A11y audit landing flow (ADR-0005): Settings tab -> Updates screen. Run via `bun run e2e:a11y`.
+appId: ${MAESTRO_APP_ID}
+---
+- runFlow: ../launch.yaml
+- runFlow:
+    file: ../select-tab.yaml
+    env:
+      TAB: settings
+      TAB_LABEL: Settings
+- assertVisible:
+    id: settings-screen
+- tapOn:
+    id: settings-updates-link
+- assertVisible:
+    id: updates-screen

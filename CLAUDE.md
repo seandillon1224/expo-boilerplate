@@ -26,6 +26,7 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run atlas` — dev server with Expo Atlas at `http://localhost:8081/_expo/atlas`; `bun run atlas:export` (or `atlas:export:web|ios|android`) — release export with Atlas on, then serve `.expo/atlas.jsonl` (`atlas:serve` re-opens it). Atlas is `EXPO_ATLAS=true`-gated and never set in CI / EAS (`docs/atlas.md`)
 - `bun run e2e:web` — Maestro web flows (`.maestro/flows`, tag `web`) against the static export; needs `bun run export:web` and `bun run serve:web` running first
 - `bun run e2e:build` → `e2e:repack` → `e2e:ios` / `e2e:android` — native lane on a laptop (fingerprint-matched EAS build → JS repack → Maestro on simulator/emulator); mirrors `.eas/workflows` jobs, see `docs/native-e2e.md`
+- `bun run e2e:a11y` — screen-reader-output audit of Maestro's accessibility tree on a running simulator / device with the e2e build installed (`bun run e2e:<p> --keep` first): `--platform ios|android`, `--device`, `--out` (default `maestro-<p>/a11y`), `--no-fail` (the informational EAS hook mode); ADR-0005, `docs/testing.md`
 - `bun run fingerprint` — native fingerprint hashes (= EAS Update runtime version) for iOS/Android; `--platform ios|android`, `--debug` (see `docs/environments-and-secrets.md`)
 - `bun run devices:add` / `devices:list` — register / list iOS test devices (`eas device:create` / `device:list`); walkthrough in `docs/device-onboarding.md`
 - `bun run env:check` — validate `EXPO_PUBLIC_*` against the Zod schema (also runs at app startup)
