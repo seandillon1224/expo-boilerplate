@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { env } from '@/lib/env';
 import { captureException } from '@/lib/sentry';
 import { Link, Pressable, Text, View } from '@/tw';
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const [testSent, setTestSent] = useState(false);
+  // Diagnostics only: never ship a button that fires a real error into the production issue stream.
+  const showSentryTest = env.APP_VARIANT !== 'production';
 
   const sendTestError = () => {
     // Harmless when Sentry is a no-op (no DSN / dev build): nothing leaves the device.
@@ -29,15 +32,17 @@ export default function SettingsScreen() {
       >
         {t('settings.updatesLink')}
       </Link>
-      <Pressable
-        testID="settings-sentry-test"
-        accessibilityRole="button"
-        onPress={sendTestError}
-        className="bg-primary mt-4 rounded-md px-4 py-2"
-      >
-        <Text className="text-primary-foreground font-semibold">{t('settings.sentryTest')}</Text>
-      </Pressable>
-      {testSent ? (
+      {showSentryTest ? (
+        <Pressable
+          testID="settings-sentry-test"
+          accessibilityRole="button"
+          onPress={sendTestError}
+          className="bg-primary mt-4 rounded-md px-4 py-2"
+        >
+          <Text className="text-primary-foreground font-semibold">{t('settings.sentryTest')}</Text>
+        </Pressable>
+      ) : null}
+      {showSentryTest && testSent ? (
         <Text testID="settings-sentry-test-sent" className="text-muted-foreground text-sm">
           {t('settings.sentryTestSent')}
         </Text>

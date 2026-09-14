@@ -7,10 +7,6 @@ import HomeScreen from '@/app/(tabs)/(home)/index';
 // jest.config.js ignores `src/__perf__/`, and Reassure invokes Jest with its own testMatch.
 // The Home screen is static (no data, no timers), so measurements stay deterministic.
 describe('HomeScreen', () => {
-  it('renders', async () => {
-    await measureRenders(<HomeScreen />);
-  });
-
   it('renders and is queryable', async () => {
     await measureRenders(<HomeScreen />, {
       scenario: async () => {

@@ -107,7 +107,7 @@ docs/             One markdown page per concern.
   climb out of a folder. `simple-import-sort` orders imports (lint-fixed).
 - Route files export a screen as default and nothing else that is not a Router convention
   (`ErrorBoundary`, `unstable_settings`). Logic lives in `features/`, not in `app/`.
-- Platform forks use file suffixes (`animated-icon.web.tsx`, `devtools.web.ts`); `knip.jsonc` lists
+- Platform forks use file suffixes (`devtools.web.ts` next to `devtools.ts`); `knip.jsonc` lists
   them as entries so they are not reported as unused.
 - Naming: kebab-case files (`use-update-policy.ts`, `error-state.tsx`), PascalCase components,
   `useX` hooks, `*.test.tsx` / `*.perf-test.tsx` suffixes, Maestro flow names `native/<name>` and

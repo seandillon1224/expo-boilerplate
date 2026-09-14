@@ -7,7 +7,6 @@ import { Stack } from 'expo-router/stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'react-native';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { UpdateBanner } from '@/features/updates/update-banner';
 import { useUpdatePolicyDriver } from '@/features/updates/use-update-policy';
 import { useDevTools } from '@/lib/devtools';
@@ -27,7 +26,11 @@ initSentry();
 // Dispatches only with `extra.eas.projectId` set; enables per-route Expo Router metrics.
 configureObserve();
 
-SplashScreen.preventAutoHideAsync();
+// Expo Router holds the native splash itself (an internal prevent-auto-hide) and hides it once
+// the navigator is ready, so we never call preventAutoHideAsync/hideAsync here — doing so would
+// opt out of that and leave the splash up forever. We only configure how it goes away:
+// a 600ms cross-fade instead of a hard cut (`fade` is iOS-only; Android ignores it).
+SplashScreen.setOptions({ fade: true, duration: 600 });
 
 function RootLayout() {
   const colorScheme = useColorScheme();
@@ -38,7 +41,6 @@ function RootLayout() {
   return (
     <QueryProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AnimatedSplashOverlay />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
         </Stack>
