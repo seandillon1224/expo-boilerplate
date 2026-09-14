@@ -19,14 +19,31 @@ GitHub issue closes when its PR merges (`Closes #N` in the PR body).
      wrap-up, never auto-PR them. `[D]` stays parked until the user flips it back to `[ ]`.
    - `[S]` (needs secrets): still build the code + PR, but stub/guard the secret-dependent path and
      flag what config the human owes.
+   - An issue labelled **`deep-dive`** is a research ticket: **grill first, never auto-PR**. Run the
+     `grill-me` skill with the user on the open questions, write the outcome into `PLAN.md` /
+     `docs/adr/`, and only then (if the grill produced code work) queue a normal implementation
+     ticket. Treat it like `[M]` until the user says the decision is settled.
 2. Pre-flight: `git status` must be clean (else STOP). `git checkout main && git pull --ff-only origin main`.
 3. Mark the item `[~]` in the ledger. `gh issue edit <n> --add-label in-progress`.
-4. **Spawn a fresh subagent** (`Agent`, `general-purpose`) with the issue number, title, full body
-   (`gh issue view <n>`), the relevant `PLAN.md` decisions, and the Subagent brief below.
-5. On **success** (PR URL returned): `gh pr merge <n> --squash --delete-branch`; sync main; ledger →
-   `[x]` + run-log line `#N | <branch> | <PR url> | merged | <date>`; remove `in-progress` label.
+4. **Spawn a fresh subagent** (`Agent`, `general-purpose`, **`isolation: "worktree"`**) with the
+   issue number, title, full body (`gh issue view <n>`), the relevant `PLAN.md` decisions, and the
+   Subagent brief below. The worktree is what keeps a subagent's branch switches and commits off the
+   shared checkout — never spawn a ticket subagent without it.
+5. On **success** (PR URL returned): `gh pr merge <n> --squash --delete-branch`; sync main; then
+   **verify `gh issue view <n>` shows the issue `CLOSED`** — a squash merge only auto-closes from the
+   `Closes #n` line in the **PR body**, so if it is still open, close it by hand
+   (`gh issue close <n>`) and fix the brief's PR body next time. Ledger → `[x]` + run-log line
+   `#N | <branch> | <PR url> | merged | <date>`; remove `in-progress` label.
    Emit `✅ #N shipped → <PR url>` and continue.
 6. On **blocker**: ledger → `[B]` with a one-line reason; remove `in-progress`; STOP and report.
+
+## Ledger commits
+
+Ledger bookkeeping is committed separately from ticket work, straight to `main`, as
+`chore(queue): <what changed>` (e.g. `chore(queue): mark #145 shipped, queue drained`). It is a
+non-releasing type (ADR-0002), never part of a ticket PR, and the one commit for which skipping a
+hook is sanctioned (`LEFTHOOK=0 git commit`) — see `docs/conventions.md` → Hooks. Never stage
+`.claude/execution-queue.md` inside a ticket branch.
 
 ## Subagent brief (pass verbatim, filled in)
 
@@ -39,9 +56,11 @@ GitHub issue closes when its PR merges (`Closes #N` in the PR body).
 >    can't run for an environmental reason, say so in your report.
 > 4. If you cannot complete it (missing secret, needs a human account action, a design call you
 >    can't make safely), STOP — make no PR — and return a clear blocker reason.
-> 5. Commit with a Conventional Commit message (lowercase subject) whose body ends with
->    `Closes #<num>`. Stage only relevant files (never `.env*`). `git push -u origin <branch>`.
-> 6. `gh pr create --base main --label epic:<E>` with `## Summary` bullets + `## Test plan`.
+> 5. Commit with a Conventional Commit message (lowercase subject). Stage only relevant files
+>    (never `.env*`, never `.claude/execution-queue.md`). `git push -u origin <branch>`.
+> 6. `gh pr create --base main --label epic:<E>` with `## Summary` bullets + `## Test plan`, and
+>    `Closes #<num>` in the **PR body** — a squash merge only auto-closes the issue from there,
+>    not from a commit body.
 > 7. Return: the PR URL, a 3-sentence summary, and any follow-ups the human still owes.
 
 ## Stop conditions
