@@ -3,6 +3,7 @@ const {
   DESIRED,
   LABELS,
   SECTIONS,
+  apiArgs,
   collectDrift,
   endpoints,
   main,
@@ -12,7 +13,7 @@ const {
 
 const SLUG = 'acme/acme-app';
 
-type Call = { method: string; path: string; body: Record<string, unknown> };
+type Call = { method: string; path: string; body: Record<string, unknown> | null };
 type GhResult = { status: number; stdout: string; stderr: string };
 
 /**
@@ -318,6 +319,142 @@ describe('main', () => {
     expect(lines).toEqual([
       `repo:settings: applied label:${first.name} (PATCH repos/${SLUG}/labels/${encodeURIComponent(first.name)})`,
     ]);
+  });
+});
+
+describe('environments (deployment branch policies, T10.2 #155)', () => {
+  type Policy = { type: string; name: string };
+  const notFound = { status: 1, body: { message: 'Not Found' } };
+  const policiesPath = (env: string) =>
+    `api repos/${SLUG}/environments/${env}/deployment-branch-policies`;
+  const reviewerLogin = DESIRED.environments.production.reviewers[0].login;
+  const reviewerOk = { [`api users/${reviewerLogin}`]: { id: 42, type: 'User' } };
+
+  it('allows custom branch policies so a tag deploy can reach the reviewer prompt', () => {
+    for (const env of Object.values(DESIRED.environments) as {
+      deployment_branch_policy: Record<string, boolean>;
+    }[]) {
+      // `protected_branches` would reject a `v*` tag ref before the reviewer gate.
+      expect(env.deployment_branch_policy).toEqual({
+        protected_branches: false,
+        custom_branch_policies: true,
+      });
+    }
+    expect(DESIRED.environments.production.branch_policies).toEqual([
+      { type: 'branch', name: 'main' },
+      { type: 'tag', name: 'v*' },
+    ]);
+    expect(DESIRED.environments.uat.branch_policies).toEqual([{ type: 'branch', name: 'main' }]);
+  });
+
+  it('PUTs the environment first, then POSTs every policy when the environment is missing', () => {
+    const { gh } = fakeGh({
+      ...reviewerOk,
+      [policiesPath('uat')]: notFound,
+      [policiesPath('production')]: notFound,
+    });
+    const calls = endpoints({ gh }, SLUG, ['environments']) as Record<string, Call>;
+    expect(Object.keys(calls)).toEqual([
+      'environment:uat',
+      'environment:uat:policy:branch:main',
+      'environment:production',
+      'environment:production:policy:branch:main',
+      'environment:production:policy:tag:v*',
+    ]);
+    // `branch_policies` is a separate resource, never part of the environment PUT body.
+    expect(calls['environment:production'].body).not.toHaveProperty('branch_policies');
+    expect(calls['environment:production'].body?.reviewers).toEqual([{ type: 'User', id: 42 }]);
+    expect(calls['environment:production:policy:tag:v*']).toEqual({
+      method: 'POST',
+      path: `repos/${SLUG}/environments/production/deployment-branch-policies`,
+      body: { name: 'v*', type: 'tag' },
+    });
+  });
+
+  it('skips policies that already exist and DELETEs ones that are not desired', () => {
+    const { gh } = fakeGh({
+      ...reviewerOk,
+      [policiesPath('uat')]: { branch_policies: [{ id: 1, name: 'main' }] },
+      [policiesPath('production')]: {
+        branch_policies: [
+          { id: 2, name: 'main', type: 'branch' },
+          { id: 3, name: 'release/*', type: 'branch' },
+        ],
+      },
+    });
+    const calls = endpoints({ gh }, SLUG, ['environments']) as Record<string, Call>;
+    // A policy with no `type` predates GitHub's tag policies and counts as a branch.
+    expect(Object.keys(calls)).toEqual([
+      'environment:uat',
+      'environment:production',
+      'environment:production:policy:tag:v*',
+      'environment:production:policy:branch:release/*:delete',
+    ]);
+    const remove = calls['environment:production:policy:branch:release/*:delete'];
+    expect(remove).toEqual({
+      method: 'DELETE',
+      path: `repos/${SLUG}/environments/production/deployment-branch-policies/3`,
+      body: null,
+    });
+    // A DELETE sends no payload, so no `--input -`.
+    expect(apiArgs(remove)).not.toContain('--input');
+  });
+
+  it('--check reports policy drift alongside the environment fields', () => {
+    const environment = (policy: Record<string, boolean>) => ({
+      protection_rules: [
+        { type: 'wait_timer', wait_timer: 0 },
+        {
+          type: 'required_reviewers',
+          prevent_self_review: false,
+          reviewers: [{ type: 'User', reviewer: { login: reviewerLogin } }],
+        },
+      ],
+      deployment_branch_policy: policy,
+    });
+    const custom = { protected_branches: false, custom_branch_policies: true };
+    const { gh } = fakeGh({
+      [`api repos/${SLUG}/environments/uat`]: environment(custom),
+      [policiesPath('uat')]: { branch_policies: [{ id: 1, name: 'main', type: 'branch' }] },
+      [`api repos/${SLUG}/environments/production`]: environment({
+        protected_branches: true,
+        custom_branch_policies: false,
+      }),
+      [policiesPath('production')]: { branch_policies: [{ id: 2, name: 'next', type: 'branch' }] },
+    });
+    expect(collectDrift({ gh }, SLUG, ['environments'])).toEqual([
+      'environments.production.deployment_branch_policy.protected_branches: want false, got true',
+      'environments.production.deployment_branch_policy.custom_branch_policies: want true, got false',
+      'environments.production.branch_policies: missing ["branch:main","tag:v*"]',
+      'environments.production.branch_policies: extra ["branch:next"]',
+    ]);
+  });
+
+  it('--check is silent when both environments match', () => {
+    const inSync = (policies: Policy[]) => ({
+      protection_rules: [
+        { type: 'wait_timer', wait_timer: 0 },
+        {
+          type: 'required_reviewers',
+          prevent_self_review: false,
+          reviewers: [{ type: 'User', reviewer: { login: reviewerLogin } }],
+        },
+      ],
+      deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
+      policies,
+    });
+    const { gh } = fakeGh({
+      [`api repos/${SLUG}/environments/uat`]: inSync([]),
+      [policiesPath('uat')]: { branch_policies: [{ id: 1, name: 'main', type: 'branch' }] },
+      [`api repos/${SLUG}/environments/production`]: inSync([]),
+      [policiesPath('production')]: {
+        branch_policies: [
+          { id: 2, name: 'main', type: 'branch' },
+          { id: 3, name: 'v*', type: 'tag' },
+        ],
+      },
+    });
+    expect(collectDrift({ gh }, SLUG, ['environments'])).toEqual([]);
   });
 });
 
