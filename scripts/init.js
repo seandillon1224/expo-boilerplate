@@ -317,13 +317,12 @@ function buildManifest(id) {
           /(with package\n\s+`)com\.seandillon\.expoboilerplate/g,
           after(id.package),
         ),
-        rule('bundle id (iOS rows, Apple runbook)', TEMPLATE.bundleId, id.bundleId, 8),
+        rule('bundle id (iOS rows, Apple runbook)', TEMPLATE.bundleId, id.bundleId, 7),
         rule(
           'EAS project id prefix',
           '`885fa7d0-…`',
           easId ? `\`${easId.slice(0, 8)}-…\`` : '(unset)',
         ),
-        rule('dev-domain', `--dev-domain ${TEMPLATE.slug}`, `--dev-domain ${id.slug}`),
         ...workflowUrls,
       ],
     },
@@ -366,6 +365,8 @@ function buildManifest(id) {
 const KEEP = Object.freeze({
   'PLAN.md': 'replaced by a stub that links the upstream repo (--keep-plan keeps it)',
   'docs/performance.md': 'links the upstream research issue (#63) on the template repo',
+  'docs/owner-checklist.md':
+    'per-project state: the owner ticks it as they go, and its "Status in this repo" section is the template repo\'s own (delete it)',
   'README.md': 'links the upstream deferred-ticket issues under "Commonly added next"',
   'scripts/init.js':
     'the template identity this script matches on (self-deleted unless --keep-init)',

@@ -110,6 +110,7 @@ export default withMermaid(
             { text: 'Overview', link: '/' },
             ...(hasTemplateInit ? [{ text: 'Template init', link: '/template-init' }] : []),
             { text: 'Toolchain check', link: '/doctor' },
+            { text: 'Owner checklist', link: '/owner-checklist' },
             { text: 'Conventions', link: '/conventions' },
           ],
         },

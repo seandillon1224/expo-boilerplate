@@ -199,7 +199,7 @@ Slack has no constant: create the incoming webhook ([Build sharing → Slack cha
 `SLACK_WEBHOOK_URL` on EAS (`secret`, `preview` environment — the job reads it from there, never
 from GitHub); the next run posts. All three prerequisites and the Expo GitHub App link (required for
 the `push` trigger) are on the
-[human setup checklist](environments-and-secrets.md#human-setup-checklist-owner).
+[owner checklist](owner-checklist.md#staging).
 
 **Sentry.** The `update` job uploads source maps itself (`upload_sentry_sourcemaps`, unset =
 try, do not fail); `bun run sentry:sourcemaps` is the local twin. Once `SENTRY_AUTH_TOKEN`,
@@ -363,7 +363,8 @@ and refuses a group that is not on `production`, has no in-progress rollout, or 
 input is a `choice` of `25` / `50` / `75` / `100`, one `update-rollout` job per value: eas-cli's
 validator types the job's `rollout_percentage` as an integer and rejects an input expression
 there, so any other number is the `update:edit` fallback above. Unverified until the first staged
-rollout, like the rest of the native lane. UAT and staging never roll out: use them to find the
+rollout, like the rest of the native lane
+([Owner checklist → First real runs still owed](owner-checklist.md#first-real-runs-still-owed)). UAT and staging never roll out: use them to find the
 problem before production sees 10 % of it.
 
 ### Critical (forced) updates
@@ -521,7 +522,7 @@ fingerprint.
 Also owed: `RELEASE_PLEASE_TOKEN` and `EXPO_TOKEN` as GitHub repository secrets (both workflows
 fail early without theirs), the `autorelease: *` labels and the GitHub `production` environment
 (`bun run repo:settings:apply`). All on the
-[human setup checklist](environments-and-secrets.md#human-setup-checklist-owner).
+[owner checklist](owner-checklist.md#store-release).
 
 ## Rollback
 
@@ -695,8 +696,10 @@ one sanctioned exception is `backport.yml` below, which keeps the approval and t
 
 **Workflow:** `.eas/workflows/backport.yml` (`Backport`, `workflow_dispatch` only;
 [ADR-0008](adr/0008-multi-runtime-ota-backports.md)). **Unverified:** the repo has no store
-release yet, so the workflow has only passed `eas workflow:validate`; the ADR lists what the first
-real run must confirm.
+release yet ([Owner checklist → Cut the first release](owner-checklist.md#cut-the-first-release)), so
+the workflow has only passed `eas workflow:validate`; the ADR and
+[First real runs still owed](owner-checklist.md#first-real-runs-still-owed) list what the first real
+run must confirm.
 
 ### When a backport is needed
 

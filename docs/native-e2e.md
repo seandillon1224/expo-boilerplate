@@ -96,9 +96,11 @@ resolves to nothing, which makes the `if:` falsy and skips Maestro entirely — 
 this file (T10.1) and was only caught by reading, not by a run.
 
 **Unverified.** The native lane has not yet had a real end-to-end run on EAS; it has passed
-`eas workflow:validate` only. The first PR that triggers `e2e.yml` is still owed — confirm that
-both `maestro_<p>` jobs actually start, that the build id resolves, and that the PR comment shows a
-flow count rather than `⏭️ skipped`.
+`eas workflow:validate` only. It is blocked on
+[Owner checklist → Link the Expo GitHub App](owner-checklist.md#link-the-expo-github-app); the first
+PR that triggers `e2e.yml` is still owed — confirm that both `maestro_<p>` jobs actually start, that
+the build id resolves, and that the PR comment shows a flow count rather than `⏭️ skipped`, then
+update [First real runs still owed](owner-checklist.md#first-real-runs-still-owed).
 
 Maestro on EAS: `flow_path: .maestro` is the workspace directory, so `config.yaml` is read and
 `include_tags` selects the native entries exactly like `bun run e2e:<p>`. The app id reaches the
@@ -215,7 +217,8 @@ run has no PR, so no comment is posted — read the run page instead). Dispatchi
 whose name contains `"e2e:ios"` verbatim. The `github` context lists `event_name` as
 `pull_request | push | schedule | workflow_dispatch`; the `labeled` run is assumed to arrive as
 `pull_request` (the expression and the `comment` guard both tolerate either), which is unverified
-until the Expo GitHub App is linked and a labelled PR has run. No GitHub Actions helper or
+until the Expo GitHub App is linked and a labelled PR has run
+([Owner checklist → Link the Expo GitHub App](owner-checklist.md#link-the-expo-github-app)). No GitHub Actions helper or
 `EXPO_TOKEN` is involved: EAS starts the labelled run from its own webhook.
 
 ### Human prerequisites (once)
@@ -489,8 +492,9 @@ the file constant, so a run is possible before the flip).
 PR check when the upload is tied to a PR — there is no `github-comment` job here. The job fails
 when a flow fails (unless `async: true` is added, which only reports the upload).
 
-**Unverified.** The template has no Maestro Cloud account, so this workflow has passed
-`eas workflow:validate` only. The first real run confirms that job `env` reaches the flows as
+**Unverified.** The template has no Maestro Cloud account
+([Owner checklist → Maestro Cloud](owner-checklist.md#maestro-cloud-real-device-farm)), so this
+workflow has passed `eas workflow:validate` only. The first real run confirms that job `env` reaches the flows as
 `${MAESTRO_APP_ID}` (documented for `MAESTRO_*` names), that `flows: .maestro` (the workspace with
 `config.yaml`) is accepted rather than needing `flows: .maestro/flows` + `maestro_config`, and
 whether the PR check appears. Record what you find in ADR-0006's follow-ups.

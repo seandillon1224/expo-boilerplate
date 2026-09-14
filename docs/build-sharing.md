@@ -7,12 +7,12 @@ the **TestFlight internal group** and the **Play internal track** from `release.
 pushed to people by two jobs: `slack` (staging / uat / production / release runs) and
 `github-comment` (PR runs). Engineers open builds with **Expo Orbit**.
 
-| Audience                   | Read                                                                             |
-| -------------------------- | -------------------------------------------------------------------------------- |
-| Designers, PMs, testers    | [Installing the staging app](install-staging-app.md) (no CLI)                    |
-| iPhone testers, first time | [Getting the staging app on your iPhone](device-onboarding.md)                   |
-| Engineers                  | this page: [Slack](#slack-channel), [Orbit](#expo-orbit)                         |
-| Owner (one-time setup)     | [Human setup checklist](environments-and-secrets.md#human-setup-checklist-owner) |
+| Audience                   | Read                                                           |
+| -------------------------- | -------------------------------------------------------------- |
+| Designers, PMs, testers    | [Installing the staging app](install-staging-app.md) (no CLI)  |
+| iPhone testers, first time | [Getting the staging app on your iPhone](device-onboarding.md) |
+| Engineers                  | this page: [Slack](#slack-channel), [Orbit](#expo-orbit)       |
+| Owner (one-time setup)     | [Owner checklist](owner-checklist.md)                          |
 
 ## Where a build is shared from
 
@@ -68,7 +68,7 @@ bun run eas env:list --environment preview --format long   # shows the name, nev
 ```
 
 5. Tick the checklist line in
-   [Environments and secrets](environments-and-secrets.md#human-setup-checklist-owner). The next
+   [Owner checklist](owner-checklist.md#slack-release-webhook). The next
    push to `main` posts.
 
 Rotate by repeating step 3 (a new webhook), running the same `env:set` (it updates in place) and

@@ -5,6 +5,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const {
   INITIAL_VERSION,
+  KEEP,
   LEDGER_LEGEND,
   LEDGER_PATH,
   LEDGER_RULE,
@@ -164,7 +165,6 @@ describe('applyRules (fixture strings)', () => {
       '   `com.seandillon.expoboilerplate`, Play App Signing enabled.',
       'the team that owns `com.seandillon.expoboilerplate*`',
       'The EAS project id (`885fa7d0-…`) lives once',
-      '--dev-domain expo-boilerplate --alias staging',
       'https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/credentials',
     ].join('\n');
     const rules = rulesFor('docs/environments-and-secrets.md').map((r) =>
@@ -178,7 +178,6 @@ describe('applyRules (fixture strings)', () => {
     expect(content).toContain('   `com.acme.mobile_android`, Play App Signing enabled.');
     expect(content).toContain('the team that owns `com.acme.mobile*`');
     expect(content).toContain('(`11111111-…`)');
-    expect(content).toContain('--dev-domain acme-mobile --alias staging');
     expect(content).toContain(
       'https://expo.dev/accounts/acme-team/projects/acme-mobile/credentials',
     );
@@ -305,6 +304,18 @@ describe('diffLines / scanLeftovers', () => {
         text: 'see com.seandillon.expoboilerplate.dev',
       },
     ]);
+  });
+
+  it('leaves docs/owner-checklist.md alone: KEEP, no rewrite rule, not removed (#172)', () => {
+    const file = 'docs/owner-checklist.md';
+    expect(KEEP[file]).toBeDefined();
+    expect(fs.existsSync(path.join(ROOT, file))).toBe(true);
+    expect((buildManifest(ACME) as { file: string }[]).map((e) => e.file)).not.toContain(file);
+    expect(REMOVAL.files).not.toContain(file);
+    expect(REMOVAL.edits.map((e: { file: string }) => e.file)).not.toContain(file);
+    // Its "Status in this repo" section names the template repo on purpose; KEEP is what stops
+    // the leftover scan from reporting it as drift.
+    expect(scanLeftovers({ [file]: `see ${TEMPLATE.githubRepo}` })).toEqual([]);
   });
 
   it('orders the steps: rewrites, ledger / plan / changelog / versioning, self-delete, fresh git, repo settings last', () => {

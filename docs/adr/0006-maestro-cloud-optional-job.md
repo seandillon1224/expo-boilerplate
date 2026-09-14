@@ -58,7 +58,8 @@ console (`maestro_cloud_url` output on the run page) and, per Maestro's docs, as
 
 ### Follow-ups
 
-- First verified run on a project with a Maestro Cloud plan: confirm the env pass-through, the
+- First verified run on a project with a Maestro Cloud plan
+  ([Owner checklist → Maestro Cloud](../owner-checklist.md#maestro-cloud-real-device-farm)): confirm the env pass-through, the
   workspace `flows` path and the PR check; record findings in `docs/native-e2e.md`.
 - A device matrix (`device_model` / `device_os` params) once the first run shows what the
   defaults are.

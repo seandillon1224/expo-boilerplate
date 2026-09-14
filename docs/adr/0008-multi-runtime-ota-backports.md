@@ -54,8 +54,9 @@ path already in the runbook.
   runtime version. `update:list --branch production` interleaves them; filter by
   `--runtime-version`. Rollback is the normal CLI path per runtime (`update:rollback <group>`).
 - A native fix can never be backported (the gate refuses); the answer is a fix release.
-- **Unverified.** The repo has no store release, so the workflow has only passed
-  `eas workflow:validate`. The first real run must confirm: that `git` inside a custom job can
+- **Unverified.** The repo has no store release
+  ([Owner checklist → Cut the first release](../owner-checklist.md#cut-the-first-release)), so the
+  workflow has only passed `eas workflow:validate`. The first real run must confirm: that `git` inside a custom job can
   fetch tags / `main` / a branch from origin and cherry-pick with the configured identity; that
   `bun install --frozen-lockfile` works on an old tag's tree on the worker; that `bun run eas update`
   picks up the checked-out tree's fingerprint (the update's `runtimeVersion` must equal the store
