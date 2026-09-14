@@ -1,7 +1,8 @@
 # Conventions
 
 The house rules, in one place and written for people. `CLAUDE.md` is the same set compressed into an
-agent brief; `PLAN.md` holds the decisions the rules come from. When a rule here says "lint-enforced"
+agent brief; [ADR-0001](adr/0001-locked-architecture-decisions.md) holds the decisions the rules
+come from. When a rule here says "lint-enforced"
 or "hook-enforced", the enforcement is the source of truth and this page is the explanation.
 
 ## Toolchain
@@ -312,7 +313,8 @@ whole dependency tree — cannot publish to Pages or mint an OIDC token even if 
 - Explain _why_ in the doc and keep the YAML / script comments short and pointing here (EAS caps a
   workflow file at 16 KiB).
 - Link sections, not just files (`js-gate.md#how-merging-works`), and cite decisions as
-  "PLAN.md decision N" so the reference survives `bun run init`, which keeps the decisions table.
+  "PLAN.md decision N" — the number is a row of [ADR-0001](adr/0001-locked-architecture-decisions.md),
+  which `bun run init` ships into the new project unchanged.
 - Prettier formats markdown (tables are re-aligned on commit); `bun run format:check` is a required
   check.
 - The same files are the docs site (VitePress, `bun run docs:dev` to browse it locally, published to
@@ -320,7 +322,8 @@ whole dependency tree — cannot publish to Pages or mint an OIDC token even if 
   `.md` extension and an anchor where useful (`js-gate.md#how-merging-works`, `adr/README.md`):
   they work on GitHub and the site alike. `bun run docs:build` fails on a dead relative link and is
   the `Docs` required check, so a rename or a moved section is caught on the PR. A new page is added
-  to the hand-written `sidebar` in `docs/.vitepress/config.mts` (pick the group it belongs to);
+  to the `sidebar` in `docs/.vitepress/config.mts` (pick the group it belongs to) — except a new
+  ADR, which the Decisions group picks up from `docs/adr/` by its H1;
   `docs/index.md` is the landing page. Code spans and fences are literal; outside them, avoid bare
   `<tag>`-looking text and `{{ }}` (VitePress parses them as HTML / Vue; write `\<p>`), and keep `README.md` files out of `docs/` subfolders unless
   they get a `rewrites` entry (`adr/README.md` → `/adr/`).
@@ -331,14 +334,18 @@ whole dependency tree — cannot publish to Pages or mint an OIDC token even if 
 
 ## Changing a locked decision
 
-The "Locked decisions" table in `PLAN.md` is what `CLAUDE.md` and every doc cite by number. To
-change one:
+The "Locked decisions" table in [ADR-0001](adr/0001-locked-architecture-decisions.md) is what
+`CLAUDE.md` and every doc cite by number (as "PLAN.md decision N", from when the table lived in
+`PLAN.md`). To change one:
 
 1. Open an issue that names the decision number, what changes and why, and what it breaks
    (workflows, docs, the required-check set).
 2. Grill the proposal (`/grill-me` exists for exactly this) until the trade-offs are written down.
 3. Record the outcome as an ADR in [`docs/adr/`](adr/README.md): copy the template, take the next
-   number, mark the entry in [ADR-0001](adr/0001-locked-architecture-decisions.md) as superseded,
-   and update the row in `PLAN.md` in the same PR.
-4. Then the implementation PRs, each citing the ADR. Deferred deep dives (`D1`–`D7` in `PLAN.md`)
-   follow the same path: research ticket → grill → ADR → epic.
+   number, mark the row in [ADR-0001](adr/0001-locked-architecture-decisions.md) as superseded with
+   a link to it, and add the new record to the ADR index — all in the same PR. There is no second
+   table to update.
+4. Then the implementation PRs, each citing the ADR. The deferred deep dives `D1`–`D7` followed the
+   same path: research ticket → grill → ADR → epic
+   ([ADR-0001 → Not decided here](adr/0001-locked-architecture-decisions.md#not-decided-here) maps
+   each to the record it landed as).

@@ -15,7 +15,7 @@
  *   bun run init --skip-doctor ...     # skip the toolchain check (`bun run doctor`) that runs first
  *   bun run init --fresh-git ...       # rm -rf .git, one initial commit (prompted otherwise; default No)
  *   bun run init --keep-init ...       # keep this script, its test and doc (default: self-delete)
- *   bun run init --keep-plan ...       # keep PLAN.md as is (default: stub pointing at the upstream plan)
+ *   bun run init --keep-plan ...       # keep PLAN.md as is (default: stub pointing at ADR-0001)
  *   bun run init --apply-repo-settings # run `bun run repo:settings:apply` at the end (prompted otherwise;
  *                                      #   default No; needs `gh auth` + an `origin` remote)
  *
@@ -364,7 +364,7 @@ function buildManifest(id) {
  * skips these; everything else it finds is reported so the owner can decide.
  */
 const KEEP = Object.freeze({
-  'PLAN.md': 'replaced by a stub that links the upstream plan (--keep-plan keeps it)',
+  'PLAN.md': 'replaced by a stub that links the upstream repo (--keep-plan keeps it)',
   'docs/performance.md': 'links the upstream research issue (#63) on the template repo',
   'README.md': 'links the upstream deferred-ticket issues under "Commonly added next"',
   'scripts/init.js':
@@ -499,33 +499,26 @@ function buildLedger(identity, date = today()) {
   ].join('\n');
 }
 
-const PLAN_DECISIONS_HEADING = '## Locked decisions';
+/** The canonical locked-decisions table the stub points at; must ship with the template (#171). */
+const DECISIONS_ADR = 'docs/adr/0001-locked-architecture-decisions.md';
 
 /**
- * PLAN.md for the new project: a short header, then the template's "Locked decisions" section
- * kept verbatim (CLAUDE.md and docs/ cite "PLAN.md decision N" by number) and a link to the
- * upstream plan for the epics, tickets and definition of done that only concern the template.
+ * PLAN.md for the new project: a short header and the two pointers the template's own PLAN.md
+ * carries — the inherited decisions (ADR-0001, which ships in `docs/adr/`; CLAUDE.md and docs/
+ * cite it as "PLAN.md decision N") and the upstream repo for the template's own build history.
  */
-function buildPlanStub(identity, templatePlan) {
-  const start = templatePlan.indexOf(`${PLAN_DECISIONS_HEADING}\n`);
-  if (start === -1) throw new Error(`init: PLAN.md has no "${PLAN_DECISIONS_HEADING}" section`);
-  const rest = templatePlan.slice(start + PLAN_DECISIONS_HEADING.length + 1);
-  const next = rest.search(/^## /m);
-  const decisions = (next === -1 ? rest : rest.slice(0, next)).trim();
+function buildPlanStub(identity) {
   return [
     `# Plan — ${identity.name}`,
     '',
-    `Design decisions and the ticket breakdown for ${identity.name} live here; the queue is`,
+    `Design notes and the ticket breakdown for ${identity.name} live here; the queue is`,
     '`.claude/execution-queue.md` and `/ship-next` works it.',
     '',
-    `Created from [expo-boilerplate](${UPSTREAM_URL}) with \`bun run init\`. The decisions below are`,
-    'inherited from the template (`CLAUDE.md` and `docs/` cite them as "PLAN.md decision N"); the',
-    `template's own epics, tickets and definition of done stay upstream at`,
-    `${UPSTREAM_URL}/blob/main/PLAN.md.`,
-    '',
-    `${PLAN_DECISIONS_HEADING} (inherited)`,
-    '',
-    decisions,
+    `Created from [expo-boilerplate](${UPSTREAM_URL}) with \`bun run init\`. The decisions inherited`,
+    `from the template are recorded in [ADR-0001](${DECISIONS_ADR}) — \`CLAUDE.md\` and \`docs/\` cite`,
+    'them as "PLAN.md decision N", which means row N of that table. Revisit one with a new ADR in',
+    "[`docs/adr/`](docs/adr/README.md). The template's own epics, tickets and build history stay",
+    `upstream at ${UPSTREAM_URL}.`,
     '',
   ].join('\n');
 }
@@ -830,11 +823,15 @@ const steps = [
         log('  No PLAN.md, skipped.');
         return { summary: 'no PLAN.md, skipped' };
       }
-      writeOrPlan(root, 'PLAN.md', buildPlanStub(identity, fs.readFileSync(abs, 'utf8')), dryRun);
+      // The stub's whole value is the pointer, so refuse to write one that would dangle.
+      if (!fs.existsSync(path.join(root, DECISIONS_ADR))) {
+        throw new Error(`init: ${DECISIONS_ADR} is missing; PLAN.md would point at nothing`);
+      }
+      writeOrPlan(root, 'PLAN.md', buildPlanStub(identity), dryRun);
       log(
-        `  ${dryRun ? 'Would replace' : 'Replaced'} PLAN.md: inherited decisions + link to ${UPSTREAM_URL} (--keep-plan keeps the original).`,
+        `  ${dryRun ? 'Would replace' : 'Replaced'} PLAN.md: pointers to ${DECISIONS_ADR} and ${UPSTREAM_URL} (--keep-plan keeps the original).`,
       );
-      return { summary: 'stub with inherited decisions' };
+      return { summary: 'stub pointing at ADR-0001' };
     },
   },
   {
@@ -997,7 +994,7 @@ function usage() {
     '  --skip-doctor      skip the toolchain check (bun run doctor)',
     '  --fresh-git        rm -rf .git and make one initial commit (asked interactively; default No)',
     '  --keep-init        keep scripts/init.js, its test and doc (default: self-delete)',
-    '  --keep-plan        keep PLAN.md as is (default: stub with the inherited decisions)',
+    '  --keep-plan        keep PLAN.md as is (default: stub pointing at the inherited decisions)',
     '  --apply-repo-settings  run bun run repo:settings:apply at the end (asked interactively; default No)',
     '',
     'See docs/template-init.md.',
@@ -1119,13 +1116,13 @@ async function main(argv) {
 }
 
 module.exports = {
+  DECISIONS_ADR,
   FIELDS,
   INITIAL_VERSION,
   KEEP,
   LEDGER_LEGEND,
   LEDGER_PATH,
   LEDGER_RULE,
-  PLAN_DECISIONS_HEADING,
   RELEASE_PLEASE_CONFIG,
   RELEASE_PLEASE_MANIFEST,
   REMOVAL,

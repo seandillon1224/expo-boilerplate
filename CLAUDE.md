@@ -2,7 +2,7 @@
 
 # Expo Boilerplate — working agreement
 
-Opinionated Expo template. Design and ticket breakdown: `PLAN.md`. Queue ledger: `.claude/execution-queue.md`.
+Opinionated Expo template. Locked decisions (cited throughout as "PLAN.md decision N"): `docs/adr/0001-locked-architecture-decisions.md`. Queue ledger: `.claude/execution-queue.md`.
 
 ## Package manager: Bun (only)
 

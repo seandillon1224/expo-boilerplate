@@ -4,7 +4,7 @@
 
 An opinionated Expo template with the delivery pipeline already wired: a JS gate on GitHub Actions, native Maestro E2E and a staging → UAT → production release ladder on EAS Workflows, web on EAS Hosting with PR previews, performance tooling from dev to prod, and a self-deleting init script that turns the template into your app. Opinionated infra, thin product: the demo app is a home tab, a settings tab, an updates screen and one fetch screen. Bun only, Expo SDK 57, New Architecture and React Compiler on, CNG only (no committed `ios/` / `android/`).
 
-Design and the locked decisions: `PLAN.md`. Working agreement for humans and agents: `CLAUDE.md`.
+The locked decisions and the _why_ behind them: [ADR-0001](docs/adr/0001-locked-architecture-decisions.md) and the rest of [`docs/adr/`](docs/adr/README.md). How the template got here: `PLAN.md`. Working agreement for humans and agents: `CLAUDE.md`.
 
 ## What's inside
 

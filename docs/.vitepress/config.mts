@@ -4,7 +4,7 @@
 // environment the deploy workflow (.github/workflows/docs.yml) sets, so the site ships as-is
 // into projects created from the template. `bun run docs:build` is the link audit: every dead
 // relative link fails the build (`ignoreDeadLinks: false`), and CI runs it as the `Docs` job.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from 'vitepress';
@@ -31,6 +31,22 @@ const repo = process.env.DOCS_REPO;
  */
 const hasTemplateInit = existsSync(fileURLToPath(new URL('../template-init.md', import.meta.url)));
 const quickStart = hasTemplateInit ? '/template-init' : '/doctor';
+
+/**
+ * The Decisions sidebar, built from `docs/adr/` so a new ADR needs no edit here (#171): every
+ * `NNNN-*.md` except the `0000-template.md` copy-me file, in number order, labelled with the
+ * file's H1 verbatim (the same string `docs/adr/README.md`'s index carries). A file without an
+ * H1 fails the build rather than shipping a blank sidebar entry.
+ */
+const adrDir = fileURLToPath(new URL('../adr', import.meta.url));
+const adrItems = readdirSync(adrDir)
+  .filter((file) => /^\d{4}-.+\.md$/.test(file) && !file.startsWith('0000-'))
+  .sort()
+  .map((file) => {
+    const h1 = readFileSync(`${adrDir}/${file}`, 'utf8').match(/^# (.+)$/m);
+    if (!h1) throw new Error(`docs/adr/${file}: no "# " heading to build the sidebar entry from`);
+    return { text: h1[1].trim(), link: `/adr/${file.replace(/\.md$/, '')}` };
+  });
 
 export default withMermaid(
   defineConfig({
@@ -126,35 +142,7 @@ export default withMermaid(
         },
         {
           text: 'Decisions',
-          items: [
-            { text: 'Architecture decision records', link: '/adr/' },
-            {
-              text: 'ADR-0001: Locked architecture decisions',
-              link: '/adr/0001-locked-architecture-decisions',
-            },
-            {
-              text: 'ADR-0002: release-please owns versioning',
-              link: '/adr/0002-release-please-versioning',
-            },
-            { text: 'ADR-0003: Update policies', link: '/adr/0003-update-policies' },
-            { text: 'ADR-0004: oxlint front pass', link: '/adr/0004-oxlint-front-pass' },
-            {
-              text: 'ADR-0005: Accessibility E2E as a hierarchy audit',
-              link: '/adr/0005-a11y-hierarchy-audit',
-            },
-            {
-              text: 'ADR-0006: Maestro Cloud as an opt-in workflow',
-              link: '/adr/0006-maestro-cloud-optional-job',
-            },
-            {
-              text: 'ADR-0007: Flashlight as an opt-in Android hook',
-              link: '/adr/0007-flashlight-android-perf-hook',
-            },
-            {
-              text: 'ADR-0008: Multi-runtime OTA backports',
-              link: '/adr/0008-multi-runtime-ota-backports',
-            },
-          ],
+          items: [{ text: 'Architecture decision records', link: '/adr/' }, ...adrItems],
         },
       ],
     },
