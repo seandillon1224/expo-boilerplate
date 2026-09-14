@@ -93,6 +93,8 @@ Deliberately not in the template (PLAN.md decision 5: no auth, backend or forms)
 
 ## Docs
 
+Browse these as a site: `bun run docs:dev` (VitePress; `.github/workflows/docs.yml` publishes it to GitHub Pages on every push to `main`).
+
 - [Template init](docs/template-init.md) — `bun run init`: what it rewrites (app config, workflow envs, badges, docs), the steps (ledger + `PLAN.md` reset, self-delete, optional fresh git history), the flags, the headless form, and `bun run template:e2e`.
 - [Toolchain check](docs/doctor.md) — `bun run doctor`: every tool the lanes need, the expected versions and why, install hints, `--strict` / `--json`.
 - [CI overview](docs/ci-overview.md) — the map of both CI systems: every GitHub Actions job and EAS workflow, triggers, gates, repo constants (`HOSTING` / `IOS_MODE` / `IOS_BUILDS` / `IOS_RELEASE` / `PLAY_SUBMIT`), what each needs, and the "when something is red" triage table.

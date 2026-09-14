@@ -1,0 +1,60 @@
+# Docs site (T8.4, #143): builds the VitePress site over docs/ and publishes it to GitHub Pages
+# on every push to main that can change it. Needs Pages → Source: "GitHub Actions" on the repo
+# (`bun run repo:settings:apply --only pages` sets it). The base path and the repo links are
+# derived from the event, so nothing in the repo carries the repo name; the `Docs` job in ci.yml
+# is the PR-time build (link audit), this workflow only ships what main has.
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'PLAN.md'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/docs.yml'
+      - '.github/actions/setup/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, never cancelled: a cancelled Pages deploy can leave the site stale.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/configure-pages@v5
+      - run: bun run docs:build
+        env:
+          # Project site: served at https://<owner>.github.io/<repo-name>/.
+          DOCS_BASE: /${{ github.event.repository.name }}/
+          # `owner/name`, for the GitHub social link and "Edit this page" (docs/.vitepress/config.mts).
+          DOCS_REPO: ${{ github.repository }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -320,3 +320,51 @@ describe('main', () => {
     ]);
   });
 });
+
+describe('pages (GitHub Pages source = Actions)', () => {
+  const notFound = { status: 1, body: { message: 'Not Found' } };
+
+  it('POSTs when Pages is off, PUTs when the source is a branch, nothing when it is Actions', () => {
+    const off = fakeGh({ [`api repos/${SLUG}/pages`]: notFound });
+    expect(endpoints({ gh: off.gh }, SLUG, ['pages'])).toEqual({
+      pages: { method: 'POST', path: `repos/${SLUG}/pages`, body: { build_type: 'workflow' } },
+    });
+
+    const branch = fakeGh({ [`api repos/${SLUG}/pages`]: { build_type: 'legacy' } });
+    expect(endpoints({ gh: branch.gh }, SLUG, ['pages'])).toEqual({
+      pages: { method: 'PUT', path: `repos/${SLUG}/pages`, body: { build_type: 'workflow' } },
+    });
+
+    const actions = fakeGh({ [`api repos/${SLUG}/pages`]: { build_type: 'workflow' } });
+    expect(endpoints({ gh: actions.gh }, SLUG, ['pages'])).toEqual({});
+  });
+
+  it('--check reports a missing site or a branch source', () => {
+    const off = fakeGh({ [`api repos/${SLUG}/pages`]: notFound });
+    expect(collectDrift({ gh: off.gh }, SLUG, ['pages'])).toEqual([
+      'pages: not enabled (want build_type "workflow")',
+    ]);
+    const branch = fakeGh({ [`api repos/${SLUG}/pages`]: { build_type: 'legacy' } });
+    expect(collectDrift({ gh: branch.gh }, SLUG, ['pages'])).toEqual([
+      'pages.build_type: want "workflow", got "legacy"',
+    ]);
+    const actions = fakeGh({ [`api repos/${SLUG}/pages`]: { build_type: 'workflow' } });
+    expect(collectDrift({ gh: actions.gh }, SLUG, ['pages'])).toEqual([]);
+  });
+
+  it('--apply --only pages says so when nothing needs writing', () => {
+    const { gh, calls } = fakeGh({
+      'auth status': {},
+      'repo view': { nameWithOwner: SLUG },
+      [`api repos/${SLUG}/pages`]: { build_type: 'workflow' },
+    });
+    const lines: string[] = [];
+    expect(main(['--apply', '--only', 'pages'], { gh, log: (l: string) => lines.push(l) })).toBe(0);
+    expect(lines).toEqual(['repo:settings: pages already up to date']);
+    expect(calls.map((c) => c.key)).toEqual([
+      'auth status',
+      'repo view',
+      `api repos/${SLUG}/pages`,
+    ]);
+  });
+});

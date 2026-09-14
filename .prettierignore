@@ -9,3 +9,5 @@ bun.lock
 expo-env.d.ts
 assets
 .reassure
+docs/.vitepress/cache
+docs/.vitepress/dist

@@ -190,7 +190,7 @@ Run it against a device that still has the e2e build: `bun run e2e:<p> --keep &&
 --platform <p>`. Output: a table, `maestro-<p>/a11y/<screen>.json` (the dumps) and
 `maestro-<p>/a11y/report.json`; exit 1 on a finding or a failed landing flow (`--no-fail` to only
 report, which is how the `E2E (native)` hook runs it — informational, uploaded as **A11y audit
-(<p>)**). Adding a screen = one landing subflow that ends in `assertVisible` of the screen id, plus
+(\<p>)**). Adding a screen = one landing subflow that ends in `assertVisible` of the screen id, plus
 one line in `SCREENS` in `scripts/a11y-audit.js`.
 
 ## The template end-to-end test

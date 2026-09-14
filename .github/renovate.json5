@@ -73,6 +73,16 @@
       automergeType: 'pr',
       platformAutomerge: true,
     },
+    // VitePress and its mermaid plugin (docs site, T8.4): the plugin pins the mermaid major it
+    // renders with and tracks VitePress releases, so the three bump together. Same placement
+    // reason as the oxlint group: later rules win.
+    {
+      groupName: 'vitepress',
+      matchPackageNames: ['vitepress', 'vitepress-plugin-mermaid', 'mermaid'],
+      automerge: true,
+      automergeType: 'pr',
+      platformAutomerge: true,
+    },
     // GitHub Actions: pin to digests, auto-merge minor/patch.
     {
       matchManagers: ['github-actions'],

@@ -13,6 +13,8 @@
     "src/lib/devtools-plugins.ts",
     // Loaded by @expo/fingerprint itself (every fingerprint path), not imported by our code.
     "fingerprint.config.js",
+    // Loaded by `vitepress build docs` (bun run docs:*), which is how vitepress / mermaid are used.
+    "docs/.vitepress/config.mts",
   ],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{js,ts}", "*.{js,ts}"],
   // Maestro CLI is installed outside package.json (~/.maestro/bin locally, curl installer in CI).

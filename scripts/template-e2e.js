@@ -12,7 +12,7 @@
  *      and no EAS project id (`--eas-project-id=`), no EXPO_TOKEN: nothing may touch the network
  *   4. assert: bun.lock byte-identical, one commit on `main` with a commitlint-valid subject, clean
  *      tree, every self-delete manifest entry gone, `bun install --frozen-lockfile` still a no-op
- *   5. the gate: lint, typecheck, test, knip, i18n:check, format:check, env:check
+ *   5. the gate: lint, typecheck, test, knip, i18n:check, format:check, env:check, docs:build
  *   6. `expo config --type public` resolves the new identity (production variant, updates off)
  *   7. no template identifier left in any tracked file outside `KEEP` (init only warns; this fails)
  *   8. the template checkout's `git status --porcelain` is exactly what it was before
@@ -66,7 +66,17 @@ const INIT_ARGS = [
 ];
 
 /** The gate, in the order that fails fastest (docs/js-gate.md → Running the gate locally). */
-const GATE = ['lint', 'typecheck', 'test', 'knip', 'i18n:check', 'format:check', 'env:check'];
+const GATE = [
+  'lint',
+  'typecheck',
+  'test',
+  'knip',
+  'i18n:check',
+  'format:check',
+  'env:check',
+  // The docs site must build (no dead link) once docs/template-init.md is gone (the `Docs` job).
+  'docs:build',
+];
 
 class E2EError extends Error {}
 

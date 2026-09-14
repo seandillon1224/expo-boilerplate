@@ -25,7 +25,7 @@ list to maintain — against three rules: a non-empty label (`accessibilityText`
 `title`), a label that is not the raw testID, and no duplicate labels on one screen. Dynamic
 testIDs are listed as unaudited. Native only. It runs locally after `bun run e2e:<p> --keep`
 (exit 1 on findings) and as an informational `after_maestro_tests` hook in `.eas/workflows/e2e.yml`
-(`--no-fail`, uploaded as **A11y audit (<p>)**).
+(`--no-fail`, uploaded as **A11y audit (\<p>)**).
 
 ## Consequences
 

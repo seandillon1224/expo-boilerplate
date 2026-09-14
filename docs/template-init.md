@@ -152,7 +152,8 @@ happens in a throwaway copy:
    `bunx commitlint --last`), the tree is clean, every `REMOVAL` entry is gone, and
    `bun install --frozen-lockfile` is still a no-op against the rewritten `package.json`.
 5. Runs the gate in the copy: `lint`, `typecheck`, `test`, `knip`, `i18n:check`, `format:check`,
-   `env:check`.
+   `env:check`, `docs:build` (the docs site still builds without this page: its sidebar entry and
+   the links to it are dropped by `docs/.vitepress/config.mts` when the file is gone).
 6. `bunx expo config --type public` with `APP_VARIANT=production` resolves the new name, slug,
    scheme, bundle id and package, with no `extra.eas` / `updates.url` (empty project id).
 7. Scans every tracked file with the same `scanLeftovers` init uses and **fails** on any template

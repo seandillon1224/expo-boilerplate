@@ -2,15 +2,15 @@
 /**
  * GitHub repo settings as code: `main` branch protection (required checks), the merge settings
  * Renovate `platformAutomerge` needs, the `uat` / `production` deployment environments with
- * required reviewers, and the labels the automation relies on. Plain Node/JS, shells out to
- * `gh api`.
+ * required reviewers, the labels the automation relies on, and GitHub Pages sourced from Actions
+ * (the docs site). Plain Node/JS, shells out to `gh api`.
  *
  * Usage (needs `gh auth login` with admin on the repo):
  *   bun run repo:settings          # --dry-run (default): print the gh api calls + payloads, no writes
  *   bun run repo:settings:apply    # --apply: PUT branch protection + PATCH repo + PUT environments
- *                                  #          + POST/PATCH labels
+ *                                  #          + POST/PATCH labels + POST/PUT pages
  *   bun run repo:settings:check    # --check: GET current state, diff against DESIRED, exit 1 on drift
- *   ... --only labels,repo         # any mode: run a subset of protection | repo | environments | labels
+ *   ... --only labels,repo         # any mode: run a subset of protection | repo | environments | labels | pages
  *
  * Run `:apply` once after creating a repo from this template (the init script's `--apply-repo-settings`
  * does it for you), and again whenever DESIRED changes. There is no CI drift guard: the Actions
@@ -34,7 +34,13 @@
  * so GitHub's defaults and anything added by hand survive. `--check` reports missing labels and
  * color / description drift.
  *
- * T2.7 (#26) owns `protection` + `repo`; T5.2 (#41) `environments`; T7.4 (#55) `labels`.
+ * Pages (T8.4, #143): `.github/workflows/docs.yml` deploys the VitePress site with
+ * `actions/deploy-pages`, which needs the repo's Pages source set to "GitHub Actions"
+ * (`build_type: workflow`). `--apply` POSTs the Pages site when there is none and PUTs
+ * `build_type` when it is set to a branch; `--check` reports a missing site or a branch source.
+ *
+ * T2.7 (#26) owns `protection` + `repo`; T5.2 (#41) `environments`; T7.4 (#55) `labels`;
+ * T8.4 (#143) `pages`.
  */
 const { spawnSync } = require('node:child_process');
 
@@ -183,6 +189,9 @@ const DESIRED = {
   labels: Object.fromEntries(
     LABELS.map(({ name, color, description }) => [name, { color, description }]),
   ),
+  // POST /repos/{owner}/{repo}/pages (no site yet) or PUT /repos/{owner}/{repo}/pages (source is a
+  // branch): the docs site is deployed by .github/workflows/docs.yml, so the source is Actions.
+  pages: { build_type: 'workflow' },
 };
 
 const SECTIONS = Object.keys(DESIRED);
@@ -296,6 +305,16 @@ function labelDrifted(want, got) {
   return got.color !== want.color.toLowerCase() || got.description !== want.description;
 }
 
+/** The repo's Pages site as `{ build_type }`, or `null` when Pages is not enabled. */
+function currentPages(ctx, slug) {
+  const result = ghJson(ctx, ['api', `repos/${slug}/pages`]);
+  if (!result.ok) {
+    if (result.body?.message === 'Not Found') return null;
+    throw new RepoSettingsError(`repo:settings: GET pages failed\n${result.stderr}`);
+  }
+  return { build_type: result.body?.build_type ?? 'legacy' };
+}
+
 /**
  * The `gh api` calls that reconcile `only` sections, keyed for logging. Labels need a GET first
  * (upsert: POST when missing, PATCH when different, nothing when equal); the other sections are
@@ -341,7 +360,25 @@ function endpoints(ctx, slug, only = SECTIONS) {
       }
     }
   }
+  if (only.includes('pages')) {
+    const current = currentPages(ctx, slug);
+    if (current === null) {
+      calls.pages = { method: 'POST', path: `repos/${slug}/pages`, body: DESIRED.pages };
+    } else if (current.build_type !== DESIRED.pages.build_type) {
+      calls.pages = { method: 'PUT', path: `repos/${slug}/pages`, body: DESIRED.pages };
+    }
+  }
   return calls;
+}
+
+/** Sections whose calls are upserts: nothing to write means "already up to date", not "skipped". */
+function upToDate(only, calls) {
+  const quiet = [];
+  if (only.includes('labels') && !Object.keys(calls).some((k) => k.startsWith('label:'))) {
+    quiet.push('labels');
+  }
+  if (only.includes('pages') && !calls.pages) quiet.push('pages');
+  return quiet;
 }
 
 function apiArgs({ method, path }) {
@@ -365,8 +402,8 @@ function dryRun(ctx, slug, only) {
     ctx.log(JSON.stringify(call.body, null, 2));
     ctx.log('JSON\n');
   }
-  if (only.includes('labels') && !Object.keys(calls).some((k) => k.startsWith('label:'))) {
-    ctx.log('labels: all present and up to date, nothing to write\n');
+  for (const section of upToDate(only, calls)) {
+    ctx.log(`${section}: already up to date, nothing to write\n`);
   }
 }
 
@@ -382,8 +419,8 @@ function apply(ctx, slug, only) {
     }
     ctx.log(`repo:settings: applied ${name} (${call.method} ${call.path})`);
   }
-  if (only.includes('labels') && !Object.keys(calls).some((k) => k.startsWith('label:'))) {
-    ctx.log('repo:settings: labels already up to date');
+  for (const section of upToDate(only, calls)) {
+    ctx.log(`repo:settings: ${section} already up to date`);
   }
 }
 
@@ -510,6 +547,14 @@ function collectDrift(ctx, slug, only = SECTIONS) {
           ),
         );
       }
+    }
+  }
+  if (only.includes('pages')) {
+    const current = currentPages(ctx, slug);
+    if (current === null) {
+      drift.push('pages: not enabled (want build_type "workflow")');
+    } else {
+      drift.push(...diff(DESIRED.pages, current, 'pages.'));
     }
   }
   return drift;
