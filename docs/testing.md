@@ -117,11 +117,23 @@ loading → content transition and `markInteractive` (see `fetch.test.tsx`). A h
 `scripts/*.js` are plain Node (no `@types/node`; `require` with an eslint-disable line) and are
 tested from `scripts/__tests__/*.test.ts` by the same Jest run: `init` (the rewrite / removal
 manifests against the checked-in files — the drift guard), `doctor`, `observe-check` (JSON fixtures
-in `scripts/__tests__/fixtures/`), `repo-settings`. The pattern is to export the pure pieces
-(`parseArgs`, `DESIRED`, `collectDrift`, ...) and inject the shell: `repo-settings.test.ts` builds a
-fake `gh` that records every call and returns canned responses, so nothing touches the network. A
-new script gets the same treatment: export the logic, take the process runner as a parameter,
-and test the decisions, not the spawning.
+in `scripts/__tests__/fixtures/`), `repo-settings`, `a11y-audit`, `flashlight`, `bundle-budget`,
+`reassure-gate`, `serve-web`, `e2e-run`, plus `builtins-only` (the `node:`-only require guard over
+every script an EAS hook runs). The pattern is to export the pure pieces (`parseArgs`, `DESIRED`,
+`collectDrift`, ...) and inject the shell: `repo-settings.test.ts` builds a fake `gh` that records
+every call and returns canned responses, so nothing touches the network; `e2e-run.test.ts` passes
+`pickSimulator` a canned `xcrun simctl list -j` payload. A new script gets the same treatment:
+export the logic behind `if (require.main === module) runMain(main)`, take the process runner (or
+the directory it reads) as a parameter, and test the decisions, not the spawning. Where a script can
+be driven end to end offline — a fixture export behind `bundle-budget --dist`, a fixture report
+behind `reassure-gate --input` — the test also `spawnSync`s the real CLI, because the exit code
+_is_ the contract (0 ok / 1 check failed / 2 usage; see `scripts/lib/args.js`).
+
+`serve-web.js resolveFile` is the one security boundary in `scripts/`: it turns a request path into
+a filename the server reads. Its tests cover `..`, percent-encoded and double-encoded traversal,
+absolute paths, null bytes and a sibling directory whose name merely prefixes the export dir — and
+they were checked by weakening the guard and confirming they go red. Keep that property when you
+touch them: a traversal assertion that still passes against a removed check is worth nothing.
 
 ## Render-perf tests (Reassure)
 

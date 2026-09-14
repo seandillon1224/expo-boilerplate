@@ -22,11 +22,6 @@ const ROOT = path.resolve(__dirname, '..');
 const DIST = path.resolve(ROOT, process.env.DIST || 'dist-web');
 const PORT = Number(process.env.PORT || 8081);
 
-if (!fs.existsSync(path.join(DIST, 'index.html'))) {
-  console.error(`serve-web: ${DIST}/index.html not found. Run \`bun run export:web\` first.`);
-  process.exit(1);
-}
-
 function isFile(candidate) {
   try {
     return fs.statSync(candidate).isFile();
@@ -35,7 +30,13 @@ function isFile(candidate) {
   }
 }
 
-function resolveFile(pathname) {
+/**
+ * Maps a request pathname to a file inside `dist`, or null when nothing matches. This is a
+ * security boundary: a static server that happily resolves `/../../.env` hands the whole machine
+ * to anyone who can reach the port, so every path — decoded, normalized, absolute or not — has to
+ * land inside `dist` before it is read. `dist` is a parameter so tests can point it at a fixture.
+ */
+function resolveFile(pathname, dist = DIST) {
   let decoded;
   try {
     decoded = decodeURIComponent(pathname);
@@ -43,22 +44,34 @@ function resolveFile(pathname) {
     return null;
   }
   const relative = path.normalize(decoded).replace(/^(\.\.[/\\])+/, '');
-  const target = path.join(DIST, relative);
+  const target = path.join(dist, relative);
   // Never serve anything outside the export directory.
-  if (!target.startsWith(DIST + path.sep) && target !== DIST) return null;
+  if (!target.startsWith(dist + path.sep) && target !== dist) return null;
 
   const candidates = [target, `${target}.html`, path.join(target, 'index.html')];
   return candidates.find(isFile) ?? null;
 }
 
-const server = Bun.serve({
-  port: PORT,
-  fetch(request) {
-    const { pathname } = new URL(request.url);
-    const file = resolveFile(pathname) ?? path.join(DIST, 'index.html');
-    const headers = { 'Cache-Control': 'no-store' };
-    return new Response(Bun.file(file), { headers });
-  },
-});
+function serve() {
+  if (!fs.existsSync(path.join(DIST, 'index.html'))) {
+    console.error(`serve-web: ${DIST}/index.html not found. Run \`bun run export:web\` first.`);
+    process.exitCode = 1;
+    return;
+  }
+  const server = Bun.serve({
+    port: PORT,
+    fetch(request) {
+      const { pathname } = new URL(request.url);
+      const file = resolveFile(pathname) ?? path.join(DIST, 'index.html');
+      const headers = { 'Cache-Control': 'no-store' };
+      return new Response(Bun.file(file), { headers });
+    },
+  });
+  console.log(
+    `serve-web: serving ${path.relative(ROOT, DIST)}/ at http://localhost:${server.port}`,
+  );
+}
 
-console.log(`serve-web: serving ${path.relative(ROOT, DIST)}/ at http://localhost:${server.port}`);
+module.exports = { resolveFile };
+
+if (require.main === module) serve();

@@ -34,6 +34,14 @@ Options:
   options: { input: { type: 'string', default: DEFAULT_INPUT } },
 };
 
+/**
+ * The significant entries that got *slower* — the only thing this gate fails on. Speed-ups
+ * (`durationDiff < 0`) and count-only changes are significant too and must pass.
+ */
+function regressionsIn(report) {
+  return (report.significant ?? []).filter((entry) => entry.durationDiff > 0);
+}
+
 function main(argv) {
   const { values, help } = parseArgs(argv, CLI);
   if (help) return 0;
@@ -45,7 +53,7 @@ function main(argv) {
   }
 
   const report = JSON.parse(fs.readFileSync(file, 'utf8'));
-  const regressions = (report.significant ?? []).filter((entry) => entry.durationDiff > 0);
+  const regressions = regressionsIn(report);
 
   if (report.errors?.length) {
     for (const error of report.errors) console.error(`reassure-gate: error: ${error}`);
@@ -70,4 +78,6 @@ function main(argv) {
   return 1;
 }
 
-runMain(main);
+module.exports = { main, regressionsIn };
+
+if (require.main === module) runMain(main);

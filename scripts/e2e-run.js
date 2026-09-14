@@ -79,11 +79,12 @@ function onExit(cleanup) {
 
 // Native entries live flat in .maestro/flows (web ones in flows/web, see .maestro/config.yaml);
 // list the ones this run selects so the notice below can name them.
-function selectedFlows(platform, quarantine) {
-  if (!fs.existsSync(flowsDir)) return [];
-  return fs.readdirSync(flowsDir).filter((file) => {
+// `dir` is a parameter so tests can point the selection at a fixture tree.
+function selectedFlows(platform, quarantine, dir = flowsDir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter((file) => {
     if (!/\.ya?ml$/.test(file)) return false;
-    const header = fs.readFileSync(path.join(flowsDir, file), 'utf8').split(/^---$/m)[0];
+    const header = fs.readFileSync(path.join(dir, file), 'utf8').split(/^---$/m)[0];
     const match = header.match(/^tags:\s*\[([^\]]*)\]/m);
     const tags = match ? match[1].split(',').map((t) => t.trim()) : [];
     const quarantined = tags.includes('quarantine');
@@ -93,8 +94,9 @@ function selectedFlows(platform, quarantine) {
 
 // --- iOS -------------------------------------------------------------------------------------
 
-function pickSimulator(xcrun, device) {
-  const { devices } = runJson(NAME, xcrun, ['simctl', 'list', '-j', 'devices', 'available']);
+// `list` is a parameter so tests can feed a canned `xcrun simctl list -j` payload.
+function pickSimulator(xcrun, device, list = runJson) {
+  const { devices } = list(NAME, xcrun, ['simctl', 'list', '-j', 'devices', 'available']);
   const iphones = Object.entries(devices).flatMap(([runtime, list]) =>
     list
       .filter((d) => d.isAvailable && /^iPhone/.test(d.name))
@@ -290,4 +292,6 @@ function main(argv) {
   return platform === 'ios' ? runIos(maestro, app.id, ctx) : runAndroid(maestro, app.id, ctx);
 }
 
-runMain(main);
+module.exports = { pickSimulator, selectedFlows };
+
+if (require.main === module) runMain(main);
