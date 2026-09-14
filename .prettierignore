@@ -11,3 +11,6 @@ assets
 .reassure
 docs/.vitepress/cache
 docs/.vitepress/dist
+
+# release-please owns this file
+CHANGELOG.md

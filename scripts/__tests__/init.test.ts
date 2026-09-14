@@ -592,7 +592,11 @@ describeTemplate('drift guard (real repo files, dry run)', () => {
     expect(result.stdout).toContain("+   bundleId: 'com.acme.mobile',");
     expect(result.stdout).toContain(`Would reset ${LEDGER_PATH}`);
     expect(result.stdout).toContain('Would replace PLAN.md');
-    expect(result.stdout).toContain('No CHANGELOG.md, skipped.');
+    // State-independent: the template only ships CHANGELOG.md once release-please has opened a
+    // release PR, so accept either branch of the changelog step.
+    expect(result.stdout).toMatch(
+      /No CHANGELOG\.md, skipped\.|Would replace CHANGELOG\.md with a fresh header\./,
+    );
     expect(result.stdout).toContain(
       `Would reset ${RELEASE_PLEASE_MANIFEST} and package.json version to ${INITIAL_VERSION}; last-release-sha dropped (fresh history)`,
     );
@@ -714,7 +718,11 @@ describeTemplate('integration (headless init on a temp copy)', () => {
     expect(exists(dir, '.claude/skills/ship-next/SKILL.md')).toBe(true);
     expect(exists(dir, '.claude/settings.json')).toBe(true);
     expect(readIn(dir, 'PLAN.md')).toContain('# Plan — Acme Mobile');
-    expect(exists(dir, 'CHANGELOG.md')).toBe(false);
+    // Absent when the template carries no CHANGELOG.md, reset to the fresh header when it does
+    // (release-please adds one on its release PR); the seeded case is asserted below.
+    expect([null, buildChangelog(ACME)]).toContain(
+      exists(dir, 'CHANGELOG.md') ? readIn(dir, 'CHANGELOG.md') : null,
+    );
 
     // Versioning starts over: 1.0.0 everywhere, and the inherited history (one snapshot commit
     // here) is marked as already released so release-please only counts the project's commits.
@@ -730,6 +738,18 @@ describeTemplate('integration (headless init on a temp copy)', () => {
     expect(result.stdout).toContain(
       'then commit: git add -A && git commit -m "chore: initialize acme-mobile from expo-boilerplate"',
     );
+  }, 60_000);
+
+  it('resets an inherited CHANGELOG.md to the fresh header', () => {
+    const dir = copyRepo();
+    fs.writeFileSync(
+      path.join(dir, 'CHANGELOG.md'),
+      '# Changelog\n\n## [1.1.0](https://example.invalid/compare) (2026-09-14)\n\n### Features\n\n* something inherited\n',
+    );
+    const result = runInit(dir, []);
+    expect(result.status).toBe(0);
+    expect(readIn(dir, 'CHANGELOG.md')).toBe(buildChangelog(ACME));
+    expect(result.stdout).toContain('Replaced CHANGELOG.md with a fresh header.');
   }, 60_000);
 
   it('--keep-init --keep-plan leaves the script, its doc and PLAN.md alone', () => {
