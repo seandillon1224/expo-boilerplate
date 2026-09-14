@@ -86,6 +86,20 @@ JS, so it is not repacked; `maestro` takes whichever `build_id` exists (Expo's d
 fingerprint + repack idiom). Two PRs racing on the same new fingerprint do not both build:
 `wait_for_in_progress` makes the second wait for the first's build.
 
+`maestro_<p>` depends on `repack_<p>` / `build_<p>` through `after:`, not `needs:` — exactly one of
+the two runs, and `needs` would skip the job along with the skipped one. A dependency declared with
+`after:` is readable **only** through the `after.<job>` context, so both the `if:` and
+`params.build_id` read `after.repack_<p>.outputs.build_id || after.build_<p>.outputs.build_id`
+([workflow syntax](https://docs.expo.dev/eas/workflows/syntax/)); the same rule governs
+`deploy-staging.yml` and `promote.yml`. Reading `needs.<job>` for an `after:` dependency silently
+resolves to nothing, which makes the `if:` falsy and skips Maestro entirely — that bug shipped in
+this file (T10.1) and was only caught by reading, not by a run.
+
+**Unverified.** The native lane has not yet had a real end-to-end run on EAS; it has passed
+`eas workflow:validate` only. The first PR that triggers `e2e.yml` is still owed — confirm that
+both `maestro_<p>` jobs actually start, that the build id resolves, and that the PR comment shows a
+flow count rather than `⏭️ skipped`.
+
 Maestro on EAS: `flow_path: .maestro` is the workspace directory, so `config.yaml` is read and
 `include_tags` selects the native entries exactly like `bun run e2e:<p>`. The app id reaches the
 flows as `MAESTRO_APP_ID` — Maestro exposes `MAESTRO_*` shell variables to flows, which is the

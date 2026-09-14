@@ -116,7 +116,9 @@ describe('applyRules (fixture strings)', () => {
       '    env:',
       '      MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev',
       '    params:',
-      '      build_id: ${{ needs.repack_ios.outputs.build_id || needs.build_ios.outputs.build_id }}',
+      // The iOS site uses the `after.` context (e2e.yml / e2e-quarantine.yml depend via `after:`)
+      // and the Android site the `needs.` one (e2e-cloud.yml) — the shared rules match both.
+      '      build_id: ${{ after.repack_ios.outputs.build_id || after.build_ios.outputs.build_id }}',
       '    env:',
       '      MAESTRO_APP_ID: com.seandillon.expoboilerplate.dev',
       '    params:',
