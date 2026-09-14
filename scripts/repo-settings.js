@@ -52,8 +52,9 @@ const { UsageError, parseArgs: parseCli, runMain } = require('./lib/args');
 
 const BRANCH = 'main';
 
-// Must match `name:` in .github/workflows/ci.yml and pr-title.yml (the matrix job expands to
-// "Bundle budget (<platform>)"). Every job in those two workflows must appear either here or in
+// Must match `name:` in .github/workflows/ci.yml and pr-title.yml (the ios/android matrix job
+// expands to "Bundle budget (<platform>)"; the web leg is its own job with the same name shape,
+// so `maestro-web` can depend on it alone). Every job in those two workflows must appear either here or in
 // INFORMATIONAL below; scripts/__tests__/repo-settings.test.ts parses the workflows and fails on
 // a job that is in neither, or on a required check that no job produces (T10.6, #159).
 const REQUIRED_CHECKS = [
@@ -88,6 +89,7 @@ const INFORMATIONAL = ['Perf (Reassure)', 'Fingerprint drift'];
 //   flaky-flow, e2e   `.github/ISSUE_TEMPLATE/flaky-flow.yml` (docs/native-e2e.md → Flake budget)
 //   e2e:ios           `.eas/workflows/e2e.yml` (`IOS_MODE=label` runs the iOS lane on labelled PRs)
 //   e2e:cloud         `.eas/workflows/e2e-cloud.yml` (opt-in Maestro Cloud run; docs/native-e2e.md → Maestro Cloud)
+//   web-preview       `.eas/workflows/preview-web.yml` (opt-in EAS Hosting `pr-<n>` preview; docs/release-ladder.md → PR previews)
 //   fingerprint-drift `.github/workflows/ci.yml` (`Fingerprint drift` job; docs/release-ladder.md)
 //   dependencies      `.github/renovate.json5` (`labels`)
 // Colors are 6-hex without `#`, as the API expects.
@@ -137,6 +139,11 @@ const LABELS = [
     name: 'e2e:cloud',
     color: '5319e7',
     description: 'Run the Maestro flows on Maestro Cloud for this PR (opt-in, paid)',
+  },
+  {
+    name: 'web-preview',
+    color: '5319e7',
+    description: 'Deploy this PR to an EAS Hosting `pr-<number>` preview alias (opt-in)',
   },
   {
     name: 'fingerprint-drift',

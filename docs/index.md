@@ -48,7 +48,7 @@ features:
 flowchart LR
   PR["Pull request"] --> GATE["JS gate: lint, typecheck, unit, knip, format, commitlint, secret scan, bundle budgets, Maestro web"]
   PR --> E2E["E2E (native): fingerprint, build if needed, repack, Maestro iOS + Android"]
-  PR --> PREVIEW["Preview web: pr-N alias + PR comment"]
+  PR --> PREVIEW["Preview web: pr-N alias + PR comment (web-preview label)"]
   PR --> DRIFT["Fingerprint drift: informational PR comment"]
   GATE --> MERGE["Squash-merge to main"]
   E2E --> MERGE

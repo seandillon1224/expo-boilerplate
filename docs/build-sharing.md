@@ -24,7 +24,7 @@ pushed to people by two jobs: `slack` (staging / uat / production / release runs
   `release.yml` run.
 - **PR comment** — `e2e.yml` (`comment` job, `type: github-comment`) links the build each Maestro
   lane ran on ([Native E2E → PR comment](native-e2e.md#pr-comment)); `preview-web.yml` links the
-  web preview ([Release ladder → PR previews](release-ladder.md#pr-previews-web-automatic)). PR
+  web preview ([Release ladder → PR previews](release-ladder.md#pr-previews-web-opt-in)). PR
   builds are the `development` variant and are meant for engineers, not for sharing with testers.
 - **TestFlight / Play internal** — only `release.yml` (`vX.Y.Z` tag) puts a build there
   ([Release ladder → Store release](release-ladder.md#store-release-tag)); testers are added on the
