@@ -21,13 +21,13 @@ Bun's test runner is **not** used; unit/component tests are Jest (`jest-expo`).
 - `bun run test` — Jest; `test:coverage` for coverage
 - `bun run knip` — dead code / unused deps
 - `bun run perf:baseline` then `bun run perf` — Reassure render-perf compare (`.reassure/output.md`); `perf:gate` fails on significant regressions, `perf:check` measures machine stability
-- `bun run perf:flashlight` — Flashlight release-build CPU / RAM / FPS of one Maestro flow on an online Android emulator / device with the e2e build installed (`bun run e2e:android --keep` first): `--platform android`, `--device`, `--out` (default `flashlight`), `--iterations 5`, `--duration 10000`, `--flow .maestro/flows/fetch.yaml`, `--install`, `--no-fail` (the informational EAS hook mode, off behind the `FLASHLIGHT` constant in `e2e.yml`); ADR-0007, `docs/performance.md`
+- `bun run perf:flashlight` — Flashlight release-build CPU / RAM / FPS of one Maestro flow on an online Android emulator / device with the e2e build installed (`bun run e2e:android --keep` first): `--platform` (default `android`), `--device`, `--out` (default `flashlight`), `--iterations 5`, `--duration 10000`, `--flow .maestro/flows/fetch.yaml`, `--install`, `--no-fail` (the informational EAS hook mode, off behind the `FLASHLIGHT` constant in `e2e.yml`); ADR-0007, `docs/performance.md`
 - `bun run observe:check` — EAS Observe startup-TTI check against `observe-budget.json` (`--platform`, `--days`, `--version`, `--update-id`, `--strict`; `--input <json>` offline); skips with a notice while Observe has no data / session (see `docs/observe.md`)
 - `bun run export:web` (or `export:ios` / `export:android`) then `bun run budget` — JS-only export + gzip bundle-budget check (`bundle-budget.json`)
 - `bun run atlas` — dev server with Expo Atlas at `http://localhost:8081/_expo/atlas`; `bun run atlas:export` (or `atlas:export:web|ios|android`) — release export with Atlas on, then serve `.expo/atlas.jsonl` (`atlas:serve` re-opens it). Atlas is `EXPO_ATLAS=true`-gated and never set in CI / EAS (`docs/atlas.md`)
 - `bun run e2e:web` — Maestro web flows (`.maestro/flows`, tag `web`) against the static export; needs `bun run export:web` and `bun run serve:web` running first
 - `bun run e2e:build` → `e2e:repack` → `e2e:ios` / `e2e:android` — native lane on a laptop (fingerprint-matched EAS build → JS repack → Maestro on simulator/emulator); mirrors `.eas/workflows` jobs, see `docs/native-e2e.md`
-- `bun run e2e:a11y` — screen-reader-output audit of Maestro's accessibility tree on a running simulator / device with the e2e build installed (`bun run e2e:<p> --keep` first): `--platform ios|android`, `--device`, `--out` (default `maestro-<p>/a11y`), `--no-fail` (the informational EAS hook mode); ADR-0005, `docs/testing.md`
+- `bun run e2e:a11y` — screen-reader-output audit of Maestro's accessibility tree on a running simulator / device with the e2e build installed (`bun run e2e:<p> --keep` first): `--platform ios|android` (required), `--device`, `--out` (default `maestro-<p>/a11y`), `--no-fail` (the informational EAS hook mode); ADR-0005, `docs/testing.md`
 - `bun run fingerprint` — native fingerprint hashes (= EAS Update runtime version) for iOS/Android; `--platform ios|android`, `--debug` (see `docs/environments-and-secrets.md`)
 - `bun run devices:add` / `devices:list` — register / list iOS test devices (`eas device:create` / `device:list`); walkthrough in `docs/device-onboarding.md`
 - `bun run env:check` — validate `EXPO_PUBLIC_*` against the Zod schema (also runs at app startup)
@@ -45,6 +45,10 @@ The human-readable version of these rules, with the reasoning, is `docs/conventi
   Subject must be lowercase; PR titles become the squash commit message.
 - Lefthook runs eslint/prettier on staged files (pre-commit) and typecheck + knip + env/i18n checks (pre-push).
 - Source lives in `src/`; routes in `src/app/` (Expo Router, typed routes on). Path alias `@/` → `src/`.
+- Every script in `scripts/` parses its command line with `scripts/lib/args.js` (one option table,
+  `util.parseArgs`, uniform `--help`), exposes `main(argv)` returning an exit code, and ends with
+  `runMain(main)` — never `process.exit()`. Codes: 0 ok, 1 the check failed, 2 usage / environment
+  (`docs/conventions.md` → Scripts parse arguments and exit the same way).
 - `app.config.ts` derives name / bundle id / package / scheme from `APP_VARIANT`
   (`development` | `staging` | `uat` | `production`). Never hardcode identifiers elsewhere.
 - CNG only: never commit `ios/` or `android/`. Native changes go through config plugins.

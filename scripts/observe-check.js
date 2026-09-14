@@ -17,10 +17,13 @@
  * (or `OBSERVE_CHECK_STRICT=1`) turns every skip into a failure once the check is used as a gate.
  *
  * Plain Node/JS (no @types/node) so it runs under `bun` or `node` with no extra deps.
+ * Exit codes follow scripts/lib/args.js (0 ok / skip, 1 breach or a failure to fix, 2 usage).
  */
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+
+const { parseArgs: parseCli, runMain } = require('./lib/args');
 
 const ROOT = path.resolve(__dirname, '..');
 const BUDGET_FILE = 'observe-budget.json';
@@ -39,67 +42,52 @@ const METRIC_NAMES = {
   nav_tti: 'expo.navigation.tti',
 };
 
+const CLI = {
+  name: 'observe-check',
+  usage: `Usage: bun run observe:check [options]
+
+Compares EAS Observe's startup metric per app version against observe-budget.json. Without a
+usable EAS session / project / data the check skips with a notice (exit 0) unless --strict.
+
+Options:
+  --platform ios|android   only this platform
+  --days <n>               window in days; default 7
+  --version <x.y.z>        only this app version
+  --update-id <id>         only sessions running this update
+  --project-id <uuid>      default $EAS_PROJECT_ID
+  --input <file>           read a saved metrics-summary JSON instead of calling the CLI (offline)
+  --budget <file>          default ${BUDGET_FILE}
+  --strict                 turn every skip into a failure (or OBSERVE_CHECK_STRICT=1)
+  --dry-run                accepted for muscle memory; a dry run is an --input run
+  --help                   this text`,
+  options: {
+    platform: { type: 'string', choices: PLATFORMS },
+    days: { type: 'number', integer: true, min: 1, default: 7 },
+    version: { type: 'string' },
+    'update-id': { type: 'string' },
+    'project-id': { type: 'string' },
+    input: { type: 'string' },
+    budget: { type: 'string', default: BUDGET_FILE },
+    strict: { type: 'boolean' },
+    // Alias kept for muscle memory: a dry run is an --input run; the flag alone changes nothing.
+    'dry-run': { type: 'boolean' },
+  },
+};
+
+/** The option table above, flattened into the shape the rest of the script reads. */
 function parseArgs(argv) {
-  const args = {
-    platform: undefined,
-    days: 7,
-    version: undefined,
-    updateId: undefined,
-    projectId: process.env.EAS_PROJECT_ID || undefined,
-    input: undefined,
-    budget: BUDGET_FILE,
-    strict: process.env.OBSERVE_CHECK_STRICT === '1',
+  const { values, help } = parseCli(argv, CLI);
+  if (help) return { help: true };
+  return {
+    platform: values.platform,
+    days: values.days,
+    version: values.version,
+    updateId: values['update-id'],
+    projectId: values['project-id'] || process.env.EAS_PROJECT_ID || undefined,
+    input: values.input,
+    budget: values.budget,
+    strict: values.strict || process.env.OBSERVE_CHECK_STRICT === '1',
   };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    const eq = arg.indexOf('=');
-    const flag = eq < 0 ? arg : arg.slice(0, eq);
-    const inline = eq < 0 ? undefined : arg.slice(eq + 1);
-    const value = () => {
-      if (inline !== undefined) return inline;
-      i += 1;
-      if (argv[i] === undefined) throw new Error(`${flag} needs a value`);
-      return argv[i];
-    };
-    switch (flag) {
-      case '--platform':
-        args.platform = value();
-        break;
-      case '--days':
-        args.days = Number(value());
-        break;
-      case '--version':
-        args.version = value();
-        break;
-      case '--update-id':
-        args.updateId = value();
-        break;
-      case '--project-id':
-        args.projectId = value();
-        break;
-      case '--input':
-        args.input = value();
-        break;
-      case '--budget':
-        args.budget = value();
-        break;
-      case '--strict':
-        args.strict = true;
-        break;
-      case '--dry-run':
-        // Alias kept for muscle memory: a dry run is an --input run; the flag alone changes nothing.
-        break;
-      default:
-        throw new Error(`unknown argument: ${arg}`);
-    }
-  }
-  if (args.platform !== undefined && !PLATFORMS.includes(args.platform)) {
-    throw new Error(`--platform must be one of ${PLATFORMS.join('|')}; got "${args.platform}"`);
-  }
-  if (!Number.isInteger(args.days) || args.days < 1) {
-    throw new Error(`--days must be a positive integer; got "${args.days}"`);
-  }
-  return args;
 }
 
 function loadBudget(file) {
@@ -272,14 +260,9 @@ function summaryMarkdown(rows, budget, window) {
   ].join('\n');
 }
 
-function main() {
-  let args;
-  try {
-    args = parseArgs(process.argv.slice(2));
-  } catch (e) {
-    console.error(`observe-check: ${e.message}`);
-    return 1;
-  }
+function main(argv) {
+  const args = parseArgs(argv);
+  if (args.help) return 0;
   const budget = loadBudget(args.budget);
   const skip = (message) => {
     if (args.strict) {
@@ -347,4 +330,4 @@ function main() {
 
 module.exports = { evaluate, loadBudget, parseArgs, classifySkip, METRIC_NAMES };
 
-if (require.main === module) process.exitCode = main();
+if (require.main === module) runMain(main);

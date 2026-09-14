@@ -14,7 +14,7 @@
 // Node built-ins only: the maestro job checks the project out but never installs node_modules.
 // Android only (Flashlight has no iOS profiler). Does not boot devices or install the app.
 //
-// Usage: bun run perf:flashlight --platform android [--device <serial>] [--out <dir>]
+// Usage: bun run perf:flashlight [--platform android] [--device <serial>] [--out <dir>]
 //                                [--iterations 5] [--duration 10000] [--flow <maestro flow>]
 //                                [--title <text>] [--install] [--no-fail]
 const { spawnSync } = require('child_process');
@@ -23,7 +23,8 @@ const os = require('os');
 const path = require('path');
 
 const { appId, pickDevice, which } = require('./a11y-audit');
-const { fail, parseArgs, projectRoot, run } = require('./e2e-common');
+const { parseArgs, runMain } = require('./lib/args');
+const { PLATFORM_OPTION, fail, projectRoot, run } = require('./e2e-common');
 
 const NAME = 'perf:flashlight';
 const INSTALL_URL = 'https://get.flashlight.dev';
@@ -50,7 +51,7 @@ function display(dir) {
   const rel = path.relative(projectRoot, dir);
   return rel && !rel.startsWith('..') ? rel : dir;
 }
-const USAGE = `Usage: bun run perf:flashlight --platform android [options]   (node scripts/flashlight.js)
+const USAGE = `Usage: bun run perf:flashlight [--platform android] [options]   (node scripts/flashlight.js)
 
 Runs Flashlight (https://docs.flashlight.dev) against the e2e build on an online adb device:
 \`flashlight test\` drives one Maestro flow <iterations> times measuring CPU / RAM / FPS, then
@@ -62,7 +63,7 @@ Precondition: an online adb emulator / device with the e2e build installed, e.g.
 Nothing is booted or installed here except, with --install, Flashlight itself.
 
 Options:
-  --platform android       Flashlight has no iOS profiler; anything else is a skip
+  --platform android       default android; Flashlight has no iOS profiler, anything else is a skip
   --device <serial>        default: adb's only online device
   --out <dir>              default ${DEFAULTS.out}
   --iterations <n>         default ${DEFAULTS.iterations} (Flashlight's own default is 10)
@@ -75,6 +76,24 @@ Options:
 
 Env: FLASHLIGHT=disabled skips (the repo constant in .eas/workflows/e2e.yml); unset or enabled runs.`;
 
+const CLI = {
+  name: NAME,
+  usage: USAGE,
+  options: {
+    // Android-only tool, so `android` is the only sensible default (an explicit --platform ios
+    // is still accepted and reported as a skip, which is what the EAS hook relies on).
+    platform: { ...PLATFORM_OPTION, default: 'android' },
+    device: { type: 'string' },
+    out: { type: 'string', default: DEFAULTS.out },
+    iterations: { type: 'number', integer: true, min: 0, default: DEFAULTS.iterations },
+    duration: { type: 'number', integer: true, min: 0, default: DEFAULTS.duration },
+    flow: { type: 'string', default: DEFAULTS.flow },
+    title: { type: 'string' },
+    install: { type: 'boolean' },
+    'no-fail': { type: 'boolean' },
+  },
+};
+
 // --- Pure functions (unit-tested in scripts/__tests__/flashlight.test.ts) --------------------
 
 // The FLASHLIGHT repo constant reaches the hook as an env var. Unset (local use) or `enabled`
@@ -85,29 +104,23 @@ function gateReason(value) {
 }
 
 // Install without asking on CI / EAS workers; locally only with --install.
-function shouldInstall({ flags, env }) {
-  return flags.has('install') || Boolean(env.CI) || Boolean(env.EAS_BUILD);
+function shouldInstall({ values, env }) {
+  return Boolean(values.install) || Boolean(env.CI) || Boolean(env.EAS_BUILD);
 }
 
-function positiveInt(values, key, fallback) {
-  if (values[key] === undefined) return fallback;
-  const n = Number(values[key]);
-  if (!Number.isInteger(n) || n < 0) throw new Error(`--${key} must be a non-negative integer.`);
-  return n;
-}
-
-// Resolves the CLI into one options object. Throws on a malformed numeric flag.
-function resolveOptions({ platform, flags, values, env }) {
+// Resolves the parsed CLI (scripts/lib/args.js already applied defaults and checked the numbers)
+// into the one options object the driver reads.
+function resolveOptions({ values, env }) {
   return {
-    platform,
+    platform: values.platform,
     device: values.device,
-    outDir: path.resolve(projectRoot, values.out ?? DEFAULTS.out),
-    iterations: positiveInt(values, 'iterations', DEFAULTS.iterations),
-    duration: positiveInt(values, 'duration', DEFAULTS.duration),
-    flow: values.flow ?? DEFAULTS.flow,
+    outDir: path.resolve(projectRoot, values.out),
+    iterations: values.iterations,
+    duration: values.duration,
+    flow: values.flow,
     title: values.title,
-    install: shouldInstall({ flags, env }),
-    noFail: flags.has('no-fail'),
+    install: shouldInstall({ values, env }),
+    noFail: Boolean(values['no-fail']),
   };
 }
 
@@ -219,21 +232,17 @@ function defaultTitle() {
   return short || new Date().toISOString().slice(0, 10);
 }
 
-function main() {
-  const parsed = parseArgs(process.argv, { name: NAME, usage: USAGE });
-  let opts;
-  try {
-    opts = resolveOptions({ ...parsed, env: process.env });
-  } catch (err) {
-    return fail(NAME, err.message);
-  }
+function main(argv) {
+  const { values, help } = parseArgs(argv, CLI);
+  if (help) return 0;
+  const opts = resolveOptions({ values, env: process.env });
   const { outDir, noFail } = opts;
   // Always leave README.txt behind so an artifact upload of `outDir` never fails on a missing path.
   const skip = (reason, { exitCode = noFail ? 0 : 1 } = {}) => {
     writeReadme(outDir, ['', `Skipped: ${reason}`]);
     if (exitCode !== 0) return fail(NAME, reason);
     console.log(`${NAME}: skipped: ${reason}`);
-    return process.exit(0);
+    return 0;
   };
 
   const gate = gateReason(process.env.FLASHLIGHT);
@@ -313,10 +322,10 @@ function main() {
       : summary.failed
         ? `${summary.failed}/${summary.iterations} iterations failed`
         : null;
-  if (!problem) return process.exit(0);
+  if (!problem) return 0;
   if (noFail) {
     console.log(`${NAME}: ${problem} — exit 0 because of --no-fail.`);
-    return process.exit(0);
+    return 0;
   }
   return fail(NAME, `${problem}.`);
 }
@@ -333,4 +342,4 @@ module.exports = {
   summarize,
 };
 
-if (require.main === module) main();
+if (require.main === module) runMain(main);

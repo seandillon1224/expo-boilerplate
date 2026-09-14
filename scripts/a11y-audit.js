@@ -20,12 +20,14 @@
 // (./e2e-common is built-ins only too). Does not boot devices or install apps.
 //
 // Usage: bun run e2e:a11y --platform ios|android [--device <udid|serial>] [--out <dir>] [--no-fail]
+// `--platform` is required: this audits a device someone else booted, so a default would guess.
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { fail, parseArgs, projectRoot, run, runJson } = require('./e2e-common');
+const { parseArgs, runMain } = require('./lib/args');
+const { PLATFORM_OPTION, fail, projectRoot, run, runJson } = require('./e2e-common');
 
 const NAME = 'e2e:a11y';
 
@@ -46,12 +48,25 @@ Precondition: a booted simulator / online adb device with the e2e build installe
 (or install e2e/builds/<platform>/repacked.app|apk yourself). Nothing is booted or installed here.
 
 Options:
-  --platform ios|android   default ios
+  --platform ios|android   required (there is no sensible default: it must match the booted device)
   --device <udid|serial>   default: the booted simulator / adb's only online device
   --out <dir>              default maestro-<platform>/a11y
   --no-fail                exit 0 on findings, nav failures and a missing maestro / device
                            (the EAS hook mode: prints a skip notice instead of failing)
   --help                   this text`;
+
+const CLI = {
+  name: NAME,
+  usage: USAGE,
+  options: {
+    // Required, not defaulted: this script audits whatever is already booted, so guessing `ios`
+    // on an Android-only box turned a missing flag into a confusing skip.
+    platform: { ...PLATFORM_OPTION, required: true },
+    device: { type: 'string' },
+    out: { type: 'string' },
+    'no-fail': { type: 'boolean' },
+  },
+};
 
 // Screens in navigation order; each subflow lands on the screen and asserts its container id.
 const SCREENS = [
@@ -345,16 +360,18 @@ function writeReport(outDir, report) {
   fs.writeFileSync(path.join(outDir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
 }
 
-function main() {
-  const { platform, flags, values } = parseArgs(process.argv, { name: NAME, usage: USAGE });
-  const noFail = flags.has('no-fail');
+function main(argv) {
+  const { values, help } = parseArgs(argv, CLI);
+  if (help) return 0;
+  const { platform } = values;
+  const noFail = values['no-fail'];
   const outDir = path.resolve(values.out ?? `maestro-${platform}/a11y`);
   // Always leave a report.json behind so an artifact upload of `outDir` never fails on a missing path.
   const skip = (reason) => {
     writeReport(outDir, { platform, skipped: reason, screens: [], dynamicIds: [] });
     if (!noFail) return fail(NAME, reason);
     console.log(`${NAME}: skipped (--no-fail): ${reason}`);
-    return process.exit(0);
+    return 0;
   };
 
   const maestro = which('maestro', [path.join(os.homedir(), '.maestro', 'bin', 'maestro')]);
@@ -392,11 +409,11 @@ function main() {
   console.log(
     `${NAME}: ${report.screens.length - bad.length}/${report.screens.length} screens clean; report: ${display(outDir)}/report.json`,
   );
-  if (bad.length === 0) return process.exit(0);
+  if (bad.length === 0) return 0;
   const summary = bad.map((s) => `${s.screen} (${s.status})`).join(', ');
   if (noFail) {
     console.log(`${NAME}: findings on ${summary} — exit 0 because of --no-fail.`);
-    return process.exit(0);
+    return 0;
   }
   return fail(NAME, `findings on ${summary}.`);
 }
@@ -417,4 +434,4 @@ module.exports = {
   which,
 };
 
-if (require.main === module) main();
+if (require.main === module) runMain(main);

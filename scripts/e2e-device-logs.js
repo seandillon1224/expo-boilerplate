@@ -22,7 +22,29 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { UsageError, parseArgs, runMain } = require('./lib/args');
+
 const NAME = 'e2e:device-logs';
+const CLI = {
+  name: NAME,
+  usage: `Usage: node scripts/e2e-device-logs.js --platform ios|android [options]
+
+Collects the one failure artifact Maestro does not produce itself: the simulator's unified log
+(+ any crash report) or the device's logcat, into <out>/ with a README.txt.
+
+Options:
+  --platform ios|android   required
+  --device <udid|serial>   default: the booted simulator / adb's only device
+  --out <dir>              default maestro-<platform>/device
+  --since <ISO date>       default: the last 30 minutes
+  --help                   this text`,
+  options: {
+    platform: { type: 'string', choices: ['ios', 'android'], required: true },
+    device: { type: 'string' },
+    out: { type: 'string' },
+    since: { type: 'string' },
+  },
+};
 
 function which(binary, fallbacks = []) {
   const found = spawnSync('which', [binary], { encoding: 'utf8' });
@@ -129,26 +151,20 @@ function collectDeviceLogs({ platform, device, outDir, since }) {
   return warnings;
 }
 
+function main(argv) {
+  const { values, help } = parseArgs(argv, CLI);
+  if (help) return 0;
+  const { platform } = values;
+  const since = values.since ? new Date(values.since) : undefined;
+  if (since && Number.isNaN(since.getTime())) {
+    throw new UsageError(`${NAME}: --since must be an ISO date (got \`${values.since}\`).`);
+  }
+  const outDir = path.resolve(values.out ?? `maestro-${platform}/device`);
+  collectDeviceLogs({ platform, device: values.device, outDir, since });
+  console.log(`${NAME}: wrote ${outDir}`);
+  return 0;
+}
+
 module.exports = { collectDeviceLogs };
 
-if (require.main === module) {
-  const args = process.argv.slice(2);
-  const value = (flag) => {
-    const i = args.indexOf(flag);
-    return i === -1 ? undefined : args[i + 1];
-  };
-  const platform = value('--platform');
-  if (!['ios', 'android'].includes(platform)) {
-    console.error(`${NAME}: --platform must be ios or android.`);
-    process.exit(1);
-  }
-  const sinceArg = value('--since');
-  const since = sinceArg ? new Date(sinceArg) : undefined;
-  if (since && Number.isNaN(since.getTime())) {
-    console.error(`${NAME}: --since must be an ISO date (got \`${sinceArg}\`).`);
-    process.exit(1);
-  }
-  const outDir = path.resolve(value('--out') ?? `maestro-${platform}/device`);
-  collectDeviceLogs({ platform, device: value('--device'), outDir, since });
-  console.log(`${NAME}: wrote ${outDir}`);
-}
+if (require.main === module) runMain(main);

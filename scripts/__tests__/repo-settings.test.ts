@@ -235,7 +235,8 @@ describe('parseArgs', () => {
   it('rejects unknown sections and flags', () => {
     expect(() => parseArgs(['--only', 'teams'])).toThrow(/unknown section teams/);
     expect(() => parseArgs(['--only'])).toThrow(/--only needs a value/);
-    expect(() => parseArgs(['--nuke'])).toThrow(/unknown flag --nuke/);
+    expect(() => parseArgs(['--nuke'])).toThrow(/unknown argument --nuke/);
+    expect(() => parseArgs(['--apply', '--check'])).toThrow(/pick one mode/);
   });
 });
 

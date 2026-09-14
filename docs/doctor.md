@@ -9,7 +9,7 @@ step (`--skip-doctor` to skip). No network access except `eas whoami`.
 | ----------------- | ---------------------------------------------------------------------------------------- | -------- | ------------------------------------------ |
 | **Bun**           | `>= 1.2.0` — `bun.lock` is a text lockfile (`saveTextLockfile` in `bunfig.toml`)         | yes      | everything                                 |
 | Lockfiles         | only `bun.lock`; warns on `package-lock.json` / `yarn.lock` / `pnpm-lock.yaml`           | —        | Bun-only installs                          |
-| **Node**          | major of `.node-version` (22)                                                            | yes      | scripts, lefthook, eas-cli                 |
+| **Node**          | major of `.node-version` (22); older is `MISSING`, newer only warns                      | yes      | scripts, lefthook, eas-cli                 |
 | **git**           | `>= 2.28`                                                                                | yes      | everything                                 |
 | lefthook hooks    | `.git/hooks/pre-commit` written by lefthook (`bunx lefthook install`, runs on `prepare`) | —        | pre-commit / commit-msg / pre-push hooks   |
 | EAS CLI           | major of `eas-cli` in `package.json`, resolved via `bun run eas --version`               | —        | EAS build / update / workflows, `env:pull` |
@@ -37,6 +37,9 @@ Flags and exit codes:
 | `bun run doctor`          | a required tool is `MISSING`; warnings exit 0               |
 | `bun run doctor --strict` | any `MISSING` **or** `warn` (CI, #56); `skip` never fails   |
 | `bun run doctor --json`   | same rules; prints `{ rows, summary }` instead of the table |
+
+An unknown flag exits 2 (the repo-wide usage code — `docs/conventions.md` → Scripts parse
+arguments and exit the same way).
 
 The expected versions live in one `EXPECTED` constant at the top of `scripts/doctor.js`, each
 with the reason for the number; `scripts/__tests__/doctor.test.ts` drives every check with a fake

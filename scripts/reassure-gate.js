@@ -11,25 +11,33 @@
  * PR that introduces a perf test is not blocked.
  *
  * Plain Node/JS (no @types/node) so it runs under `bun` or `node` with no extra deps.
+ * Exit codes follow scripts/lib/args.js: 0 clean, 1 regression, 2 usage.
  */
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { parseArgs, runMain } = require('./lib/args');
+
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_INPUT = '.reassure/output.json';
 
-function parseArgs(argv) {
-  let input = DEFAULT_INPUT;
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === '--input') input = argv[++i];
-    else if (arg.startsWith('--input=')) input = arg.slice('--input='.length);
-  }
-  return { input };
-}
+const CLI = {
+  name: 'reassure-gate',
+  usage: `Usage: node scripts/reassure-gate.js [--input ${DEFAULT_INPUT}]
 
-function main() {
-  const { input } = parseArgs(process.argv.slice(2));
+Fails (exit 1) when \`bun run perf\` found a statistically significant render-duration
+regression. A missing report passes with a notice.
+
+Options:
+  --input <file>   the compare report to read; default ${DEFAULT_INPUT}
+  --help           this text`,
+  options: { input: { type: 'string', default: DEFAULT_INPUT } },
+};
+
+function main(argv) {
+  const { values, help } = parseArgs(argv, CLI);
+  if (help) return 0;
+  const { input } = values;
   const file = path.resolve(ROOT, input);
   if (!fs.existsSync(file)) {
     console.log(`reassure-gate: ${input} not found (no baseline to compare against); passing.`);
@@ -62,4 +70,4 @@ function main() {
   return 1;
 }
 
-process.exitCode = main();
+runMain(main);

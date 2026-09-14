@@ -27,7 +27,7 @@
 #                      `# quarantine: #<issue>` comment pointing at the `flaky-flow` issue
 #                    - max age 2 weeks: fix and drop the tag, or delete the flow
 #                    - never delete assertions to make a flow pass
-#                  Run them: `bun run e2e:ios|android --include-quarantine`, `bun run e2e:web`
+#                  Run them: `bun run e2e:ios|android --quarantine-only`, `bun run e2e:web`
 #                  with the tags swapped by hand, or .eas/workflows/e2e-quarantine.yml.
 #                  Full policy: docs/native-e2e.md → Flake budget.
 #

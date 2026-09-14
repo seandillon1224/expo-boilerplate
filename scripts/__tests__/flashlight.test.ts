@@ -41,16 +41,25 @@ describe('gateReason', () => {
 
 describe('shouldInstall', () => {
   it('installs on --install or on a CI / EAS worker, never silently on a laptop', () => {
-    expect(shouldInstall({ flags: new Set(), env: {} })).toBe(false);
-    expect(shouldInstall({ flags: new Set(['install']), env: {} })).toBe(true);
-    expect(shouldInstall({ flags: new Set(), env: { CI: '1' } })).toBe(true);
-    expect(shouldInstall({ flags: new Set(), env: { EAS_BUILD: 'true' } })).toBe(true);
+    expect(shouldInstall({ values: {}, env: {} })).toBe(false);
+    expect(shouldInstall({ values: { install: true }, env: {} })).toBe(true);
+    expect(shouldInstall({ values: {}, env: { CI: '1' } })).toBe(true);
+    expect(shouldInstall({ values: {}, env: { EAS_BUILD: 'true' } })).toBe(true);
   });
 });
 
 describe('resolveOptions', () => {
   it('applies the defaults', () => {
-    const opts = resolveOptions({ platform: 'android', flags: new Set(), values: {}, env: {} });
+    const opts = resolveOptions({
+      values: {
+        platform: 'android',
+        out: DEFAULTS.out,
+        iterations: DEFAULTS.iterations,
+        duration: DEFAULTS.duration,
+        flow: DEFAULTS.flow,
+      },
+      env: {},
+    });
     expect(opts).toMatchObject({
       platform: 'android',
       device: undefined,
@@ -65,15 +74,16 @@ describe('resolveOptions', () => {
 
   it('reads every flag', () => {
     const opts = resolveOptions({
-      platform: 'android',
-      flags: new Set(['no-fail', 'install']),
       values: {
+        platform: 'android',
         device: 'emulator-5554',
         out: '/tmp/fl',
-        iterations: '3',
-        duration: '0',
+        iterations: 3,
+        duration: 0,
         flow: 'x.yaml',
         title: 't',
+        install: true,
+        'no-fail': true,
       },
       env: {},
     });
@@ -89,15 +99,10 @@ describe('resolveOptions', () => {
     });
   });
 
-  it('rejects a non-integer iteration count', () => {
-    expect(() =>
-      resolveOptions({
-        platform: 'android',
-        flags: new Set(),
-        values: { iterations: 'many' },
-        env: {},
-      }),
-    ).toThrow(/--iterations/);
+  it('defaults --platform to android (Flashlight has no iOS profiler)', () => {
+    const { status, output } = runCli(['--help']);
+    expect(status).toBe(0);
+    expect(output).toMatch(/--platform android {7}default android/);
   });
 });
 
@@ -213,9 +218,9 @@ describe('cli', () => {
     expect(fs.existsSync(path.join(out, 'README.txt'))).toBe(true);
   });
 
-  it('rejects a malformed --iterations', () => {
+  it('rejects a malformed --iterations with the usage exit code', () => {
     const { status, output } = runCli(['--platform', 'android', '--out', out, '--iterations', 'x']);
-    expect(status).toBe(1);
-    expect(output).toMatch(/--iterations must be/);
+    expect(status).toBe(2);
+    expect(output).toMatch(/--iterations must be an integer/);
   });
 });
