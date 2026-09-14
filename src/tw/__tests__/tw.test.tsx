@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react-native';
 
-import { cn, Text, View } from '@/tw';
+import { cn, Link, Text, View } from '@/tw';
 
 // @testing-library/react-native v14+: render/rerender/unmount are async.
 describe('@/tw', () => {
@@ -12,6 +12,25 @@ describe('@/tw', () => {
     );
     expect(screen.getByTestId('box')).toBeOnTheScreen();
     expect(screen.getByText('styled')).toBeOnTheScreen();
+  });
+
+  it('gives Link the link role without the caller repeating it', async () => {
+    await render(
+      <Link href="/" testID="tw-link">
+        home
+      </Link>,
+    );
+    expect(screen.getByTestId('tw-link')).toBeOnTheScreen();
+    expect(screen.getByRole('link', { name: 'home' })).toBeOnTheScreen();
+  });
+
+  it('carries accessibilityRole="link" on the wrapper props', async () => {
+    await render(
+      <Link href="/" testID="tw-link-props">
+        home
+      </Link>,
+    );
+    expect(screen.getByTestId('tw-link-props').props.accessibilityRole).toBe('link');
   });
 
   it('cn merges conflicting tailwind classes', () => {

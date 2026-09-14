@@ -23,6 +23,13 @@ describe('SettingsScreen', () => {
     expect(screen.getByTestId('settings-screen')).toBeOnTheScreen();
   });
 
+  // The role comes from the `@/tw` Link wrapper, not from a per-screen prop.
+  it('exposes the updates link with the link role', async () => {
+    await render(<SettingsScreen />);
+    expect(screen.getByTestId('settings-updates-link')).toBeOnTheScreen();
+    expect(screen.getByRole('link', { name: 'OTA updates' })).toBeOnTheScreen();
+  });
+
   it('sends a test error to Sentry and confirms it', async () => {
     await render(<SettingsScreen />);
     expect(screen.queryByTestId('settings-sentry-test-sent')).toBeNull();

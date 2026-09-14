@@ -161,7 +161,7 @@ export default function UpdatesScreen() {
         ) : null}
         {applyError ? (
           <Text testID="updates-apply-error" className="text-muted-foreground text-center">
-            {t('updates.status.error', { message: applyError })}
+            {t('updates.status.applyError', { message: applyError })}
           </Text>
         ) : null}
         {info.isUpdatePending ? (

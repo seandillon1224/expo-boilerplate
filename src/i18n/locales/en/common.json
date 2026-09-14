@@ -69,6 +69,7 @@
       "updateId": "Update ID"
     },
     "status": {
+      "applyError": "Could not apply the update: {{message}}",
       "available": "An update is available.",
       "checking": "Checking for updates…",
       "error": "Update check failed: {{message}}",

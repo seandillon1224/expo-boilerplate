@@ -27,7 +27,6 @@ export default function SettingsScreen() {
       <Link
         href="/updates"
         testID="settings-updates-link"
-        accessibilityRole="link"
         className="bg-muted text-foreground mt-4 rounded-md px-4 py-2 font-semibold"
       >
         {t('settings.updatesLink')}
