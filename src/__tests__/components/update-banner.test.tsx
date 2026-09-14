@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-native';
 import * as Updates from 'expo-updates';
 
 import { UpdateBanner } from '@/features/updates/update-banner';
@@ -51,7 +51,10 @@ describe('UpdateBanner', () => {
     mockEnv.UPDATE_POLICY = 'opt-in';
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Unmount first: resetting the store while the banner is still mounted notifies its
+    // `useSyncExternalStore` subscriber outside `act(...)`.
+    await cleanup();
     resetUpdatePolicyState();
     devGlobal.__DEV__ = originalDev;
     mockUpdates.isEnabled = false;
