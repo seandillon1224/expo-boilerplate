@@ -1,0 +1,7 @@
+# Native entry for the session steps (subflows/steps/session.yaml). Keep it to these two runFlow lines.
+name: native/session
+appId: ${MAESTRO_APP_ID}
+tags: [ios, android]
+---
+- runFlow: ../subflows/launch.yaml
+- runFlow: ../subflows/steps/session.yaml

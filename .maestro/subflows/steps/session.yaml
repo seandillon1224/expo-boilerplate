@@ -1,0 +1,25 @@
+# Session (T13.6): signing out from Settings drops back through the `(tabs)` guard to the
+# sign-in screen, and signing in again returns to Home.
+#
+# The launch subflow has already signed in, so these steps start on Home like every other flow.
+appId: ${MAESTRO_APP_ID}
+---
+- assertVisible:
+    id: home-screen
+- runFlow:
+    file: ../select-tab.yaml
+    env:
+      TAB: settings
+      TAB_LABEL: Settings
+- assertVisible:
+    id: settings-screen
+- tapOn:
+    id: settings-sign-out
+# `(tabs)` is now guarded out, so the router falls back to the only unguarded group.
+- assertVisible:
+    id: sign-in-screen
+- assertNotVisible:
+    id: settings-screen
+- runFlow: ../sign-in.yaml
+- assertVisible:
+    id: home-screen

@@ -1,7 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Sentry from '@sentry/react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import SettingsScreen from '@/app/(tabs)/(settings)/settings';
+import { resetSessionState, SESSION_STORAGE_KEY } from '@/features/session/use-session';
 
 // The screen reads `env.APP_VARIANT` at render time; mutate the mock to pick a variant.
 const mockEnv = { APP_VARIANT: 'development' as string | undefined };
@@ -14,6 +16,11 @@ jest.mock('@/lib/env', () => ({
 }));
 
 describe('SettingsScreen', () => {
+  beforeEach(async () => {
+    resetSessionState();
+    await AsyncStorage.clear();
+  });
+
   afterEach(() => {
     mockEnv.APP_VARIANT = 'development';
   });
@@ -41,6 +48,17 @@ describe('SettingsScreen', () => {
       { extra: { source: 'settings-sentry-test' } },
     );
     expect(screen.getByTestId('settings-sentry-test-sent')).toBeOnTheScreen();
+  });
+
+  // The guard itself lives in the root layout (src/__tests__/screens/session-guard.test.tsx);
+  // here we only check that the control clears the persisted flag.
+  it('signs out and clears the persisted session', async () => {
+    await AsyncStorage.setItem(SESSION_STORAGE_KEY, 'true');
+    await render(<SettingsScreen />);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('settings-sign-out'));
+    });
+    expect(await AsyncStorage.getItem(SESSION_STORAGE_KEY)).toBeNull();
   });
 
   it('hides the Sentry test button in production', async () => {
