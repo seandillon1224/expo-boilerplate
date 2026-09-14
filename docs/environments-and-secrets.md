@@ -366,7 +366,10 @@ once; afterwards anyone with access to the EAS project builds without Apple acce
    (Apple ID login) and prints the numeric app id. Put that in `eas.json` →
    `submit.production.ios.ascAppId` in a PR; from then on submissions are non-interactive
    (`--non-interactive` + `EXPO_TOKEN`) using the stored API key. `appleTeamId` is not needed once
-   the API key is on EAS.
+   the API key is on EAS. In the same app record create the TestFlight internal group
+   **`Internal`** (App Store Connect → TestFlight → Internal Testing → `+`) with **automatic
+   distribution off** and add the testers: `release.yml`'s `testflight_ios` job adds every release
+   build to that group by name (`TESTFLIGHT_GROUP` constant) and fails if it is missing.
 7. **Push key: skip.** `cli.promptToConfigurePushNotifications` is `false` in `eas.json`; nothing in
    the boilerplate sends push. If a product adds it later, `eas credentials -p ios` →
    `Push Notifications: Manage your Apple Push Notifications Key`.

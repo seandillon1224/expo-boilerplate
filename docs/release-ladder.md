@@ -150,7 +150,7 @@ fingerprint ─┬─ get_build_ios ─────── build_ios      (miss +
 | `build_<p>`     | `build`       | Only on a miss: a fresh internal-distribution staging build (install page + QR). iOS additionally needs `IOS_BUILDS` enabled                                                                                                                  | `build_id`                                                |
 | `update`        | `update`      | `after:` the four build jobs (a failed build never blocks the OTA); `eas update --channel staging --environment preview`, message = commit message; Sentry source maps uploaded from the same export, best-effort until the Sentry vars exist | `first_update_group_id`, `updates_json`                   |
 | `deploy_web`    | `deploy`      | `needs: [update]`; exports web itself and deploys to EAS Hosting as a preview promoted to the `staging` alias. Skipped until `HOSTING` is enabled                                                                                             | `deploy_url`, `deploy_alias_url`, `deploy_deployment_url` |
-| `slack`         | custom steps  | `after:` everything, so it posts on red runs too; composes the summary from `after.<job>` and `POST`s it with Node `fetch`. Exits 0 with a log line while `SLACK_WEBHOOK_URL` is unset                                                        | –                                                         |
+| `slack`         | custom steps  | `after:` everything, so it posts on red runs too; composes the summary from `after.<job>` into a step output, then `eas/send_slack_message` posts it (skipped, with a log line, while `SLACK_WEBHOOK_URL` is unset)                           | –                                                         |
 
 **Reinstall-required rule.** `runtimeVersion` is the native fingerprint, so an update only reaches
 builds with the same hash. A JS-only merge hits the cache: no build, installed staging apps pick the
@@ -248,7 +248,7 @@ resolve ── approve ─┬─ fingerprint_<target> ──┐
 | `build_<p>`            | `build`            | uat only, on a miss: an internal-distribution `uat` build from this checkout (install page + QR). iOS also needs `IOS_BUILDS`.                                                                                                                                                                                                                                                                                                                      |
 | `republish`            | custom steps       | `eas update:republish --group <id> --destination-channel <target> --non-interactive`, plus `--rollout-percentage <n>` when `target=production` and `rollout_percentage` < 100 (the log prints what was applied); `after:` the builds, so a failed uat build never blocks the OTA (it is keyed by runtime and harmless for a platform without a matching build). Message: `promote <id8> (staging → <target>): <original message>`.                  |
 | `promote_web_<target>` | `deploy`           | Exports web from this checkout and deploys it to the `uat` alias / to production (`prod: true`). See _Web_ below.                                                                                                                                                                                                                                                                                                                                   |
-| `slack`                | custom steps       | Same job as staging: verdict, group ids, install links, "reinstall required" when uat builds were cut. Exits 0 while `SLACK_WEBHOOK_URL` is unset.                                                                                                                                                                                                                                                                                                  |
+| `slack`                | custom steps       | Same message shape as staging: verdict, group ids, install links, "reinstall required" when uat builds were cut; still posts with Node `fetch` (the file is at the 16 KiB cap). Exits 0 while `SLACK_WEBHOOK_URL` is unset.                                                                                                                                                                                                                         |
 
 **Fingerprint gate** (PLAN.md decision 13). `runtimeVersion` is the fingerprint, so an update
 only ever runs on a build with the same hash. Per platform in the group:
@@ -306,7 +306,7 @@ workflows ([ADR-0003](adr/0003-update-policies.md); the one-file implementation 
 | ---------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `EXPO_PUBLIC_UPDATE_POLICY`                    | EAS environment variable (`preview` → staging + UAT, `production`) | Build-level policy: `silent` (default), `opt-in` (banner), `forced`. Recommended `forced` on `preview` so testers always run the newest group, `silent` on `production`.          |
 | `EAS_UPDATE_CRITICAL=1`                        | Set on a single `eas update` (`deploy-staging.yml` `critical=yes`) | Marks that update forced through its manifest (`extra.expoClient.extra.updatePolicy`); promotion republishes the manifest unchanged, so the flag rides along to UAT / production. |
-| `rollout_percentage`                           | `promote.yml` input, production only                               | Staged rollout: `eas update:republish --rollout-percentage <n>`; the rest of production keeps the previous group until the rollout is ramped to 100 or ended.                     |
+| `rollout_percentage`                           | `promote.yml` input, production only                               | Staged rollout: `eas update:republish --rollout-percentage <n>`; the rest of production keeps the previous group until the rollout is ramped to 100 (`rollout.yml`) or ended.     |
 | Idle resume (`RESUME_RELOAD_AFTER_MS`, 30 min) | Code constant next to the hook                                     | A downloaded update is applied when the app comes back after ≥ 30 min in the background, under every policy, so a silent update does not wait for a cold start.                   |
 
 ### Staged rollouts (production)
@@ -325,9 +325,11 @@ bun run eas workflow:run .eas/workflows/promote.yml -F target=production -F upda
 bun run eas update:list --branch production --limit 2 --json        # the new group + what the other 90 % still run
 bun run eas update:view <production-group-id> --insights --days 1   # launches, crash rate, unique users of the rollout so far
 
-# Ramp — set the percentage on the group; repeat until 100 (100 ends the rollout: everyone gets it):
-bun run eas update:edit <production-group-id> --rollout-percentage 50 --non-interactive
-bun run eas update:edit <production-group-id> --rollout-percentage 100 --non-interactive
+# Ramp — raise the percentage on the group behind an expo.dev approval; repeat until 100 (100 ends the rollout: everyone gets it):
+bun run eas workflow:run .eas/workflows/rollout.yml -F update_group_id=<production-group-id> -F rollout_percentage=50
+bun run eas workflow:run .eas/workflows/rollout.yml -F update_group_id=<production-group-id> -F rollout_percentage=100
+# CLI fallback (any integer, no approval, no Slack post):
+bun run eas update:edit <production-group-id> --rollout-percentage 60 --non-interactive
 
 # End a bad rollout — publish the previous group again on top of it (same channel, no approval):
 bun run eas update:rollback <production-group-id> --message "rollback: <why>" --non-interactive
@@ -338,9 +340,16 @@ takes nothing back; `update:rollback` needs the rollout group to be the branch's
 not promote another group on top of an open rollout — finish it (100) or end it first;
 `update:rollback` on a rollout group republishes the group the other users were on, so the whole
 channel converges on the old code (it is exactly the [Rollback](#rollback) mechanism, one command).
-Ramping is a CLI action — post the percentage in the Slack thread of the promotion, the workflow
-does not know about it. UAT and staging never roll out: use them to find the problem before
-production sees 10 % of it.
+**Ramping** is `.eas/workflows/rollout.yml` (`Rollout`, `workflow_dispatch` only; not in
+`promote.yml`, which is at the 16 KiB cap): `resolve` looks the group up (`update:view --json`)
+and refuses a group that is not on `production`, has no in-progress rollout, or would go _down_;
+`approve` (`require-approval`) shows the approver the current percentage; then EAS's own
+`update-rollout` job raises it; `slack` posts the result (same webhook as the promotion). The
+input is a `choice` of `25` / `50` / `75` / `100`, one `update-rollout` job per value: eas-cli's
+validator types the job's `rollout_percentage` as an integer and rejects an input expression
+there, so any other number is the `update:edit` fallback above. Unverified until the first staged
+rollout, like the rest of the native lane. UAT and staging never roll out: use them to find the
+problem before production sees 10 % of it.
 
 ### Critical (forced) updates
 
@@ -390,7 +399,7 @@ is `forced`; set it back afterwards. (`production` stays `silent`.)
 | `forced` (build)      | `EXPO_PUBLIC_UPDATE_POLICY=forced`, one publish                             | merge a visible change                                          | The app reloads into the change by itself, within seconds of launch or of coming to the foreground, with no prompt.                                                                                                                   |
 | critical (per update) | `EXPO_PUBLIC_UPDATE_POLICY` = `silent` or `opt-in` (must **not** be forced) | `deploy-staging.yml` dispatch with `critical=yes`               | Same as forced, for this group only — no banner, immediate reload. A following non-critical publish behaves per the build policy again. `resolve` in `promote.yml` logs `→ CRITICAL` for the group.                                   |
 | idle resume           | any policy except forced                                                    | merge a visible change; open the app once so it downloads       | Background the app ≥ 30 min (`RESUME_RELOAD_AFTER_MS`) with the update downloaded (Updates screen: pending), foreground it: the app reloads into the change. Under 30 min it does not.                                                |
-| staged rollout        | production only — a second device or tester on the production build         | promote with `rollout_percentage=10`, then `update:edit` to 100 | `update:view <production-group> --insights` counts launches for the group; `update:list --branch production` shows the rollout group as latest. There is no per-install way to force a device into the rollout bucket — ramp instead. |
+| staged rollout        | production only — a second device or tester on the production build         | promote with `rollout_percentage=10`, then `rollout.yml` to 100 | `update:view <production-group> --insights` counts launches for the group; `update:list --branch production` shows the rollout group as latest. There is no per-install way to force a device into the rollout bucket — ramp instead. |
 
 ## Store release (tag)
 
@@ -441,20 +450,21 @@ bun run eas workflow:validate .eas/workflows/release.yml                        
 
 ```text
 version_check ── fingerprint ─┬─ check_ios ─────┐
-                              └─ check_android ─┴─ gate ─┬─ build_ios (IOS_RELEASE) ── submit_ios (TestFlight)
+                              └─ check_android ─┴─ gate ─┬─ build_ios (IOS_RELEASE) ── testflight_ios (TestFlight)
                                                          └─ build_android ─────────── submit_android (PLAY_SUBMIT)
                                                                                           └───── notify (Slack)
 ```
 
-| Job             | Type          | What it does                                                                                                                                                                                                                                     |
-| --------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `version_check` | custom steps  | Refuses a tag that is not `vX.Y.Z` or does not equal `v` + `expo config` `version` (`APP_VARIANT=production`), with the fix printed (bump + retag, or delete the tag). Outputs `version`.                                                        |
-| `fingerprint`   | `fingerprint` | `environment: production`, `APP_VARIANT=production` — must equal the `production` build profile.                                                                                                                                                 |
-| `check_<p>`     | `get-build`   | Newest finished **store** build of the `production` profile with this fingerprint (`wait_for_in_progress`, so a release already building counts). Skipped for an unselected platform.                                                            |
-| `gate`          | custom steps  | Per selected platform: hit + `force=no` → **skip** with `fingerprint unchanged since last store build <id>; nothing to release — bump native deps or use force=yes`, **exit 0** (the run stays green); miss or `force=yes` → `release_<p>=true`. |
-| `build_<p>`     | `build`       | `production` profile (`distribution: store`, `channel: production`, `autoIncrement`). Message `release <tag> (<version>)`. iOS also needs `IOS_RELEASE`.                                                                                         |
-| `submit_<p>`    | `submit`      | `submit.production` in `eas.json`: iOS upload with no App Store release = TestFlight, internal group (automatic distribution); Android `track: internal`. Android needs `PLAY_SUBMIT`.                                                           |
-| `notify`        | custom steps  | Same Slack job as staging: verdict, build links, where each platform landed (TestFlight internal group / Play internal track), run URL. Exits 0 while `SLACK_WEBHOOK_URL` is unset (`production` environment).                                   |
+| Job              | Type          | What it does                                                                                                                                                                                                                                                                                 |
+| ---------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version_check`  | custom steps  | Refuses a tag that is not `vX.Y.Z` or does not equal `v` + `expo config` `version` (`APP_VARIANT=production`), with the fix printed (bump + retag, or delete the tag). Outputs `version`.                                                                                                    |
+| `fingerprint`    | `fingerprint` | `environment: production`, `APP_VARIANT=production` — must equal the `production` build profile.                                                                                                                                                                                             |
+| `check_<p>`      | `get-build`   | Newest finished **store** build of the `production` profile with this fingerprint (`wait_for_in_progress`, so a release already building counts). Skipped for an unselected platform.                                                                                                        |
+| `gate`           | custom steps  | Per selected platform: hit + `force=no` → **skip** with `fingerprint unchanged since last store build <id>; nothing to release — bump native deps or use force=yes`, **exit 0** (the run stays green); miss or `force=yes` → `release_<p>=true`.                                             |
+| `build_<p>`      | `build`       | `production` profile (`distribution: store`, `channel: production`, `autoIncrement`). Message `release <tag> (<version>)`. iOS also needs `IOS_RELEASE`.                                                                                                                                     |
+| `testflight_ios` | `testflight`  | EAS's TestFlight job (`submit.production` profile): uploads the build, adds it to the internal group **`Internal`** (`TESTFLIGHT_GROUP` constant — a group _without_ automatic distribution, created once in App Store Connect), sets "What to Test" to `Release <tag>`, no Beta App Review. |
+| `submit_android` | `submit`      | `submit.production` in `eas.json`: Android `track: internal`. Needs `PLAY_SUBMIT`.                                                                                                                                                                                                           |
+| `notify`         | custom steps  | Same Slack job as staging: verdict, build links, where each platform landed (TestFlight group `Internal` / Play internal track), run URL. Exits 0 while `SLACK_WEBHOOK_URL` is unset (`production` environment).                                                                             |
 
 **Unchanged-fingerprint rule.** A store build is only worth cutting when the native surface
 changed: the OTA lane already carries every JS-only change to installed production apps
@@ -466,18 +476,21 @@ refuses a group whose fingerprint has no store build; `release.yml` is how that 
 exist. After a release with a new fingerprint, promote the staging group again — it now hits.
 
 **Where things land.** iOS: App Store Connect → TestFlight → the build appears under the internal
-group(s) with automatic distribution (`groups:` on the `submit` job, or the `testflight` job, can
-target named groups later). Android: Play Console → Testing → Internal testing. Neither is a store
-release; promotion to review / production tracks stays manual in the consoles for now (D1).
+group `Internal` (plus any group with automatic distribution), "What to Test" = `Release <tag>`.
+The group name is a repo constant (`TESTFLIGHT_GROUP`, `internal_groups` on `testflight_ios`) and
+the group must exist and must _not_ auto-distribute, or the job fails — [iOS runbook, step
+6](environments-and-secrets.md#ios-runbook-owner). Android: Play Console → Testing → Internal
+testing. Neither is a store release; promotion to review / production tracks stays manual in the
+consoles for now (D1).
 Builds: expo.dev → project → Builds, message `release <tag> (<version>)`.
 
 **Repo constants (flip in one PR: the `|| '<literal>'` on the job `if` and the matching
 `workflow_dispatch` input default).**
 
-| Constant      | Default    | Job              | Enable when                                                                                                                                                                                                                       |
-| ------------- | ---------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `IOS_RELEASE` | `disabled` | `build_ios`      | App Store credentials for `production` and the App Store Connect API key are on EAS and `ascAppId` is in `submit.production.ios` ([iOS runbook](environments-and-secrets.md#ios-runbook-owner), steps 4–5). `submit_ios` follows. |
-| `PLAY_SUBMIT` | `disabled` | `submit_android` | The first AAB was uploaded to Play by hand and the service-account key is on EAS ([Google Play runbook](environments-and-secrets.md#google-play-runbook-owner)). Android builds run either way.                                   |
+| Constant      | Default    | Job              | Enable when                                                                                                                                                                                                                           |
+| ------------- | ---------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IOS_RELEASE` | `disabled` | `build_ios`      | App Store credentials for `production` and the App Store Connect API key are on EAS and `ascAppId` is in `submit.production.ios` ([iOS runbook](environments-and-secrets.md#ios-runbook-owner), steps 4–6). `testflight_ios` follows. |
+| `PLAY_SUBMIT` | `disabled` | `submit_android` | The first AAB was uploaded to Play by hand and the service-account key is on EAS ([Google Play runbook](environments-and-secrets.md#google-play-runbook-owner)). Android builds run either way.                                       |
 
 **Holding, skipping and re-cutting.** To hold a release, leave the release PR open — it keeps
 collecting merges and re-rendering; do not close it (release-please reopens one on the next push).
@@ -764,7 +777,7 @@ A backport group is a normal `production` group under the tag's runtime, so the
 ```sh
 bun run eas update:list --branch production --runtime-version <fingerprint> --limit 3   # the backport must be the newest group for that runtime
 bun run eas update:view <backport-group-id> --insights --days 1                          # adoption / crash rate on the old runtime
-bun run eas update:edit <backport-group-id> --rollout-percentage 100 --non-interactive   # ramp (up only)
+bun run eas workflow:run .eas/workflows/rollout.yml -F update_group_id=<backport-group-id> -F rollout_percentage=100   # ramp (up only; or update:edit)
 bun run eas update:rollback <backport-group-id> --message "rollback: <why>" --non-interactive            # back to what that runtime ran before (or embedded)
 bun run eas update:republish --group <earlier-group-id> --message "rollback: <why>" --non-interactive   # a specific earlier group of that runtime
 ```
