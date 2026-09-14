@@ -146,6 +146,10 @@ export default withMermaid(
               text: 'ADR-0006: Maestro Cloud as an opt-in workflow',
               link: '/adr/0006-maestro-cloud-optional-job',
             },
+            {
+              text: 'ADR-0007: Flashlight as an opt-in Android hook',
+              link: '/adr/0007-flashlight-android-perf-hook',
+            },
           ],
         },
       ],

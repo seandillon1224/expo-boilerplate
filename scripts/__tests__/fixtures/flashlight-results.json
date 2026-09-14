@@ -1,0 +1,25 @@
+{
+  "name": "abc1234",
+  "iterations": [
+    {
+      "time": 4200,
+      "status": "SUCCESS",
+      "measures": [
+        { "cpu": { "perName": { "UI Thread": 40, "mqt_js": 20 } }, "ram": 200, "fps": 58 },
+        { "cpu": { "perName": { "UI Thread": 20, "mqt_js": 20 } }, "ram": 220, "fps": 60 }
+      ]
+    },
+    {
+      "time": 3800,
+      "status": "SUCCESS",
+      "measures": [
+        { "cpu": { "perName": { "UI Thread": 30, "mqt_js": 30 } }, "ram": 240, "fps": 56 }
+      ]
+    },
+    {
+      "time": 9000,
+      "status": "FAILURE",
+      "measures": []
+    }
+  ]
+}

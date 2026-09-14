@@ -16,7 +16,8 @@ question each layer answers, where to look, when it runs, and what a failure mea
 | Did this PR regress render time?                                 | Reassure                     | CI `Perf (Reassure)` step summary / `reassure` artifact; locally `.reassure/output.md` ([perf-tests.md](perf-tests.md)) | Every PR (informational, not required)                                  | A statistically significant slowdown in any `*.perf-test.tsx` (`perf:gate`)                      |
 | Are real users seeing slow startup / navigation after a release? | EAS Observe                  | `bun run observe:check`, `bun run eas observe:*`, expo.dev → Observe ([observe.md](observe.md))                         | Continuously on staging / UAT / production installs; check after a soak | `observe:check`: a (version, platform) row over `observe-budget.json` with ≥ `minSamples` events |
 | Is there a crash or JS error in the field?                       | Sentry                       | Sentry issue stream (tags `update_id`, `channel`, `runtime_version`); `src/lib/sentry.ts`                               | Release builds with `EXPO_PUBLIC_SENTRY_DSN` set                        | Nothing automatically; errors only, no perf tracing (see below)                                  |
-| Does the app still work end to end on a release build?           | Maestro E2E                  | `E2E (native)` EAS workflow, CI `Maestro web` ([native-e2e.md](native-e2e.md))                                          | Every PR                                                                | A flow assertion; not a perf signal (Flashlight would attach here, deferred)                     |
+| Does the app still work end to end on a release build?           | Maestro E2E                  | `E2E (native)` EAS workflow, CI `Maestro web` ([native-e2e.md](native-e2e.md))                                          | Every PR                                                                | A flow assertion; not a perf signal                                                              |
+| Did this PR change release-build CPU / RAM / FPS on Android?     | Flashlight                   | `E2E (native)` run → artifact **Flashlight (android)** (`report/` HTML + `results.json`); locally `flashlight/`         | Opt-in (`FLASHLIGHT` constant or `-F flashlight=enabled` dispatch)      | Nothing; informational, no budget yet ([ADR-0007](adr/0007-flashlight-android-perf-hook.md))     |
 
 ## The layers
 
@@ -75,12 +76,48 @@ upload with `bun run sentry:sourcemaps` after an export or `eas update`. `traces
 auto performance / app-start / frames tracking are off: Sentry answers "what threw", never "what is
 slow".
 
+### Flashlight (release-build CPU / RAM / FPS on Android) — `scripts/flashlight.js`
+
+[Flashlight](https://docs.flashlight.dev) (by BAM) profiles the app process on an Android device
+while a command runs, N times, and scores CPU, RAM and frame rate into a static HTML report. It is
+the only layer that measures a **release build on a device before release**: Reassure measures
+render cost under Jest, Observe measures real installs after the fact. It runs as an
+`after_maestro_tests` hook of the `maestro_android` job in `.eas/workflows/e2e.yml`, where the
+emulator is still up with the e2e build installed, and profiles one flow —
+`.maestro/flows/fetch.yaml` (launch with cleared state → fetch screen → data on screen) — for 5
+iterations of 10 s (`bun run perf:flashlight --platform android --no-fail --out flashlight`).
+
+- **Enable it.** Off by default behind the `FLASHLIGHT` repo constant (`disabled`), the
+  [`IOS_MODE` idiom](native-e2e.md#tiered-mode): dispatch one run with
+  `bun run eas workflow:run .eas/workflows/e2e.yml -F flashlight=enabled`, or flip the input's
+  `default` in the file to run on every PR. The step never fails the job: a disabled constant, a
+  missing `adb` / `maestro` / `flashlight` / device or a failed run is a notice in the step log and
+  a `README.txt` in the artifact.
+- **Read it.** Run page → Artifacts → **Flashlight (android)**: `report/` (open `index.html`;
+  score, per-iteration CPU / RAM / FPS charts, thread breakdown), `results.json` (the raw
+  measures) and `README.txt` (iterations, average time / CPU / RAM / FPS). The step log prints
+  the same summary.
+- **Compare two runs.** Download both `results.json`, then
+  `flashlight report base/results.json pr/results.json -o compare` renders them side by side.
+- **Locally.** `bun run e2e:android --keep` (emulator stays up with the build), then
+  `bun run perf:flashlight --platform android [--iterations 5] [--flow <path>] [--device <serial>]`;
+  `--install` fetches Flashlight (`curl https://get.flashlight.dev | bash`, CI does this by
+  itself). Exits 1 on any problem without `--no-fail`.
+- **Noise.** Emulator numbers are relative, not device numbers: compare only run-to-run on the
+  same worker class (`linux-large-nested-virtualization`) or the same laptop, and treat a
+  difference smaller than the run-to-run spread as nothing. That variance is why there is no
+  budget yet: once a few runs show it, add `flashlight-budget.json` and a gate the way
+  `observe-budget.json` / `observe:check` do it.
+- **Maintenance.** Flashlight's npm packages were last published in mid-2024 (v0.18); the repo
+  still receives commits. Opt-in and informational until that settles
+  ([ADR-0007](adr/0007-flashlight-android-perf-hook.md)).
+
 ## Lifecycle
 
 | Stage           | What runs                                                                                                                                                                                   | Owner                                                           |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | Local dev       | Rozenite panels while you work; `bun run atlas` / `atlas:export` when a dependency or bundle question comes up; `bun run perf:baseline` + `perf` before pushing a change you expect to cost | The engineer                                                    |
-| PR gate         | `Bundle budget (web \| ios \| android)` (required), `Perf (Reassure)` (informational), `Maestro web` + `E2E (native)` for behaviour                                                         | `.github/workflows/ci.yml`, `.eas/workflows/e2e.yml`            |
+| PR gate         | `Bundle budget (web \| ios \| android)` (required), `Perf (Reassure)` (informational), `Maestro web` + `E2E (native)` for behaviour, Flashlight inside `E2E (native)` when enabled          | `.github/workflows/ci.yml`, `.eas/workflows/e2e.yml`            |
 | Merge to `main` | `Deploy staging` publishes the OTA group and prints the previous groups' Observe TTI state (`observe` job, never fails)                                                                     | `.eas/workflows/deploy-staging.yml`                             |
 | Post-deploy     | Staging soak → `bun run observe:check --days <soak> --version <v>` (or the `Observe check` workflow) before approving `Promote`; Sentry issue stream for errors                             | The promotion approver ([release-ladder.md](release-ladder.md)) |
 
@@ -93,10 +130,10 @@ runners from a JS-only export.
   tracking). Observe already measures startup and navigation on real installs with the Expo Router
   integration, and one source of truth for "is production slow" is the point; a second tracer
   would double the event volume and split the answer. Turn it on only if Observe is dropped.
-- **Flashlight.** PLAN.md decision 7 defers it to a later epic; the research ticket is
-  [#63](https://github.com/seandillon1224/expo-boilerplate/issues/63) (T9.4). It would score
-  release-build performance (FPS, CPU, RAM) inside the Android Maestro lane, not replace any layer
-  above. Do not wire it ad hoc; it needs the grill session that ticket produces.
+- **A Flashlight gate.** The hook is informational on purpose: emulator variance is unknown until
+  a few runs exist. Do not add a threshold before a baseline shows the spread (see
+  [Flashlight](#flashlight-release-build-cpu-ram-fps-on-android-—-scripts-flashlight-js)).
+- **Flashlight on iOS.** Flashlight has no iOS profiler; nothing to wire.
 - **Firebase Performance Monitoring** (or any other prod perf SDK). Same reason as Sentry tracing:
   Observe owns production telemetry, and adding a second native module moves the fingerprint and
   cold launch for every install.
