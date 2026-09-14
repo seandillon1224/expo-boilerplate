@@ -21,7 +21,8 @@
  *
  * Why classic protection (not rulesets) and no required reviews / enforce_admins: the queue pushes
  * `chore(queue): ...` commits straight to `main` and squash-merges PRs as soon as CI is green.
- * The gate is the required checks; `Perf (Reassure)` is informational and deliberately excluded.
+ * The gate is the required checks; `Perf (Reassure)` and `Fingerprint drift` are informational and
+ * deliberately excluded (`INFORMATIONAL`).
  *
  * Environments (T5.2, #41): a GitHub Actions job that declares `environment: uat|production`
  * (release.yml, T5.3) waits for one of the reviewers below before it runs — that is the human
@@ -50,7 +51,9 @@ const { spawnSync } = require('node:child_process');
 const BRANCH = 'main';
 
 // Must match `name:` in .github/workflows/ci.yml and pr-title.yml (the matrix job expands to
-// "Bundle budget (<platform>)").
+// "Bundle budget (<platform>)"). Every job in those two workflows must appear either here or in
+// INFORMATIONAL below; scripts/__tests__/repo-settings.test.ts parses the workflows and fails on
+// a job that is in neither, or on a required check that no job produces (T10.6, #159).
 const REQUIRED_CHECKS = [
   'Lint',
   'Typecheck',
@@ -65,9 +68,15 @@ const REQUIRED_CHECKS = [
   'Bundle budget (ios)',
   'Bundle budget (android)',
   'Maestro web',
+  'Docs',
   'Template init',
   'PR title',
 ];
+
+// CI jobs that deliberately do NOT gate merge. `Perf (Reassure)` fails on a statistically
+// significant slowdown, which a shared CI runner produces on its own; `Fingerprint drift` is a
+// PR comment + label, never red. Both are documented as informational in docs/js-gate.md.
+const INFORMATIONAL = ['Perf (Reassure)', 'Fingerprint drift'];
 
 // Every label the automation adds, filters on or opens issues with. Where each one is used:
 //   epic:*            `/ship-next` (`gh pr create --label epic:<E>`), the queue ledger, PLAN.md epics
@@ -726,6 +735,7 @@ function main(argv, ctx = { gh: defaultGh, log: (line) => console.log(line) }) {
 
 module.exports = {
   DESIRED,
+  INFORMATIONAL,
   LABELS,
   REQUIRED_CHECKS,
   RepoSettingsError,

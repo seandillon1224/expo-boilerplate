@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- plain-Node script under test; no @types/node */
 const {
   DESIRED,
+  INFORMATIONAL,
   LABELS,
+  REQUIRED_CHECKS,
   SECTIONS,
   apiArgs,
   collectDrift,
@@ -503,5 +505,65 @@ describe('pages (GitHub Pages source = Actions)', () => {
       'repo view',
       `api repos/${SLUG}/pages`,
     ]);
+  });
+});
+
+describe('REQUIRED_CHECKS vs the workflows (T10.6, #159)', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+
+  /**
+   * Job-level check names in a GitHub workflow. Job `name:` sits at four spaces (`jobs:` → job id
+   * → key); step names are deeper and prefixed with `- `, and the workflow `name:` is at column 0.
+   * A matrix job whose name interpolates `${{ matrix.<key> }}` expands to one name per value of
+   * that key, exactly as GitHub reports the checks.
+   */
+  function checkNames(file: string): string[] {
+    const source: string = fs.readFileSync(path.join(__dirname, '..', '..', file), 'utf8');
+    // Split into job blocks: a two-space key under `jobs:` starts one.
+    const blocks = source.split(/^ {2}[A-Za-z0-9_-]+:$/m).slice(1);
+    const names: string[] = [];
+    for (const block of blocks) {
+      const name = block.match(/^ {4}name: (.+)$/m)?.[1]?.trim();
+      if (!name) continue;
+      const matrixKey = name.match(/\$\{\{ matrix\.([A-Za-z0-9_]+) \}\}/)?.[1];
+      if (!matrixKey) {
+        names.push(name);
+        continue;
+      }
+      const values = block.match(new RegExp(`^ +${matrixKey}: \\[([^\\]]+)\\]$`, 'm'))?.[1];
+      if (!values) throw new Error(`${file}: no matrix values for "${matrixKey}" in "${name}"`);
+      for (const value of values.split(',').map((v) => v.trim())) {
+        names.push(name.replace(/\$\{\{ matrix\.[A-Za-z0-9_]+ \}\}/, value));
+      }
+    }
+    if (names.length === 0) throw new Error(`${file}: no job names found`);
+    return names;
+  }
+
+  const jobs = [
+    ...checkNames('.github/workflows/ci.yml'),
+    ...checkNames('.github/workflows/pr-title.yml'),
+  ];
+
+  it('parses the matrix job the way GitHub names its checks', () => {
+    expect(jobs).toContain('Bundle budget (web)');
+    expect(jobs).toContain('Bundle budget (android)');
+    expect(jobs).not.toContain('CI');
+  });
+
+  it('classifies every CI job as required or informational', () => {
+    const classified = [...REQUIRED_CHECKS, ...INFORMATIONAL];
+    const unclassified = jobs.filter((name) => !classified.includes(name));
+    expect(unclassified).toEqual([]);
+  });
+
+  it('requires no check that no job produces', () => {
+    const orphans = [...REQUIRED_CHECKS, ...INFORMATIONAL].filter((c) => !jobs.includes(c));
+    expect(orphans).toEqual([]);
+  });
+
+  it('keeps REQUIRED_CHECKS and INFORMATIONAL disjoint', () => {
+    expect(REQUIRED_CHECKS.filter((c: string) => INFORMATIONAL.includes(c))).toEqual([]);
   });
 });

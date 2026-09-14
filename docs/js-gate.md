@@ -79,7 +79,10 @@ commits (`:semanticCommits`).
 
 The required checks live in code, not in the GitHub UI:
 
-1. Edit `REQUIRED_CHECKS` (or the rest of `DESIRED`) in `scripts/repo-settings.js`.
+1. Edit `REQUIRED_CHECKS` (or the rest of `DESIRED`) in `scripts/repo-settings.js`. A job that is
+   deliberately not a gate goes in `INFORMATIONAL` in the same file instead: every job name in
+   `ci.yml` and `pr-title.yml` must appear in one of the two lists (and nothing may be listed that
+   no job produces), which `scripts/__tests__/repo-settings.test.ts` parses the workflows to check.
 2. `bun run repo:settings` to preview the `gh api` calls (dry run, default).
 3. `bun run repo:settings:apply` to `PUT` branch protection, `PATCH` repo settings, `PUT` the
    `uat` / `production` environments, upsert the labels and point GitHub Pages at Actions (needs
