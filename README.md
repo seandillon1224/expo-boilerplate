@@ -50,11 +50,11 @@ flowchart LR
 
 Who runs what:
 
-| System                                | Workflows                                                                                                                                                                                                                                                   |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GitHub Actions (`.github/workflows/`) | `ci.yml` = the JS gate (required checks, plus informational `Perf (Reassure)` and `Fingerprint drift`); `pr-title.yml`; `release.yml` = the `production` Environment reviewer that dispatches the EAS store release on a `vX.Y.Z` tag                       |
-| EAS Workflows (`.eas/workflows/`)     | `e2e.yml` (PR native check), `preview-web.yml` (PR web preview), `deploy-staging.yml` (push to `main`), `promote.yml` (manual, `require-approval`), `release.yml` (store builds + submit), `register-device.yml`, `observe-check.yml`, `e2e-quarantine.yml` |
-| EAS Build / Update / Hosting          | Builds keyed by fingerprint (CI never runs Metro); channels `staging` / `uat` / `production` mirror the variants; web aliases `pr-N` / `staging` / `uat` and the production URL                                                                             |
+| System                                | Workflows                                                                                                                                                                                                                                                                                           |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub Actions (`.github/workflows/`) | `ci.yml` = the JS gate (required checks, plus informational `Perf (Reassure)` and `Fingerprint drift`); `pr-title.yml`; `release.yml` = the `production` Environment reviewer that dispatches the EAS store release on a `vX.Y.Z` tag                                                               |
+| EAS Workflows (`.eas/workflows/`)     | `e2e.yml` (PR native check), `preview-web.yml` (PR web preview), `deploy-staging.yml` (push to `main`), `promote.yml` (manual, `require-approval`), `release.yml` (store builds + submit), `register-device.yml`, `observe-check.yml`, `e2e-quarantine.yml`, `e2e-cloud.yml` (opt-in Maestro Cloud) |
+| EAS Build / Update / Hosting          | Builds keyed by fingerprint (CI never runs Metro); channels `staging` / `uat` / `production` mirror the variants; web aliases `pr-N` / `staging` / `uat` and the production URL                                                                                                                     |
 
 Two rules hold on the ladder: what UAT signed off is byte-for-byte what production gets (promotions republish an update group, never re-bundle), and an update only reaches builds with the same native fingerprint. Details, rollback and hotfix: [Release ladder](docs/release-ladder.md).
 
@@ -86,10 +86,7 @@ Deliberately not in the template (PLAN.md decision 5: no auth, backend or forms)
 - **Analytics** — PostHog (`posthog-react-native`) or Segment; keep the key in EAS environment variables and read it through `@/lib/env`.
 - **Storybook** — deliberately not included (PLAN.md decision 14); the demo screens plus RNTL and Reassure cover component work.
 - **Multi-runtime OTA backports** — shipping OTA-safe fixes to older store runtimes ([#61](https://github.com/seandillon1224/expo-boilerplate/issues/61)).
-- **Update policies** — forced / opt-in / silent updates and rollout % on top of `useUpdatePolicy` ([#62](https://github.com/seandillon1224/expo-boilerplate/issues/62)).
 - **Flashlight** — Android performance scores in the native E2E lane ([#63](https://github.com/seandillon1224/expo-boilerplate/issues/63)).
-- **oxlint** — a fast first pass in front of ESLint ([#64](https://github.com/seandillon1224/expo-boilerplate/issues/64)).
-- **Maestro Cloud** — an optional device-farm job ([#66](https://github.com/seandillon1224/expo-boilerplate/issues/66)).
 
 ## Docs
 

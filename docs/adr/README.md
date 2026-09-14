@@ -30,3 +30,4 @@ inherits as-is (it describes the template the project started from).
 | [0003](0003-update-policies.md)               | Update policies: silent, opt-in, forced, critical  | Accepted |
 | [0004](0004-oxlint-front-pass.md)             | oxlint as a fast front pass in front of ESLint     | Accepted |
 | [0005](0005-a11y-hierarchy-audit.md)          | Accessibility E2E as a hierarchy audit             | Accepted |
+| [0006](0006-maestro-cloud-optional-job.md)    | Maestro Cloud as an opt-in EAS workflow            | Accepted |

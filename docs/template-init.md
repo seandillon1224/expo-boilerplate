@@ -110,7 +110,7 @@ manifest fails CI.
 | `src/lib/query-client.ts`                                                    | persisted query-cache key                                                                                    |
 | `scripts/repo-settings.js`                                                   | `uat` / `production` environment reviewer login (= the GitHub repo owner; change if it is an org)            |
 | `.maestro/config.yaml`                                                       | the `MAESTRO_APP_ID` example                                                                                 |
-| `.eas/workflows/e2e.yml`, `e2e-quarantine.yml`                               | `MAESTRO_APP_ID` (bundle id on the iOS job, package on the Android job)                                      |
+| `.eas/workflows/e2e.yml`, `e2e-quarantine.yml`, `e2e-cloud.yml`              | `MAESTRO_APP_ID` (bundle id on the iOS job, package on the Android job)                                      |
 | `.eas/workflows/e2e.yml`, `deploy-staging.yml`, `promote.yml`, `release.yml` | `expo.dev/accounts/<owner>/projects/<slug>` links                                                            |
 | `docs/*.md`                                                                  | bundle id / package examples, credentials table, dev-domain, staging web URL, expo.dev and GitHub links      |
 

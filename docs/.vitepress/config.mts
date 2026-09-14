@@ -142,6 +142,10 @@ export default withMermaid(
               text: 'ADR-0005: Accessibility E2E as a hierarchy audit',
               link: '/adr/0005-a11y-hierarchy-audit',
             },
+            {
+              text: 'ADR-0006: Maestro Cloud as an opt-in workflow',
+              link: '/adr/0006-maestro-cloud-optional-job',
+            },
           ],
         },
       ],

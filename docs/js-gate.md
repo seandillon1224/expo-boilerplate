@@ -94,7 +94,8 @@ or `--only protection` after renaming a job. The repo is whatever `gh repo view`
 
 `DESIRED.labels` holds every label the automation adds or filters on — `epic:E*`, `in-progress`
 and `needs-human` (`/ship-next`), `deep-dive`, `flaky-flow` + `e2e` (the flaky-flow issue
-template), `e2e:ios` (`.eas/workflows/e2e.yml`), `fingerprint-drift` (the `Fingerprint drift`
+template), `e2e:ios` (`.eas/workflows/e2e.yml`), `e2e:cloud` (`.eas/workflows/e2e-cloud.yml`),
+`fingerprint-drift` (the `Fingerprint drift`
 job) and `dependencies` (Renovate) — with a color and description each. Apply creates missing
 labels and patches a changed color or description; it never deletes a label it does not know
 about, so GitHub's defaults and hand-made labels survive. New automation that adds a label goes
