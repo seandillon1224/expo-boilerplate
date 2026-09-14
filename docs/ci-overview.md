@@ -78,6 +78,28 @@ from forks ([JS gate → How EAS checks appear on the PR](js-gate.md#how-eas-che
 | `observe-check.yml`   | `Observe check`        | `workflow_dispatch` (`platform`, `days`, `version`, `strict`); cron commented out                                                              | `observe` (`bun run observe:check`)                                                                                                                                                                          | Informational unless `strict=on`; meant to run after a staging soak, before a promotion                                                                                                                                                                                                                         | —                            | [EAS Observe → Gating on TTI](observe.md#gating-on-tti-staging-soak--check--promote) |
 | `register-device.yml` | `Register test device` | `workflow_dispatch` (`apple_team_id`, `note`)                                                                                                  | `register` (`apple-device-registration-request`: QR code on the run page, then a team member approves)                                                                                                       | Needs the App Store Connect API key on EAS                                                                                                                                                                                                                                                                      | —                            | [Device onboarding](device-onboarding.md)                                            |
 
+### Where the job logic lives
+
+A workflow file is a wiring diagram, not a program: anything longer than a couple of lines lives in
+**`scripts/eas/`** and the YAML calls it with `node scripts/eas/<x>.js`. That keeps every file under
+the 16 KiB cap, stops the same shell block from being copy-pasted across workflows, and makes the
+decisions unit-testable (`scripts/__tests__/eas-scripts.test.ts`) — these workflows gate real
+releases and cannot be run locally.
+
+| Script                           | Used by                             | Does                                                                           |
+| -------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------ |
+| `promote-resolve.js`             | `promote.yml` `resolve`             | Which staging update group is promoted, and is it critical (ADR-0003)          |
+| `rollout-resolve.js`             | `rollout.yml` `resolve`             | The group's current rollout, and the three refusals that keep a ramp going up  |
+| `update-view.js`                 | both resolvers                      | The one `eas update:view` call (injected as `run` in the tests)                |
+| `fingerprint-gate.js --mode <m>` | `promote.yml`, `release.yml` `gate` | Per platform: reuse the build, cut one, refuse, or skip green                  |
+| `backport.js`                    | `backport.yml` `backport`           | The per-tag cherry-pick → fingerprint gate → `eas update` loop, with a timeout |
+| `slack-compose.js <workflow>`    | the four `slack` / `notify` jobs    | The Slack mrkdwn, from the job's `env:` block                                  |
+
+Two rules these scripts follow. They read a dependency's results through **`after.<job>.outputs.*`**
+(never `needs.*`) — see the job `env:` blocks — because the jobs that report depend via `after:` so
+they still run on a red run. And they use **Node built-ins only**, enforced by
+`scripts/__tests__/builtins-only.test.ts`: a job may run them before `eas/install_node_modules`.
+
 ### Repo constants
 
 EAS workflows have no top-level `env`, and `inputs.*` are empty on any run that is not a

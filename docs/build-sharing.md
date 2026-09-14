@@ -34,12 +34,12 @@ pushed to people by two jobs: `slack` (staging / uat / production / release runs
 ## Slack channel
 
 The `slack` jobs are **custom steps**, not `type: slack` — eas-cli's validator rejects an
-expression in that job's `webhook_url`, and a webhook is a secret. Each job composes Slack
-mrkdwn from `after.<job>` outputs into `slack.txt`, reads it into a step output, and a guard step
-decides whether the `eas/send_slack_message` step runs (that built-in _does_ take
-`slack_hook_url: ${{ env.SLACK_WEBHOOK_URL }}`); `promote.yml` still `POST`s with Node's `fetch`
-because it is at the 16 KiB file cap. The URL never reaches the log. The only configuration is one
-variable:
+expression in that job's `webhook_url`, and a webhook is a secret. Each job declares its
+`after.<job>` statuses and outputs as an `env:` block, `scripts/eas/slack-compose.js <workflow>`
+turns that into Slack mrkdwn, the job reads it into a step output, and a guard step decides whether
+the `eas/send_slack_message` step runs (that built-in _does_ take
+`slack_hook_url: ${{ env.SLACK_WEBHOOK_URL }}`). The URL never reaches the log. The only
+configuration is one variable:
 
 | Variable            | Where                                                                           | Read by                                                                                                                  |
 | ------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |

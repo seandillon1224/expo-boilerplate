@@ -135,23 +135,20 @@ describe('applyRules (fixture strings)', () => {
     }
   });
 
-  it('rewrites the expo.dev project URL in the OTA workflows (backport.yml prints an update link)', () => {
+  // T11.3 moved the OTA workflows' job logic into scripts/eas/, and the project URL with it.
+  it('rewrites the expo.dev project URL in the backport loop (it prints an update link)', () => {
     const fixture =
-      'echo "$t: PUBLISHED group $group https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/updates/$group"';
-    const { content, counts } = applyRules(fixture, rulesFor('.eas/workflows/backport.yml'));
-    expect(content).toContain(
-      'https://expo.dev/accounts/acme-team/projects/acme-mobile/updates/$group',
-    );
+      "const PROJECT_URL = 'https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate';";
+    const { content, counts } = applyRules(fixture, rulesFor('scripts/eas/backport.js'));
+    expect(content).toContain("'https://expo.dev/accounts/acme-team/projects/acme-mobile';");
     expect(counts).toEqual([{ id: 'expo.dev project URL', count: 1, min: 1 }]);
   });
 
-  it('rewrites the expo.dev project URL in the rollout Slack message', () => {
+  it('rewrites the expo.dev project URL in the shared Slack composer', () => {
     const fixture =
-      '• *Update*: <https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/updates/${{ inputs.update_group_id }}|x> on `production`';
-    const { content, counts } = applyRules(fixture, rulesFor('.eas/workflows/rollout.yml'));
-    expect(content).toContain(
-      'https://expo.dev/accounts/acme-team/projects/acme-mobile/updates/${{ inputs.update_group_id }}',
-    );
+      "const PROJECT_URL = 'https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate';";
+    const { content, counts } = applyRules(fixture, rulesFor('scripts/eas/slack-compose.js'));
+    expect(content).toContain("'https://expo.dev/accounts/acme-team/projects/acme-mobile';");
     expect(counts).toEqual([{ id: 'expo.dev project URL', count: 1, min: 1 }]);
   });
 

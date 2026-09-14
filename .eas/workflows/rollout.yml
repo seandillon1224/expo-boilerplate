@@ -1,8 +1,8 @@
 # Rollout ramp (ADR-0003, PLAN.md decision 13): raise the rollout percentage of a production
 # update group that promote.yml (or backport.yml) published below 100. resolve (prints branch /
 # runtime / current rollout for the approver) → approve → ramp (EAS's own `update-rollout` job:
-# up only; 100 ends the rollout, everyone gets the group) → Slack. Lives here, not in promote.yml,
-# because that file is at the 16 KiB cap. Runbook: docs/release-ladder.md → Staged rollouts.
+# up only; 100 ends the rollout, everyone gets the group) → Slack. Job logic: scripts/eas/,
+# not in promote.yml, which is a different rung. Runbook: docs/release-ladder.md → Staged rollouts.
 #
 # `rollout_percentage` is a `choice` fanned into one `update-rollout` job per value: eas-cli's
 # validator (23.x) types that param as an integer and rejects a `${{ inputs.… }}` expression in
@@ -43,21 +43,7 @@ jobs:
         name: Look up the group
         run: |
           export EXPO_TOKEN="${ eas.job.secrets.robotAccessToken }"
-          cat > resolve.js <<'__JS__'
-          const { execFileSync } = require('node:child_process');
-          const group = process.env.GROUP.trim();
-          const updates = JSON.parse(execFileSync('bun', ['run', 'eas', 'update:view', group, '--json', '--non-interactive'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }));
-          if (!Array.isArray(updates) || updates.length === 0) { console.error(`Update group ${group} not found.`); process.exit(1); }
-          const u = updates[0];
-          if (u.branch !== 'production') { console.error(`Update group ${group} is on branch "${u.branch}" — only production groups roll out (promote.yml).`); process.exit(1); }
-          const rollout = u.rolloutPercentage;
-          if (rollout === undefined || rollout === null) { console.error(`Update group ${group} has no in-progress rollout (published at 100, or already completed) — nothing to ramp.`); process.exit(1); }
-          if (Number(process.env.TARGET) < rollout) { console.error(`rollout_percentage ${process.env.TARGET} is below the current ${rollout}% — ramps go up only (docs/release-ladder.md → Staged rollouts).`); process.exit(1); }
-          console.log(`group ${group} on ${u.branch}: ${rollout}% → ${process.env.TARGET}%`);
-          for (const x of updates) console.log(`  ${x.platform} runtime ${x.runtimeVersion} — ${x.message ?? ''}`);
-          require('node:fs').writeFileSync('outputs.txt', `rollout\t${rollout}\nmessage\t${(u.message ?? '').slice(0, 120)}`);
-          __JS__
-          node resolve.js
+          node scripts/eas/rollout-resolve.js --group "$GROUP" --to "$TARGET"
           while IFS=$'\t' read -r key value; do set-output "$key" "$value"; done < outputs.txt
 
   approve:
@@ -112,18 +98,24 @@ jobs:
     name: Slack
     # Same shape as deploy-staging.yml: compose → guard → `eas/send_slack_message`. `after` on
     # everything so the post goes out on a red run too; the guard skips it without SLACK_WEBHOOK_URL.
+    # The wording lives in scripts/eas/slack-compose.js, which reads this env block.
     after: [resolve, approve, ramp_25, ramp_50, ramp_75, ramp_100]
     environment: production
+    env:
+      TARGET_PCT: ${{ inputs.rollout_percentage }}
+      GROUP_ID: ${{ inputs.update_group_id }}
+      WORKFLOW_URL: ${{ workflow.url }}
+      RESOLVE_STATUS: ${{ after.resolve.status }}
+      APPROVE_STATUS: ${{ after.approve.status }}
+      GROUP_MESSAGE: ${{ after.resolve.outputs.message }}
+      ROLLOUT_WAS: ${{ after.resolve.outputs.rollout }}
+      # One `update-rollout` job per choice; exactly one ran. `success` anywhere = ramped.
+      RAMP_STATUSES: ${{ after.ramp_25.status }} ${{ after.ramp_50.status }} ${{ after.ramp_75.status }} ${{ after.ramp_100.status }}
     steps:
+      - uses: eas/checkout
       - id: compose
         name: Compose message
-        run: |
-          cat > slack.txt <<'__SLACK_MSG__'
-          *Rollout → ${{ inputs.rollout_percentage }}%* · ${{ (after.ramp_25.status == 'success' || after.ramp_50.status == 'success' || after.ramp_75.status == 'success' || after.ramp_100.status == 'success') ? '✅ ramped' : after.approve.status == 'failure' ? '🚫 rejected' : after.resolve.status == 'failure' ? '❌ refused (see the run log)' : '❌ ramp failed' }} · group `${{ substring(inputs.update_group_id || '', 0, 8) }}` ${{ after.resolve.outputs.message ? '— ' + after.resolve.outputs.message : '' }}
-          • *Update*: <https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/updates/${{ inputs.update_group_id }}|${{ substring(inputs.update_group_id || '', 0, 8) }}> on `production` · was ${{ after.resolve.outputs.rollout || '?' }}% · <${{ workflow.url }}|workflow run>
-          • ${{ inputs.rollout_percentage == '100' ? 'Rollout complete: every production install picks it up on next launch.' : 'Watch it: `bun run eas update:view ' + inputs.update_group_id + ' --insights --days 1`' }}
-          __SLACK_MSG__
-          set-output text "$(cat slack.txt)"
+        run: set-output text "$(node scripts/eas/slack-compose.js rollout)"
       - id: guard
         name: Skip without webhook
         run: |

@@ -188,29 +188,34 @@ jobs:
     # environment) from the VM env and the send step is skipped while it is unset; nothing to flip
     # once the owner sets it. Unverified until the webhook exists (the step ran in no run yet).
     # `after` on everything so the post goes out on a red run too; `after.<job>.status` is
-    # success | failure | skipped.
+    # success | failure | skipped, and a skipped job has no outputs (so every value can be empty).
+    # The wording lives in scripts/eas/slack-compose.js, which reads this env block; `set-output`
+    # base64-encodes the value, so the multi-line text survives as a step output.
     after:
       [fingerprint, get_build_ios, build_ios, get_build_android, build_android, update, deploy_web]
     environment: preview
+    env:
+      WORKFLOW_URL: ${{ workflow.url }}
+      SHA: ${{ github.sha }}
+      COMMIT_MESSAGE: ${{ github.commit_message }}
+      CRITICAL: ${{ inputs.critical }}
+      UPDATE_STATUS: ${{ after.update.status }}
+      UPDATE_GROUP_ID: ${{ after.update.outputs.first_update_group_id }}
+      IOS_FP: ${{ after.fingerprint.outputs.ios_fingerprint_hash }}
+      ANDROID_FP: ${{ after.fingerprint.outputs.android_fingerprint_hash }}
+      BUILD_IOS_STATUS: ${{ after.build_ios.status }}
+      BUILD_IOS_ID: ${{ after.build_ios.outputs.build_id }}
+      GET_BUILD_IOS_ID: ${{ after.get_build_ios.outputs.build_id }}
+      BUILD_ANDROID_STATUS: ${{ after.build_android.status }}
+      BUILD_ANDROID_ID: ${{ after.build_android.outputs.build_id }}
+      GET_BUILD_ANDROID_ID: ${{ after.get_build_android.outputs.build_id }}
+      DEPLOY_WEB_STATUS: ${{ after.deploy_web.status }}
+      DEPLOY_URL: ${{ after.deploy_web.outputs.deploy_url }}
     steps:
-      # Slack mrkdwn, written through a quoted heredoc so a commit message cannot reach the shell.
-      # Every ternary guards its string functions (`x || ''`): the evaluator resolves both
-      # branches, and a skipped job has no outputs. The expo.dev account/slug prefix has no
-      # context — `bun run init` (T7.1) rewrites it. `set-output` base64-encodes the value, so the
-      # multi-line text survives as a step output.
+      - uses: eas/checkout
       - id: compose
         name: Compose message
-        run: |
-          cat > slack.txt <<'__SLACK_MSG__'
-          *Staging* · ${{ after.update.status == 'success' ? '✅ published' : after.update.status == 'failure' ? '❌ update failed' : '⏭️ update skipped' }}${{ inputs.critical == 'yes' ? ' · 🚨 *critical* (forced reload)' : '' }} · `${{ substring(github.sha || '', 0, 7) }}` ${{ github.commit_message ? '— ' + substring(github.commit_message || '', 0, 120) : '(manual run)' }}
-          ${{ (after.build_ios.status == 'success' || after.build_android.status == 'success') ? ':warning: *Reinstall required* — the native fingerprint changed, new staging builds were cut. Installed apps will NOT receive this update.' : 'JS-only change: installed staging apps pick it up on next launch.' }}
-          • *iOS*: ${{ after.build_ios.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_ios.outputs.build_id + '|new build — install page + QR>' : after.get_build_ios.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.get_build_ios.outputs.build_id + '|current build — install page + QR>' : after.build_ios.status == 'failure' ? '❌ build failed (credentials? docs/environments-and-secrets.md → iOS runbook)' : '⏭️ no build for this fingerprint (IOS_BUILDS disabled)' }}
-          • *Android*: ${{ after.build_android.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.build_android.outputs.build_id + '|new build — install page + QR>' : after.get_build_android.outputs.build_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/builds/' + after.get_build_android.outputs.build_id + '|current build — install page + QR>' : '❌ build failed (' + after.build_android.status + ')' }}
-          • *Update*: ${{ after.update.outputs.first_update_group_id ? '<https://expo.dev/accounts/seandillon1224/projects/expo-boilerplate/updates/' + after.update.outputs.first_update_group_id + '|' + substring(after.update.outputs.first_update_group_id || '', 0, 8) + '> · `bun run eas update:view ' + after.update.outputs.first_update_group_id + '`' : 'none' }}
-          • *Web*: ${{ after.deploy_web.outputs.deploy_url ? '<' + after.deploy_web.outputs.deploy_url + '|' + after.deploy_web.outputs.deploy_url + '>' : after.deploy_web.status == 'failure' ? '❌ deploy failed' : '⏭️ skipped (HOSTING disabled)' }}
-          • *Fingerprint*: ios `${{ substring(after.fingerprint.outputs.ios_fingerprint_hash || '', 0, 12) }}` · android `${{ substring(after.fingerprint.outputs.android_fingerprint_hash || '', 0, 12) }}` · <${{ workflow.url }}|workflow run>
-          __SLACK_MSG__
-          set-output text "$(cat slack.txt)"
+        run: set-output text "$(node scripts/eas/slack-compose.js staging)"
       - id: guard
         name: Skip without webhook
         run: |
