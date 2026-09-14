@@ -1,7 +1,9 @@
 # Conventions
 
-The house rules, in one place and written for people. `CLAUDE.md` is the same set compressed into an
-agent brief; [ADR-0001](adr/0001-locked-architecture-decisions.md) holds the decisions the rules
+The house rules, in one place and written for people. `CLAUDE.md` is the agent brief: the
+non-negotiables plus a pointer to the page that owns each rule — this one.
+[Commands](commands.md) is the script reference and
+[ADR-0001](adr/0001-locked-architecture-decisions.md) holds the decisions the rules
 come from. When a rule here says "lint-enforced"
 or "hook-enforced", the enforcement is the source of truth and this page is the explanation.
 
@@ -293,8 +295,8 @@ whole dependency tree — cannot publish to Pages or mint an OIDC token even if 
   republishes of the same update group — never a re-bundle — and an update only reaches builds
   with the same fingerprint ([Release ladder](release-ladder.md)).
 - Workflow behaviour that depends on something the owner has not set up yet is behind a repo
-  constant (`HOSTING`, `IOS_BUILDS`, `IOS_RELEASE`, `PLAY_SUBMIT`, `IOS_MODE`), flipped in a PR
-  ([CI overview → Repo constants](ci-overview.md#repo-constants)). Runs stay green until then.
+  constant — a literal in the YAML, flipped in a PR, with the full list in
+  [CI overview → Repo constants](ci-overview.md#repo-constants). Runs stay green until then.
 - Required checks, merge settings, environments and labels are code
   (`scripts/repo-settings.js`); change them there and re-apply, never in the GitHub UI
   ([JS gate → Changing the required set](js-gate.md#changing-the-required-set)).
@@ -308,8 +310,9 @@ whole dependency tree — cannot publish to Pages or mint an OIDC token even if 
 ## Docs
 
 - **One page per concern** under `docs/`, named for the concern (`native-e2e.md`, not `e4.md`), with
-  a one-line entry in the README's Docs index and, when a command or rule is involved, a pointer in
-  `CLAUDE.md`. [CI overview](ci-overview.md) is the entry point for anything that runs in CI.
+  a one-line entry in the README's Docs index. A new script goes in [Commands](commands.md); a rule
+  an agent must not break goes in `CLAUDE.md` too, otherwise a pointer there is enough.
+  [CI overview](ci-overview.md) is the entry point for anything that runs in CI.
 - Explain _why_ in the doc and keep the YAML / script comments short and pointing here (EAS caps a
   workflow file at 16 KiB).
 - Link sections, not just files (`js-gate.md#how-merging-works`), and cite decisions as
