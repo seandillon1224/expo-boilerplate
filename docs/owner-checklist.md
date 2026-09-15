@@ -267,15 +267,36 @@ Nothing here blocks the ladder; each is a plan or a judgement call.
 
 Only relevant while this is the template repo, or right after `bun run init`.
 
-### Install the Renovate GitHub App
+### Take Renovate out of Silent mode
 
-- [ ] [github.com/apps/renovate](https://github.com/apps/renovate) → install on the repository.
-      `renovate.json` is in the repo; the app is what opens PRs.
-- **Unlocks:** dependency PRs (`chore(deps)`, auto-merge on per `scripts/repo-settings.js`). With no
-  app installed the config is inert and the repo silently drifts behind.
-- **Flip:** —
+The Renovate app **is** installed. The Mend repo setting `Dependency Updates (Renovate)` is
+**Silent**, which runs the job and computes every update but creates no PRs and no issues — so the
+dashboard shows jobs `DONE` while the repo has zero `renovate/*` branches and zero Renovate PRs.
+Do not read an empty `gh pr list --author app/renovate` as "not installed"; both states look
+identical from the repo side.
+
+- [ ] Run `bun run repo:settings:apply` **first** — auto-merge (`platformAutomerge: true` for dev
+      tooling patch/minor) is gated only by the required checks on `main`, and `Docs` is not live
+      yet. Enabling Renovate before this lets a dependency bump auto-merge past a broken docs build.
+- [ ] [developer.mend.io](https://developer.mend.io) → this repo → Repo Engine Settings →
+      `Dependency Updates (Renovate)` → change **Silent** to **Enabled** (use the repo SETTINGS
+      override if the value is inherited from the org default).
+- **Unlocks:** dependency PRs (`chore(deps)`, auto-merge per `scripts/repo-settings.js`).
+- **Flip:** the Mend setting only — nothing in this repo changes.
 - **Proof:** `gh pr list --author app/renovate` is non-empty; `bunx expo install --check` stops
   reporting Expo packages behind.
+
+Two things that make "nothing happened" look like a failure when it isn't:
+
+- `schedule: ['before 6am on monday']` gates branch and PR creation. Outside that window Renovate
+  still runs and still updates the **Dependency Dashboard** issue (`config:recommended` enables it);
+  ticking a checkbox there forces that PR immediately and bypasses the schedule. That is the way to
+  bleed off the backlog in controlled batches without editing the config.
+- `minimumReleaseAge: '3 days'` + `internalChecksFilter: 'strict'` hold an update back entirely
+  while a release is less than three days old, rather than falling through to an older version.
+
+No flood risk: the config sets no `prConcurrentLimit` / `prHourlyLimit`, so Renovate's defaults
+apply — 10 concurrent PRs, 2 created per hour.
 
 ### GitHub Pages source
 
@@ -322,8 +343,9 @@ Outstanding:
 - `bun run repo:settings:apply --only labels` — `web-preview` is missing.
 - Re-run the checks on the open release-please PR (push an empty commit, or close and reopen it —
   they predate several required checks), then merge it to cut the first version.
-- [Install the Renovate GitHub App](#install-the-renovate-github-app) — never installed; the repo is
-  ~30 packages behind and `bunx expo install --check` reports 11 Expo packages a patch behind.
+- [Take Renovate out of Silent mode](#take-renovate-out-of-silent-mode) — installed but silenced, so
+  it has never opened a PR; the repo is ~30 packages behind and `bunx expo install --check` reports
+  11 Expo packages a patch behind.
 - The next production promotion needs a store release tag first: `expo-dev-client` moved the native
   fingerprint after the last one.
 - Everything in [First real runs still owed](#first-real-runs-still-owed): no EAS workflow has run
