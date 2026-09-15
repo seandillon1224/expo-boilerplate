@@ -1,4 +1,5 @@
-// Renovate config. Requires the Renovate GitHub App to be installed on the repo
+// Renovate config. Requires the Renovate GitHub App installed AND the Mend repo setting
+// `Dependency Updates (Renovate)` set to Enabled, not Silent (Silent runs jobs but opens no PRs)
 // (https://github.com/apps/renovate). Bun lockfiles are supported natively.
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',

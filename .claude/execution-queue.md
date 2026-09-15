@@ -119,7 +119,7 @@ _Repo audit 2026-09-14 (app code, scripts, CI/EAS workflows, docs). E10 first: e
 - [x] **#159 T10.6** — `Docs` missing from REQUIRED_CHECKS + guard that every CI job is required or listed informational
 - [x] **#160 T10.7** — Renovate config hardening (groups, release age, custom managers for Maestro/Bun)
 - [x] **#161 T10.8** — remove stale 'bump version + push tag' instructions (contradict release-please, ADR-0002)
-- [M] **Renovate** — install the Renovate GitHub App on the repo (no Renovate PR has ever run; ~30 packages behind). Do after #160 merges.
+- [M] **Renovate** — the app IS installed; the Mend repo setting `Dependency Updates (Renovate)` is **Silent**, so jobs run but create no PRs/issues (verified 2026-09-14: jobs DONE on the Mend dash, zero `renovate/*` branches, zero Renovate PRs). Flip Silent → Enabled on the Mend dashboard. Run `repo:settings:apply` FIRST: auto-merge is gated on `main` required checks and `Docs` is not live yet. `schedule: before 6am on monday` gates PR creation — use the Dependency Dashboard issue checkboxes to force PRs sooner. ~30 packages behind.
 
 ### E11 — Hardening: scripts, workflows, supply chain (tracker #151)
 
