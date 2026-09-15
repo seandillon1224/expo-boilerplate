@@ -30,7 +30,7 @@ What has to be true for a PR to be gated properly on `main`.
 
 ### Push branch protection, merge settings and labels
 
-- [ ] `bun run repo:settings:apply` (first run after creating the repo; `bun run init` offers it)
+- [x] `bun run repo:settings:apply` (first run after creating the repo; `bun run init` offers it)
 - [ ] re-run it after any change to `REQUIRED_CHECKS` or `LABELS` in `scripts/repo-settings.js`
 - **Unlocks:** every JS-gate job becomes a required check on `main`, squash-only merging with
   auto-merge for Renovate, and the labels the workflows key on (`web-preview`, `e2e:cloud`,
@@ -275,10 +275,10 @@ dashboard shows jobs `DONE` while the repo has zero `renovate/*` branches and ze
 Do not read an empty `gh pr list --author app/renovate` as "not installed"; both states look
 identical from the repo side.
 
-- [ ] Run `bun run repo:settings:apply` **first** — auto-merge (`platformAutomerge: true` for dev
+- [x] Run `bun run repo:settings:apply` **first** — auto-merge (`platformAutomerge: true` for dev
       tooling patch/minor) is gated only by the required checks on `main`, and `Docs` is not live
       yet. Enabling Renovate before this lets a dependency bump auto-merge past a broken docs build.
-- [ ] [developer.mend.io](https://developer.mend.io) → this repo → Repo Engine Settings →
+- [x] [developer.mend.io](https://developer.mend.io) → this repo → Repo Engine Settings →
       `Dependency Updates (Renovate)` → change **Silent** to **Enabled** (use the repo SETTINGS
       override if the value is inherited from the org default).
 - **Unlocks:** dependency PRs (`chore(deps)`, auto-merge per `scripts/repo-settings.js`).
@@ -300,7 +300,7 @@ apply — 10 concurrent PRs, 2 created per hour.
 
 ### GitHub Pages source
 
-- [ ] `bun run repo:settings:apply --only pages` (sets the Pages source to GitHub Actions)
+- [x] `bun run repo:settings:apply --only pages` (sets the Pages source to GitHub Actions)
 - **Unlocks:** `.github/workflows/docs.yml` publishing the VitePress site on every push to `main`.
 - **Flip:** —
 - **Proof:** `bun run repo:settings:check` reports no `pages.*` drift; the site loads.
@@ -328,26 +328,25 @@ unverified.
 
 Delete this section in a project created from the template — it is `seandillon1224/expo-boilerplate`'s
 own state, not yours (which is why `bun run init` leaves this file alone rather than rewriting it).
-Last audited **2026-09-14** (`bun run repo:settings:check`, `gh secret list`, `gh pr list`).
+Last audited **2026-09-15** (`bun run repo:settings:check`, `gh secret list`, `gh pr list`).
 
-Done: `EXPO_TOKEN` and `RELEASE_PLEASE_TOKEN` repository secrets, the `uat` / `production`
-environments (created, policies still drifted), Android keystores for all four application ids,
-every label except `web-preview`.
+Done: `bun run repo:settings:apply` — `repo:settings:check` reports a match across all five
+sections (protection, repo, environments, labels, pages), so `Docs` is now enforced, a `v*` tag can
+deploy `release.yml`, and `web-preview` exists. `EXPO_TOKEN` and `RELEASE_PLEASE_TOKEN` repository
+secrets. Android keystores for all four application ids. Renovate out of Silent mode — Dependency
+Dashboard #211 lists 25 updates awaiting the Monday schedule and 4 held by `minimumReleaseAge`.
 
 Outstanding:
 
-- `bun run repo:settings:apply --only protection` — `Docs` is in `REQUIRED_CHECKS` but not in live
-  branch protection.
-- `bun run repo:settings:apply --only environments` — both environments' deployment branch policies
-  are still `protected_branches`, so a `v*` tag cannot deploy `release.yml`.
-- `bun run repo:settings:apply --only labels` — `web-preview` is missing.
-- Re-run the checks on the open release-please PR (push an empty commit, or close and reopen it —
-  they predate several required checks), then merge it to cut the first version.
-- [Take Renovate out of Silent mode](#take-renovate-out-of-silent-mode) — installed but silenced, so
-  it has never opened a PR; the repo is ~30 packages behind and `bunx expo install --check` reports
-  11 Expo packages a patch behind.
-- The next production promotion needs a store release tag first: `expo-dev-client` moved the native
-  fingerprint after the last one.
+- **Merge release-please PR #136 (`chore(main): release 1.1.0`).** It is green on all 18 checks and
+  rebased; the #184 changelog fix cleared it with no manual re-run needed. Merging tags `v1.1.0` and
+  hands off to `release.yml` → EAS build → TestFlight, so it is also the first real exercise of the
+  tag → `production` environment path that `--only environments` just unblocked. Check the App Store
+  prerequisites below first — an ASC API key, the app record + `ascAppId`, and a TestFlight group
+  named exactly `Internal` all gate the job that runs after the tag.
+- Three native fingerprint bumps landed on 2026-09-14 (`expo-dev-client` added, `expo-image`
+  removed, `ITSAppUsesNonExemptEncryption`), so a store release is required before the next
+  production promotion. PR #136 is how you get one.
 - Everything in [First real runs still owed](#first-real-runs-still-owed): no EAS workflow has run
   against GitHub, no staging update group exists, no `SLACK_WEBHOOK_URL` has ever been set.
 - Decide whether `Bash(bunx --package renovate:*)` stays in `.claude/settings.json` — it has no call

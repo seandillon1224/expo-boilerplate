@@ -119,7 +119,7 @@ _Repo audit 2026-09-14 (app code, scripts, CI/EAS workflows, docs). E10 first: e
 - [x] **#159 T10.6** — `Docs` missing from REQUIRED_CHECKS + guard that every CI job is required or listed informational
 - [x] **#160 T10.7** — Renovate config hardening (groups, release age, custom managers for Maestro/Bun)
 - [x] **#161 T10.8** — remove stale 'bump version + push tag' instructions (contradict release-please, ADR-0002)
-- [M] **Renovate** — the app IS installed; the Mend repo setting `Dependency Updates (Renovate)` is **Silent**, so jobs run but create no PRs/issues (verified 2026-09-14: jobs DONE on the Mend dash, zero `renovate/*` branches, zero Renovate PRs). Flip Silent → Enabled on the Mend dashboard. Run `repo:settings:apply` FIRST: auto-merge is gated on `main` required checks and `Docs` is not live yet. `schedule: before 6am on monday` gates PR creation — use the Dependency Dashboard issue checkboxes to force PRs sooner. ~30 packages behind.
+- [x] **Renovate** — done 2026-09-14: the app was installed but the Mend repo setting `Dependency Updates (Renovate)` was **Silent** (jobs ran, no PRs/issues). Owner flipped Silent off / Automated PRs on; Dependency Dashboard #211 appeared with 25 updates awaiting the `before 6am on monday` schedule and 4 held by `minimumReleaseAge`. `eslint` majors are pinned off in #212 (expo's plugin peers cap at eslint 9).
 
 ### E11 — Hardening: scripts, workflows, supply chain (tracker #151)
 
