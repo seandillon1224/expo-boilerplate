@@ -82,6 +82,20 @@
       matchUpdateTypes: ['major'],
       enabled: false,
     },
+    // ESLint stays on 9. `eslint-config-expo` pulls in `eslint-plugin-react` (peer `<=^9.7`) and
+    // `eslint-plugin-import` (peer `<=^9`); neither accepts ESLint 10, and both are transitive
+    // deps of that config, so they cannot be bumped out of the way — the rule above disables
+    // `eslint-config-expo` majors, which is what would carry the fix. Without this rule Renovate
+    // reopens the same doomed v10 PR every week.
+    // Revisit when `eslint-config-expo` ships `eslint-plugin-react` >= 7.38 / `eslint-plugin-import`
+    // >= 2.33 with an `^10` peer: check with
+    //   bun pm ls --all | grep -E 'eslint-plugin-(react|import)@'
+    // then flip this to `enabled: true` and let the v10 PR run the gate.
+    {
+      matchPackageNames: ['eslint'],
+      matchUpdateTypes: ['major'],
+      enabled: false,
+    },
     // oxlint and its ESLint bridge (ADR-0004): the plugin's rule list must match the oxlint
     // binary, so they bump in lockstep. Later rules win, so this comes after the generic
     // dev-tooling group to pull both packages out of it. Minor/patch only: an oxlint major
